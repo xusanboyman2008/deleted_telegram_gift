@@ -49,7 +49,7 @@
         <div v-for="g in gifts" :key="g.id" class="gift-card" @click="openSheet(g)">
           <div class="card-media">
             <img v-if="getGiftImg(g.animation)" :src="getGiftImg(g.animation)" class="card-img" alt="gift"/>
-            <lottie-anim v-else-if="g.animation" :filename="g.animation"></lottie-anim>
+            <lottie-anim v-else-if="g.animation" :filename="g.animation" :fallback-img="getFallbackPng(g.animation)"></lottie-anim>
             <span v-else class="card-emoji-fallback">{{ g.emoji }}</span>
           </div>
           <div class="card-title">{{ g.display_name || g.emoji }}</div>
@@ -126,7 +126,7 @@
           <div class="sheet-ring sr1" :style="sheetRingStyle(1)"></div>
           <div class="sheet-ring sr2" :style="sheetRingStyle(2)"></div>
           <img v-if="getGiftImg(selected.animation)" :src="getGiftImg(selected.animation)" class="sheet-img-preview"/>
-          <lottie-anim v-else-if="selected.animation" :filename="selected.animation" class="sheet-lottie"></lottie-anim>
+          <lottie-anim v-else-if="selected.animation" :filename="selected.animation" :fallback-img="getFallbackPng(selected.animation)" class="sheet-lottie"></lottie-anim>
           <div v-else class="sheet-emoji">{{ selected.emoji }}</div>
         </div>
 
@@ -151,8 +151,19 @@
           </button>
         </div>
 
+        <div class="gift-msg-field">
+          <span class="msg-icon">💬</span>
+          <input
+            v-model="giftMsg"
+            class="gift-msg-input"
+            placeholder="Custom Gift Message (Optional)"
+            maxlength="120"
+            @keydown.enter="pay"
+          />
+        </div>
+
         <a href="https://t.me/xusanboyman200" target="_blank" class="real-user-btn">
-          👤 Buy via Real User (@xusanboyman200)
+          👤 Buy Direct (@xusanboyman200)
         </a>
 
         <p v-if="errMsg" class="err-msg">{{ errMsg }}</p>

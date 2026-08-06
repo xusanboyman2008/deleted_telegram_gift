@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS orders (
     total_stars     INTEGER NOT NULL,
     status          TEXT NOT NULL DEFAULT 'pending',
     payment_charge  TEXT,
+    gift_text       TEXT,
     created_at      TEXT DEFAULT (datetime('now')),
     updated_at      TEXT DEFAULT (datetime('now'))
 )
@@ -82,6 +83,7 @@ CREATE TABLE IF NOT EXISTS orders (
     total_stars     INTEGER NOT NULL,
     status          TEXT NOT NULL DEFAULT 'pending',
     payment_charge  TEXT,
+    gift_text       TEXT,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
@@ -101,6 +103,8 @@ async def init_db():
         async with pool.acquire() as conn:
             await conn.execute(CREATE_GIFTS_POSTGRES)
             await conn.execute(CREATE_ORDERS_POSTGRES)
+            try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS gift_text TEXT")
+            except Exception: pass
             
             for g in GIFTS_SEED:
                 await conn.execute(
@@ -114,6 +118,8 @@ async def init_db():
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(CREATE_GIFTS_SQLITE)
             await db.execute(CREATE_ORDERS_SQLITE)
+            try: await db.execute("ALTER TABLE orders ADD COLUMN gift_text TEXT")
+            except Exception: pass
             await db.commit()
 
             await db.executemany(
@@ -212,23 +218,23 @@ async def delete_gift(gift_id: int):
 
 # ── Order CRUD ─────────────────────────────────────────────────────────────
 
-async def create_order(buyer_tg_id, buyer_username, recipient_id, recipient_type, gift_id, total_stars):
+async def create_order(buyer_tg_id, buyer_username, recipient_id, recipient_type, gift_id, total_stars, gift_text: str = None):
     if IS_POSTGRES:
         async with pool.acquire() as conn:
             new_id = await conn.fetchval(
                 """INSERT INTO orders
-                   (buyer_tg_id, buyer_username, recipient_id, recipient_type, gift_id, total_stars)
-                   VALUES ($1, $2, $3, $4, $5, $6) RETURNING id""",
-                int(buyer_tg_id), buyer_username, recipient_id, recipient_type, int(gift_id), int(total_stars)
+                   (buyer_tg_id, buyer_username, recipient_id, recipient_type, gift_id, total_stars, gift_text)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id""",
+                int(buyer_tg_id), buyer_username, recipient_id, recipient_type, int(gift_id), int(total_stars), gift_text
             )
             return new_id
     else:
         async with aiosqlite.connect(DB_PATH) as db:
             cur = await db.execute(
                 """INSERT INTO orders
-                   (buyer_tg_id, buyer_username, recipient_id, recipient_type, gift_id, total_stars)
-                   VALUES (?,?,?,?,?,?)""",
-                (buyer_tg_id, buyer_username, recipient_id, recipient_type, gift_id, total_stars),
+                   (buyer_tg_id, buyer_username, recipient_id, recipient_type, gift_id, total_stars, gift_text)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (buyer_tg_id, buyer_username, recipient_id, recipient_type, gift_id, total_stars, gift_text),
             )
             await db.commit()
             return cur.lastrowid

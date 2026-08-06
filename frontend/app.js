@@ -26,11 +26,23 @@ const api = (url, opts = {}) => fetch(url, {
 });
 
 // ── Image Fallback mapping per animation ───────
-const IMG_MAP = {
-  'pink_bear.json': 'assets/rose_bear.gif',
-  'plumber_bear.json': 'assets/worker.gif',
-  'football_bear.json': 'assets/football.gif',
+const IMG_MAP = {};
+
+// ── Static PNG Fallback mapping if Lottie JSON fails to load ──
+const FALLBACK_PNG_MAP = {
+  'pink_bear.json': 'assets/rose_bear.png',
+  'plumber_bear.json': 'assets/worker_bear.png',
+  'football_bear.json': 'assets/football_bear.png',
+  'bunny_bear.json': 'assets/bunny_basket.png',
+  'joker_bear.json': 'assets/balloon_bear.png',
+  'santa_bear.json': 'assets/santa_teddy.png',
+  'gnome_bear.json': 'assets/gnome_bear.png',
+  'hear.json': 'assets/iloveu_bear.png',
+  'green_tree.json': 'assets/green_tree.png',
+  'hug_bear.json': 'assets/hug_bear.png',
+  'hugging_bear.json': 'assets/hug_bear.png',
 };
+const getFallbackPng = anim => FALLBACK_PNG_MAP[anim] || null;
 
 // ── Lottie Cache ───────────────────────────────
 const animCache = {};
@@ -64,6 +76,18 @@ const LottieAnim = {
       }
     };
 
+    const playAnim = () => {
+      if (inst) {
+        try { inst.goToAndPlay(0, true); } catch {}
+      }
+    };
+
+    const stopAnim = () => {
+      if (inst) {
+        try { inst.pause(); } catch {}
+      }
+    };
+
     const load = async () => {
       await nextTick();
       if (!props.filename) {
@@ -81,8 +105,8 @@ const LottieAnim = {
         inst = lottie.loadAnimation({
           container: el.value,
           renderer: 'svg',
-          loop: true,
-          autoplay: true,
+          loop: false, // Stop animation after playing once
+          autoplay: true, // Play once on load
           animationData: JSON.parse(JSON.stringify(data)),
           rendererSettings: {
             preserveAspectRatio: 'xMidYMid meet',
@@ -98,10 +122,16 @@ const LottieAnim = {
     onMounted(load);
     watch(() => props.filename, load);
     Vue.onUnmounted(destroy);
-    return { el, failed };
+    return { el, failed, playAnim, stopAnim };
   },
   template: `
-    <div class="lottie-box-wrap" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
+    <div
+      class="lottie-box-wrap"
+      style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"
+      @mouseenter="playAnim"
+      @mouseleave="stopAnim"
+      @touchstart.passive="playAnim"
+    >
       <div v-show="!failed" ref="el" class="lottie-box"></div>
       <img v-if="failed && fallbackImg" :src="fallbackImg" class="card-img" alt="gift"/>
     </div>
@@ -156,6 +186,7 @@ createApp({
     const gifts = ref([]);
     const selected = ref(null);
     const recipient = ref('');
+    const giftMsg = ref('');
     const paying = ref(false);
     const errMsg = ref('');
     const toast = ref('');
@@ -211,7 +242,7 @@ createApp({
 
     // ── Sheet Controls ─────────────────────────
     const openSheet = g => {
-      selected.value = g; recipient.value = ''; errMsg.value = '';
+      selected.value = g; recipient.value = ''; giftMsg.value = ''; errMsg.value = '';
       if (tg) { tg.BackButton.show(); tg.BackButton.onClick(closeSheet); }
     };
     const closeSheet = () => {
@@ -297,7 +328,11 @@ createApp({
         const r = await api('/api/invoice', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ recipient_id: rcpt, gift_id: selected.value.id }),
+          body: JSON.stringify({
+            recipient_id: rcpt,
+            gift_id: selected.value.id,
+            gift_text: giftMsg.value.trim() || null
+          }),
         });
         const data = await r.json();
         if (!r.ok) throw new Error(data.detail || 'Failed');
@@ -401,9 +436,9 @@ createApp({
     };
 
     return {
-      tab, gifts, selected, recipient, paying, errMsg, toast,
+      tab, gifts, selected, recipient, giftMsg, paying, errMsg, toast,
       isAdmin, showAdmin, aTab, adminGifts, adminOrders, myOrders, user, form,
-      sheetGlowStyle, sheetRingStyle, getGiftImg, scrollToGifts, openRealUserContact, isNumeric,
+      sheetGlowStyle, sheetRingStyle, getGiftImg, getFallbackPng, scrollToGifts, openRealUserContact, isNumeric,
       openSheet, closeSheet, pickContact, setRecipientMe, pay, loadHistory,
       loadAdminGifts, loadAdminOrders, openAddForm, editGift, saveGift, toggleActive, delGift,
     };

@@ -414,39 +414,43 @@ html, body {
 /* ── Recipient Input ─────────────────────────── */
 .recipient-wrap {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
   width: 100%;
+  box-sizing: border-box;
 }
 .recipient-field {
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   background: rgba(255, 255, 255, 0.06);
   border: 1.5px solid rgba(255, 255, 255, 0.1);
   border-radius: 14px;
-  padding: 0 14px;
+  padding: 0 10px;
 }
 .recipient-field:focus-within {
   border-color: rgba(123, 97, 255, 0.6);
   background: rgba(123, 97, 255, 0.08);
 }
-.at { color: rgba(255, 255, 255, 0.4); font-size: 0.95rem; margin-right: 2px; }
+.at { color: rgba(255, 255, 255, 0.4); font-size: 0.95rem; margin-right: 2px; flex-shrink: 0; }
 .rec-input {
   flex: 1;
+  min-width: 0;
+  width: 100%;
   background: none;
   border: none;
   outline: none;
   color: #FFFFFF;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-family: inherit;
-  padding: 14px 0;
+  padding: 12px 0;
 }
 .rec-input::placeholder { color: rgba(255, 255, 255, 0.25); }
 
 .pick-btn {
-  width: 50px;
-  height: 50px;
+  width: 46px;
+  height: 46px;
   flex-shrink: 0;
   border-radius: 14px;
   background: rgba(123, 97, 255, 0.15);
@@ -456,26 +460,54 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background 0.2s, transform 0.1s;
 }
+.pick-btn:active {
+  background: rgba(123, 97, 255, 0.3);
+  transform: scale(0.95);
+}
+
 .me-btn {
-  height: 50px;
-  padding: 0 14px;
+  height: 46px;
+  padding: 0 12px;
   flex-shrink: 0;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.1);
   border: 1.5px solid rgba(255, 255, 255, 0.2);
   color: #FFFFFF;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  white-space: nowrap;
   transition: background 0.2s, transform 0.1s;
 }
 .me-btn:active {
   background: rgba(255, 255, 255, 0.25);
   transform: scale(0.95);
+}
+
+@media (max-width: 375px) {
+  .sheet {
+    padding: 10px 12px calc(18px + env(safe-area-inset-bottom));
+  }
+  .recipient-wrap {
+    gap: 6px;
+  }
+  .me-btn {
+    padding: 0 10px;
+    font-size: 0.8rem;
+    height: 44px;
+  }
+  .pick-btn {
+    width: 44px;
+    height: 44px;
+  }
+  .rec-input {
+    font-size: 0.85rem;
+  }
 }
 
 /* ── Admin Bottom Box ────────────────────────── */
@@ -570,42 +602,73 @@ html, body {
 .rub-desc { font-size: 0.72rem; color: rgba(255, 255, 255, 0.6); margin-top: 1px; }
 .rub-arrow { font-size: 1.1rem; color: #60A5FA; font-weight: 700; }
 
+/* ── Gift Custom Message Field ───────────────── */
+.gift-msg-field {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 0 10px;
+  margin-top: -2px;
+}
+.gift-msg-field:focus-within {
+  border-color: rgba(123, 97, 255, 0.5);
+  background: rgba(123, 97, 255, 0.06);
+}
+.msg-icon { font-size: 0.95rem; margin-right: 6px; flex-shrink: 0; opacity: 0.7; }
+.gift-msg-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  background: none;
+  border: none;
+  outline: none;
+  color: #FFFFFF;
+  font-size: 0.85rem;
+  font-family: inherit;
+  padding: 10px 0;
+}
+.gift-msg-input::placeholder { color: rgba(255, 255, 255, 0.3); }
+
 .real-user-btn {
   width: 100%;
-  padding: 13px;
+  padding: 11px 12px;
   border-radius: 14px;
-  background: rgba(59, 130, 246, 0.15);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.25);
   color: #60A5FA;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   font-weight: 700;
   font-family: inherit;
   text-decoration: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  margin-top: -4px;
+  gap: 6px;
+  box-sizing: border-box;
   transition: background 0.2s;
 }
 .real-user-btn:active {
-  background: rgba(59, 130, 246, 0.3);
+  background: rgba(59, 130, 246, 0.25);
 }
 
-.err-msg { color: #F87171; font-size: 0.8rem; text-align: center; }
+.err-msg { color: #F87171; font-size: 0.8rem; text-align: center; margin: 2px 0; }
 
 .pay-btn {
   width: 100%;
-  padding: 16px;
-  border-radius: 16px;
+  padding: 14px;
+  border-radius: 14px;
   border: none;
   cursor: pointer;
   background: linear-gradient(135deg, #7B61FF, #5A3FD4);
   color: #FFFFFF;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
   font-family: inherit;
-  box-shadow: 0 4px 20px rgba(123, 97, 255, 0.5);
+  box-shadow: 0 4px 18px rgba(123, 97, 255, 0.4);
   transition: transform 0.12s, opacity 0.15s;
 }
 .pay-btn:disabled { opacity: 0.4; cursor: not-allowed; }

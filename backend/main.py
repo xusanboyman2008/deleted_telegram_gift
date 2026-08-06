@@ -138,7 +138,7 @@ async def build_main_keyboard():
         [InlineKeyboardButton("🚀 Launch Mini App", web_app=WebAppInfo(url=web_url))],
         [
             InlineKeyboardButton("⚡ Buy in Bot", callback_data="bot_choose_gift"),
-            InlineKeyboardButton("👤 Buy via Real User", url="https://t.me/xusanboyman200")
+            InlineKeyboardButton("👤 Buy Direct", url="https://t.me/xusanboyman200")
         ],
         [
             InlineKeyboardButton("📜 My Orders", callback_data="bot_my_orders"),
@@ -155,7 +155,7 @@ async def build_gifts_keyboard():
     for g in gifts:
         name = g.get('display_name') or g['emoji']
         price = g['base_stars'] + g['commission']
-        row.append(InlineKeyboardButton(f"{g['emoji']} {name} ({price}⭐)", callback_data=f"gift_{g['id']}"))
+        row.append(InlineKeyboardButton(f"{g['emoji']} {name} · {price}⭐", callback_data=f"gift_{g['id']}"))
         if len(row) == 2:
             keyboard.append(row)
             row = []
@@ -340,7 +340,7 @@ async def pre_checkout_handler(update: Update, context):
     await update.pre_checkout_query.answer(ok=True)
 
 
-async def deliver_gift_via_bot(bot, recipient_str: str, gift_tg_id: str) -> bool:
+async def deliver_gift_via_bot(bot, recipient_str: str, gift_tg_id: str, gift_text: str = None) -> bool:
     """Automated instant gift transfer via Telegram Bot API sendGift endpoint using gift_tg_id."""
     try:
         raw_id = recipient_str.strip()
@@ -349,7 +349,9 @@ async def deliver_gift_via_bot(bot, recipient_str: str, gift_tg_id: str) -> bool
         if hasattr(bot, "send_gift"):
             try:
                 target_user = int(raw_id) if raw_id.isdigit() else raw_id
-                await bot.send_gift(user_id=target_user, gift_id=gift_tg_id)
+                kwargs = {"user_id": target_user, "gift_id": gift_tg_id}
+                if gift_text: kwargs["text"] = gift_text
+                await bot.send_gift(**kwargs)
                 logger.info(f"Successfully sent gift {gift_tg_id} to {recipient_str} via bot.send_gift")
                 return True
             except Exception as e:
@@ -358,6 +360,8 @@ async def deliver_gift_via_bot(bot, recipient_str: str, gift_tg_id: str) -> bool
         # 2. Direct HTTP call to Telegram Bot API sendGift endpoint
         async with httpx.AsyncClient(timeout=10.0) as client:
             payload = {"gift_id": gift_tg_id}
+            if gift_text:
+                payload["text"] = gift_text
             if raw_id.isdigit():
                 payload["user_id"] = int(raw_id)
             else:
@@ -395,7 +399,8 @@ async def successful_payment_handler(update: Update, context):
 
         # Attempt instant automatic gift transfer via Telegram sendGift API
         gift_tg_id = gift.get("gift_tg_id", "")
-        delivered = await deliver_gift_via_bot(context.bot, order["recipient_id"], gift_tg_id)
+        gift_text = order.get("gift_text")
+        delivered = await deliver_gift_via_bot(context.bot, order["recipient_id"], gift_tg_id, gift_text=gift_text)
 
         if delivered:
             await db.update_order_status(order_id, "delivered", charge_id)
@@ -416,12 +421,13 @@ async def successful_payment_handler(update: Update, context):
 
         if ADMIN_ID:
             status_note = "✅ Delivered automatically via Python!" if delivered else "⏳ Pending manual transfer"
+            note_str = f"\nMessage: {gift_text}" if gift_text else ""
             await context.bot.send_message(
                 ADMIN_ID,
                 f"🔔 New Paid Order #{order_id} ({status_note})\n"
                 f"Buyer: @{order.get('buyer_username') or order['buyer_tg_id']}\n"
                 f"Gift: {gift.get('display_name') or gift['emoji']} (ID: {gift_tg_id})\n"
-                f"Recipient: {order['recipient_id']}\n"
+                f"Recipient: {order['recipient_id']}{note_str}\n"
                 f"Stars: {order['total_stars']} ⭐\n"
                 f"Charge ID: {charge_id}",
             )
@@ -596,6 +602,7 @@ async def get_gift(gift_id: int):
 class CreateInvoiceRequest(BaseModel):
     recipient_id: str
     gift_id: int
+    gift_text: str = None
 
 
 @app.post("/api/invoice")
@@ -620,11 +627,15 @@ async def create_invoice(body: CreateInvoiceRequest, user: dict = Depends(get_us
         recipient_type="username",
         gift_id=body.gift_id,
         total_stars=total,
+        gift_text=body.gift_text,
     )
     try:
+        desc = f"Rare deleted Telegram gift → {body.recipient_id}"
+        if body.gift_text:
+            desc += f" (Message: {body.gift_text})"
         link = await ptb_app.bot.create_invoice_link(
             title=f"🎁 {name}",
-            description=f"Rare deleted Telegram gift → {body.recipient_id}",
+            description=desc,
             payload=f"order_{order_id}",
             currency="XTR",
             prices=[LabeledPrice(label=name, amount=total)],
