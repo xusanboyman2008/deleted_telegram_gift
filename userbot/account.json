@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "accounts": [
+    {
+      "id": 1,
+      "phone": "+998900000000",
+      "session_string": "",
+      "api_id": 2040,
+      "api_hash": "b18441a1ed609eab57525e3478e58f00",
+      "first_name": "TgGifts",
+      "last_name": "Userbot",
+      "username": "tggifts_userbot",
+      "photo": "assets/bot_photo.png",
+      "active": true
+    }
+  ]
+}

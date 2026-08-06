@@ -106,6 +106,12 @@ async def init_db():
             try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS gift_text TEXT")
             except Exception: pass
             
+            # Legacy cleanup: fix Hug Bear gift_tg_id mapping and remove duplicate rows
+            try:
+                await conn.execute("UPDATE gifts SET display_name='Hug Bear', emoji='🧸', animation='hug_bear.json' WHERE gift_tg_id='5800655655995968830'")
+                await conn.execute("DELETE FROM gifts WHERE id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER(PARTITION BY gift_tg_id ORDER BY id) as row_num FROM gifts) t WHERE t.row_num > 1)")
+            except Exception: pass
+
             for g in GIFTS_SEED:
                 await conn.execute(
                     """INSERT INTO gifts (emoji, display_name, date_label, gift_tg_id, base_stars, commission, animation)
@@ -120,7 +126,13 @@ async def init_db():
             await db.execute(CREATE_ORDERS_SQLITE)
             try: await db.execute("ALTER TABLE orders ADD COLUMN gift_text TEXT")
             except Exception: pass
-            await db.commit()
+            
+            # Legacy cleanup: fix Hug Bear gift_tg_id mapping and remove duplicate rows
+            try:
+                await db.execute("UPDATE gifts SET display_name='Hug Bear', emoji='🧸', animation='hug_bear.json' WHERE gift_tg_id='5800655655995968830'")
+                await db.execute("DELETE FROM gifts WHERE id NOT IN (SELECT MIN(id) FROM gifts GROUP BY gift_tg_id)")
+                await db.commit()
+            except Exception: pass
 
             await db.executemany(
                 "INSERT OR IGNORE INTO gifts (emoji, display_name, date_label, gift_tg_id, base_stars, commission, animation) VALUES (?,?,?,?,?,?,?)",
@@ -207,6 +219,12 @@ async def update_gift(gift_id: int, **fields):
 
 
 async def delete_gift(gift_id: int):
+    """Soft-delete gift by setting active=0 so admin can keep track of deleted gifts."""
+    await update_gift(gift_id, active=0)
+
+
+async def hard_delete_gift(gift_id: int):
+    """Permanently delete gift from database."""
     if IS_POSTGRES:
         async with pool.acquire() as conn:
             await conn.execute("DELETE FROM gifts WHERE id=$1", gift_id)

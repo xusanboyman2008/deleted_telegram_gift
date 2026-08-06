@@ -598,6 +598,26 @@ async def get_gift(gift_id: int):
     return gift
 
 
+# ── Recipient Verification & Userbot Accounts ──────────────────────────────────
+@app.get("/api/check-user")
+async def check_user(query: str):
+    try:
+        from backend.userbot import verify_telegram_user
+    except ImportError:
+        from userbot import verify_telegram_user
+    res = await verify_telegram_user(BOT_TOKEN, query)
+    return res
+
+
+@app.get("/api/userbot-accounts")
+async def get_userbot_accounts():
+    try:
+        from backend.userbot import load_userbot_accounts
+    except ImportError:
+        from userbot import load_userbot_accounts
+    return load_userbot_accounts()
+
+
 # ── Authenticated: create invoice ──────────────────────────────────────────────
 class CreateInvoiceRequest(BaseModel):
     recipient_id: str

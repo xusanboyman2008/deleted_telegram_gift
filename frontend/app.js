@@ -61,13 +61,14 @@ async function preloadAnim(filename) {
   }
 }
 
-// ── Lottie SVG Component ───────────────────────
+// ── Lottie SVG/Canvas Component ───────────────────
 const LottieAnim = {
   props: { filename: String, fallbackImg: String },
   setup(props) {
     const el = ref(null);
     const failed = ref(false);
     let inst = null;
+    let isPlaying = false;
 
     const destroy = () => {
       if (inst) {
@@ -77,14 +78,11 @@ const LottieAnim = {
     };
 
     const playAnim = () => {
-      if (inst) {
-        try { inst.goToAndPlay(0, true); } catch {}
-      }
-    };
-
-    const stopAnim = () => {
-      if (inst) {
-        try { inst.pause(); } catch {}
+      if (inst && !isPlaying) {
+        try {
+          isPlaying = true;
+          inst.goToAndPlay(0, true);
+        } catch {}
       }
     };
 
@@ -104,14 +102,14 @@ const LottieAnim = {
       try {
         inst = lottie.loadAnimation({
           container: el.value,
-          renderer: 'svg',
-          loop: false, // Stop animation after playing once
-          autoplay: true, // Play once on load
+          renderer: 'canvas',
+          loop: false,
+          autoplay: true,
           animationData: JSON.parse(JSON.stringify(data)),
-          rendererSettings: {
-            preserveAspectRatio: 'xMidYMid meet',
-            progressiveLoad: false,
-          },
+        });
+        isPlaying = true;
+        inst.addEventListener('complete', () => {
+          isPlaying = false;
         });
       } catch (e) {
         console.warn('Lottie render error:', props.filename, e);
@@ -122,14 +120,13 @@ const LottieAnim = {
     onMounted(load);
     watch(() => props.filename, load);
     Vue.onUnmounted(destroy);
-    return { el, failed, playAnim, stopAnim };
+    return { el, failed, playAnim };
   },
   template: `
     <div
       class="lottie-box-wrap"
       style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"
       @mouseenter="playAnim"
-      @mouseleave="stopAnim"
       @touchstart.passive="playAnim"
     >
       <div v-show="!failed" ref="el" class="lottie-box"></div>
@@ -252,6 +249,73 @@ createApp({
 
     const isNumeric = val => /^\d+$/.test((val || '').trim());
 
+    // ── Live Recipient Verification & Userbot State ──────────
+    const checkingUser = ref(false);
+    const verifiedUser = ref(null);
+    const userCheckError = ref(null);
+    const userbotAccounts = ref([]);
+    const selectedUserbot = ref(1);
+    let recipientTimer = null;
+
+    const loadUserbotAccounts = async () => {
+      try {
+        const res = await fetch('/api/userbot-accounts', { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
+        userbotAccounts.value = Array.isArray(res) ? res : [];
+        if (userbotAccounts.value.length > 0) {
+          selectedUserbot.value = userbotAccounts.value[0].id;
+        }
+      } catch (e) {
+        console.warn('Failed to load userbot accounts:', e);
+      }
+    };
+
+    const checkRecipientNow = async () => {
+      const val = recipient.value.trim();
+      if (!val) {
+        verifiedUser.value = null;
+        userCheckError.value = null;
+        checkingUser.value = false;
+        return;
+      }
+      checkingUser.value = true;
+      userCheckError.value = null;
+      try {
+        const res = await fetch(`/api/check-user?query=${encodeURIComponent(val)}`, { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
+        checkingUser.value = false;
+        if (res && res.exists) {
+          verifiedUser.value = res;
+          userCheckError.value = null;
+        } else {
+          verifiedUser.value = null;
+          userCheckError.value = (res && res.error) || 'User does not exist on Telegram';
+        }
+      } catch (e) {
+        checkingUser.value = false;
+        verifiedUser.value = null;
+        userCheckError.value = 'User verification error';
+      }
+    };
+
+    const onRecipientInput = () => {
+      verifiedUser.value = null;
+      userCheckError.value = null;
+      clearTimeout(recipientTimer);
+      if (!recipient.value.trim()) {
+        checkingUser.value = false;
+        return;
+      }
+      checkingUser.value = true;
+      recipientTimer = setTimeout(checkRecipientNow, 600);
+    };
+
+    const clearRecipient = () => {
+      recipient.value = '';
+      verifiedUser.value = null;
+      userCheckError.value = null;
+      checkingUser.value = false;
+      clearTimeout(recipientTimer);
+    };
+
     // ── Contact Picker & Me Button ───────────
     const setRecipientMe = () => {
       if (ME && ME.username) {
@@ -261,6 +325,7 @@ createApp({
       } else {
         showToast('Open in Telegram to autofill');
       }
+      checkRecipientNow();
     };
 
     const pickContact = () => {
@@ -410,6 +475,7 @@ createApp({
       } catch {}
 
       await loadGifts();
+      await loadUserbotAccounts();
       if (ME) loadHistory();
 
       if (tg) {
@@ -438,8 +504,10 @@ createApp({
     return {
       tab, gifts, selected, recipient, giftMsg, paying, errMsg, toast,
       isAdmin, showAdmin, aTab, adminGifts, adminOrders, myOrders, user, form,
+      checkingUser, verifiedUser, userCheckError, userbotAccounts, selectedUserbot,
       sheetGlowStyle, sheetRingStyle, getGiftImg, getFallbackPng, scrollToGifts, openRealUserContact, isNumeric,
       openSheet, closeSheet, pickContact, setRecipientMe, pay, loadHistory,
+      onRecipientInput, checkRecipientNow, clearRecipient,
       loadAdminGifts, loadAdminOrders, openAddForm, editGift, saveGift, toggleActive, delGift,
     };
   },

@@ -669,10 +669,93 @@ html, body {
   font-weight: 700;
   font-family: inherit;
   box-shadow: 0 4px 18px rgba(123, 97, 255, 0.4);
-  transition: transform 0.12s, opacity 0.15s;
+.clear-rec-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.9rem;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 50%;
+  line-height: 1;
+  transition: color 0.15s;
 }
-.pay-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.pay-btn:not(:disabled):active { transform: scale(0.97); }
+.clear-rec-btn:hover { color: #F87171; }
+
+/* ── Verified Recipient Profile Badge ───────── */
+.user-check-status {
+  font-size: 0.78rem;
+  padding: 6px 12px;
+  border-radius: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+  margin-top: -2px;
+}
+.user-check-status.checking { color: #60A5FA; background: rgba(96, 165, 250, 0.08); }
+.user-check-status.error { color: #F87171; background: rgba(248, 113, 113, 0.08); }
+
+.verified-user-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  border-radius: 14px;
+  padding: 8px 12px;
+  margin-top: -2px;
+}
+.vuser-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid rgba(34, 197, 94, 0.4);
+}
+.vuser-info { flex: 1; min-width: 0; }
+.vuser-name { font-size: 0.84rem; font-weight: 700; color: #FFFFFF; display: flex; align-items: center; gap: 6px; }
+.vuser-badge { font-size: 0.68rem; background: rgba(34, 197, 94, 0.2); color: #4ADE80; padding: 1px 6px; border-radius: 10px; font-weight: 600; }
+.vuser-sub { font-size: 0.72rem; color: rgba(255, 255, 255, 0.5); }
+.vuser-remove { background: none; border: none; color: rgba(255, 255, 255, 0.4); font-size: 0.95rem; cursor: pointer; padding: 4px; }
+.vuser-remove:hover { color: #F87171; }
+
+/* ── Userbot Accounts Selector ─────────────── */
+.userbot-select-wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: -2px;
+}
+.ub-label { font-size: 0.75rem; font-weight: 600; color: rgba(255, 255, 255, 0.6); }
+.ub-accounts-list { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.ub-acc-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ub-acc-card.active {
+  background: rgba(123, 97, 255, 0.12);
+  border-color: rgba(123, 97, 255, 0.4);
+}
+.ub-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+.ub-info { flex: 1; }
+.ub-name { font-size: 0.8rem; font-weight: 700; color: #FFFFFF; }
+.ub-uname { font-size: 0.7rem; color: #A07AF8; }
+.ub-check { color: #A07AF8; font-weight: 800; font-size: 0.9rem; }
+
+.status-pill { font-size: 0.65rem; padding: 1px 6px; border-radius: 10px; font-weight: 600; margin-left: 6px; }
+.status-pill.active { background: rgba(34, 197, 94, 0.15); color: #4ADE80; }
+.status-pill.inactive { background: rgba(248, 113, 113, 0.15); color: #F87171; }
+.deleted-gift-row { opacity: 0.6; filter: grayscale(0.4); }
 
 /* ── Admin Sheet ─────────────────────────────── */
 .admin-sheet { align-items: stretch; padding-bottom: 30px; }
