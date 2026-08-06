@@ -1,17 +1,23 @@
-{
-  "enabled": true,
-  "accounts": [
+[
     {
-      "id": 1,
-      "phone": "+998900000000",
-      "session_string": "",
-      "api_id": 2040,
-      "api_hash": "b18441a1ed609eab57525e3478e58f00",
-      "first_name": "TgGifts",
-      "last_name": "Userbot",
-      "username": "tggifts_userbot",
-      "photo": "assets/bot_photo.png",
-      "active": true
+        "session": "account_1",
+        "api_id": 34368339,
+        "api_hash": "d847fe4ffdf975d067dbb7fd62148baf",
+        "phone": "+22963948044",
+        "session_string": ""
+    },
+    {
+        "session": "account_2",
+        "api_id": 35251724,
+        "api_hash": "b11e753959873b1df047454a8d816604",
+        "phone": "+573023045559",
+        "session_string": "AQACGeYMVcnjLpTQZY8eIrlhLUDq9g9wnclKtAPvduCzWdKXSOpvOgjvOYhD8bfyvhnK5MsXdO1OoUOP-QVf09fyM3KJkKfa0iFzfcwhaHr81nhlgIXQ3QpDoXKh3OO2Ebj13Q8MGgaD4KSyhY598Hx6gkCPjrrWMZhJWX79Uag893cA_s57PBEDaJC9uJYQbm6fMMMQLmrA9Xk8ZYVX1Wem2FNSF9V4pa_mbg8CRTVMonxEwdZl4cV-WB7wdSGQvYzzC0YTiVzTdjNClrsMxoaQII6KYesNk7z3wqB7XBrP_-jlJyjpglQaPXZRJr4SNruCA5vMH94HXL1PW2EdVzaPLqKVqgAAAAIC4UzeAA"
+    },
+    {
+        "session": "account_3",
+        "api_id": 33593259,
+        "api_hash": "e9f9282471ed62f060a40962359cbb3b",
+        "phone": "+573107796290",
+        "session_string": ""
     }
-  ]
-}
+]

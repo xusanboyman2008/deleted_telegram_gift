@@ -28,11 +28,14 @@ const api = (url, opts = {}) => fetch(url, {
 // ── Image Fallback mapping per animation ───────
 const IMG_MAP = {};
 
-// ── Static PNG Fallback mapping if Lottie JSON fails to load ──
+// ── Image & Animated GIF Fallback mapping ───────
+const IMG_MAP = {};
+
+// ── Fallback mapping (tries .json, if fails or incompatible uses .gif/.png) ──
 const FALLBACK_PNG_MAP = {
-  'pink_bear.json': 'assets/rose_bear.png',
-  'plumber_bear.json': 'assets/worker_bear.png',
-  'football_bear.json': 'assets/football_bear.png',
+  'pink_bear.json': 'assets/rose_bear.gif',
+  'plumber_bear.json': 'assets/worker.gif',
+  'football_bear.json': 'assets/football.gif',
   'bunny_bear.json': 'assets/bunny_basket.png',
   'joker_bear.json': 'assets/balloon_bear.png',
   'santa_bear.json': 'assets/santa_teddy.png',
@@ -61,7 +64,7 @@ async function preloadAnim(filename) {
   }
 }
 
-// ── Lottie SVG/Canvas Component ───────────────────
+// ── Lottie Component with Automatic GIF Fallback ──
 const LottieAnim = {
   props: { filename: String, fallbackImg: String },
   setup(props) {
@@ -92,6 +95,11 @@ const LottieAnim = {
         failed.value = true;
         return;
       }
+      // Direct fallbacks for custom vector files that rely on GIF animations
+      if (['pink_bear.json', 'plumber_bear.json', 'football_bear.json'].includes(props.filename)) {
+        failed.value = true;
+        return;
+      }
       failed.value = false;
       const data = await preloadAnim(props.filename);
       if (!data || !el.value) {
@@ -110,6 +118,9 @@ const LottieAnim = {
         isPlaying = true;
         inst.addEventListener('complete', () => {
           isPlaying = false;
+        });
+        inst.addEventListener('error', () => {
+          failed.value = true;
         });
       } catch (e) {
         console.warn('Lottie render error:', props.filename, e);

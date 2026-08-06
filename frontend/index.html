@@ -135,8 +135,19 @@
         </div>
 
         <div class="recipient-wrap">
-          <div class="recipient-field">
-            <span class="at" v-if="!isNumeric(recipient)">@</span>
+          <div class="rec-input-box">
+            <!-- Small Circular Avatar inside Input Field -->
+            <img
+              v-if="verifiedUser && verifiedUser.exists && verifiedUser.photo_url"
+              :src="verifiedUser.photo_url"
+              class="rec-small-avatar"
+              alt="user"
+            />
+            <span v-else-if="verifiedUser && verifiedUser.exists" class="rec-small-initial">
+              {{ (verifiedUser.first_name || 'U')[0] }}
+            </span>
+            <span v-else class="rec-icon">@</span>
+
             <input
               v-model="recipient"
               class="rec-input"
@@ -151,22 +162,6 @@
           <button class="pick-btn" @click="pickContact" title="Pick Telegram contact">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
           </button>
-        </div>
-
-        <!-- ── Verified Recipient Profile Badge ── -->
-        <div v-if="checkingUser" class="user-check-status checking">
-          <span class="spin">⏳</span> Verifying Telegram user...
-        </div>
-        <div v-else-if="verifiedUser && verifiedUser.exists" class="verified-user-card">
-          <img :src="verifiedUser.photo_url || 'assets/bot_photo.png'" class="vuser-avatar" alt="avatar" />
-          <div class="vuser-info">
-            <div class="vuser-name">{{ verifiedUser.full_name }} <span class="vuser-badge">Verified ✅</span></div>
-            <div class="vuser-sub">{{ verifiedUser.username || ('ID: ' + verifiedUser.id) }}</div>
-          </div>
-          <button class="vuser-remove" @click="clearRecipient" title="Change recipient">✕</button>
-        </div>
-        <div v-else-if="userCheckError" class="user-check-status error">
-          ❌ {{ userCheckError }}
         </div>
 
         <!-- ── Custom Gift Message Field ── -->
@@ -206,6 +201,7 @@
         </a>
 
         <p v-if="errMsg" class="err-msg">{{ errMsg }}</p>
+        <p v-if="userCheckError" class="err-msg">❌ {{ userCheckError }}</p>
 
         <button class="pay-btn" :disabled="paying || !recipient.trim() || (userCheckError && !checkingUser)" @click="pay">
           <span v-if="!paying">Pay {{ selected.base_stars + selected.commission }} ⭐</span>
