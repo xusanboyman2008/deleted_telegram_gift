@@ -109,6 +109,7 @@ fi
 # ── 5. Start FastAPI ───────────────────────────────────
 echo "  🚀  Starting backend server…"
 echo ""
+fuser -k 8000/tcp 2>/dev/null || true
 cd "$BACKEND"
 exec "$PY" -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
