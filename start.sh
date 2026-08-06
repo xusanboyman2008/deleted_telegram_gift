@@ -31,10 +31,10 @@ elif [ -z "$ADMIN_ID" ]; then
 fi
 
 # ── 2. Remove broken venv if present ─────────────────────
-# Use system python3 directly (venv not needed)
+rm -rf "$ROOT/.venv" 2>/dev/null || true
 PY=$(which python3)
 
-echo "  📦  Installing dependencies (system pip)…"
+echo "  📦  Checking dependencies…"
 pip3 install --break-system-packages -q -r "$BACKEND/requirements.txt" 2>/dev/null || \
   pip3 install -q -r "$BACKEND/requirements.txt" 2>/dev/null || true
 
