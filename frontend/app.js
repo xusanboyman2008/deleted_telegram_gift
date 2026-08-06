@@ -219,10 +219,12 @@ createApp({
       if (tg) tg.BackButton.hide();
     };
 
+    const isNumeric = val => /^\d+$/.test((val || '').trim());
+
     // ── Contact Picker & Me Button ───────────
     const setRecipientMe = () => {
       if (ME && ME.username) {
-        recipient.value = ME.username;
+        recipient.value = '@' + ME.username;
       } else if (ME && ME.id) {
         recipient.value = String(ME.id);
       } else {
@@ -231,38 +233,71 @@ createApp({
     };
 
     const pickContact = () => {
-      if (!tg) { showToast('Open in Telegram'); return; }
-      if (tg.requestUser) {
+      if (!tg) {
+        const inp = prompt('Enter Telegram Username (@username) or User ID (e.g. 6588631008):');
+        if (inp) recipient.value = inp.trim();
+        return;
+      }
+
+      // Priority 1: Telegram WebApp requestContact API
+      if (typeof tg.requestContact === 'function') {
         try {
-          tg.requestUser({ bot_is_member: false }, (ok, u) => {
-            if (ok && u) recipient.value = u.username || `id${u.id}`;
+          tg.requestContact((ok, res) => {
+            if (ok && res) {
+              const c = res.responseUnsafe?.contact || res;
+              const val = c.username ? `@${c.username}` : (c.user_id ? `${c.user_id}` : (c.phone_number || ''));
+              if (val) {
+                recipient.value = val;
+                showToast(`Selected: ${val}`);
+              }
+            }
           });
           return;
-        } catch {}
+        } catch (e) {
+          console.warn('requestContact failed:', e);
+        }
       }
-      if (tg.requestContact) {
-        tg.requestContact((ok, contact) => {
-          if (ok && contact?.contact) {
-            const c = contact.contact;
-            recipient.value = c.username || (c.user_id ? `id${c.user_id}` : c.phone_number);
-          }
-        });
-      } else {
-        showToast('Not supported in this version');
+
+      // Priority 2: Telegram requestUser API
+      if (typeof tg.requestUser === 'function') {
+        try {
+          tg.requestUser({ bot_is_member: false }, (ok, u) => {
+            if (ok && u) {
+              const val = u.username ? `@${u.username}` : `${u.id}`;
+              recipient.value = val;
+              showToast(`Selected: ${val}`);
+            }
+          });
+          return;
+        } catch (e) {
+          console.warn('requestUser failed:', e);
+        }
       }
+
+      // Fallback
+      const inp = prompt('Enter Telegram Username (@username) or User ID (e.g. 6588631008):');
+      if (inp) recipient.value = inp.trim();
     };
 
     // ── Pay via tg.openInvoice ─────────────────
     const pay = async () => {
-      const rcpt = recipient.value.trim().replace(/^@/, '');
-      if (!rcpt) { errMsg.value = 'Enter a recipient username'; return; }
+      let rcpt = recipient.value.trim();
+      if (!rcpt) { errMsg.value = 'Enter a recipient username or User ID'; return; }
       if (!ME) { showToast('Open in Telegram to purchase'); return; }
+
+      // Format recipient ID: numeric ID (e.g. 6588631008) vs @username
+      if (/^\d+$/.test(rcpt)) {
+        rcpt = rcpt;
+      } else {
+        rcpt = '@' + rcpt.replace(/^@/, '');
+      }
+
       paying.value = true; errMsg.value = '';
       try {
         const r = await api('/api/invoice', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ recipient_id: '@' + rcpt, gift_id: selected.value.id }),
+          body: JSON.stringify({ recipient_id: rcpt, gift_id: selected.value.id }),
         });
         const data = await r.json();
         if (!r.ok) throw new Error(data.detail || 'Failed');
@@ -368,7 +403,7 @@ createApp({
     return {
       tab, gifts, selected, recipient, paying, errMsg, toast,
       isAdmin, showAdmin, aTab, adminGifts, adminOrders, myOrders, user, form,
-      sheetGlowStyle, sheetRingStyle, getGiftImg, scrollToGifts, openRealUserContact,
+      sheetGlowStyle, sheetRingStyle, getGiftImg, scrollToGifts, openRealUserContact, isNumeric,
       openSheet, closeSheet, pickContact, setRecipientMe, pay, loadHistory,
       loadAdminGifts, loadAdminOrders, openAddForm, editGift, saveGift, toggleActive, delGift,
     };

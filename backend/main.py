@@ -11,6 +11,7 @@ import json
 import hmac
 import hashlib
 import logging
+import httpx
 from contextlib import asynccontextmanager
 from urllib.parse import parse_qsl
 
@@ -339,6 +340,45 @@ async def pre_checkout_handler(update: Update, context):
     await update.pre_checkout_query.answer(ok=True)
 
 
+async def deliver_gift_via_bot(bot, recipient_str: str, gift_tg_id: str) -> bool:
+    """Automated instant gift transfer via Telegram Bot API sendGift endpoint using gift_tg_id."""
+    try:
+        raw_id = recipient_str.strip()
+        
+        # 1. First try python-telegram-bot send_gift if supported natively
+        if hasattr(bot, "send_gift"):
+            try:
+                target_user = int(raw_id) if raw_id.isdigit() else raw_id
+                await bot.send_gift(user_id=target_user, gift_id=gift_tg_id)
+                logger.info(f"Successfully sent gift {gift_tg_id} to {recipient_str} via bot.send_gift")
+                return True
+            except Exception as e:
+                logger.warning(f"bot.send_gift native call failed: {e}")
+
+        # 2. Direct HTTP call to Telegram Bot API sendGift endpoint
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            payload = {"gift_id": gift_tg_id}
+            if raw_id.isdigit():
+                payload["user_id"] = int(raw_id)
+            else:
+                payload["user_id"] = raw_id
+
+            res = await client.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendGift",
+                json=payload
+            )
+            data = res.json()
+            if data.get("ok"):
+                logger.info(f"Successfully sent gift {gift_tg_id} to {recipient_str} via sendGift API")
+                return True
+            else:
+                logger.warning(f"sendGift API call returned error: {data}")
+                return False
+    except Exception as e:
+        logger.error(f"deliver_gift_via_bot error: {e}")
+        return False
+
+
 async def successful_payment_handler(update: Update, context):
     payment = update.message.successful_payment
     payload = payment.invoice_payload
@@ -352,20 +392,38 @@ async def successful_payment_handler(update: Update, context):
 
         order = await db.get_order(order_id)
         gift = await db.get_gift(order["gift_id"])
-        await update.message.reply_text(
-            f"✅ Payment received! Sending {gift['emoji']} gift to <b>{order['recipient_id']}</b>…\n\n"
-            "Your gift will be delivered shortly!",
-            parse_mode="HTML",
-        )
+
+        # Attempt instant automatic gift transfer via Telegram sendGift API
+        gift_tg_id = gift.get("gift_tg_id", "")
+        delivered = await deliver_gift_via_bot(context.bot, order["recipient_id"], gift_tg_id)
+
+        if delivered:
+            await db.update_order_status(order_id, "delivered", charge_id)
+            await update.message.reply_text(
+                f"🎉 <b>GIFT PURCHASED & DELIVERED INSTANTLY!</b>\n\n"
+                f"{gift['emoji']} <b>{gift.get('display_name') or gift['emoji']}</b> has been sent to <b>{order['recipient_id']}</b>!\n\n"
+                f"Thank you for buying via TgGifts Bot!",
+                parse_mode="HTML",
+            )
+        else:
+            await update.message.reply_text(
+                f"✅ <b>Payment Received!</b>\n\n"
+                f"Gift: {gift['emoji']} <b>{gift.get('display_name') or gift['emoji']}</b>\n"
+                f"Recipient: <b>{order['recipient_id']}</b>\n\n"
+                f"⚡ Your gift transfer order #{order_id} is processing!",
+                parse_mode="HTML",
+            )
+
         if ADMIN_ID:
+            status_note = "✅ Delivered automatically via Python!" if delivered else "⏳ Pending manual transfer"
             await context.bot.send_message(
                 ADMIN_ID,
-                f"🔔 New Order #{order_id}\n"
+                f"🔔 New Paid Order #{order_id} ({status_note})\n"
                 f"Buyer: @{order.get('buyer_username') or order['buyer_tg_id']}\n"
-                f"Gift: {gift.get('display_name') or gift['emoji']} ({gift['date_label']})\n"
+                f"Gift: {gift.get('display_name') or gift['emoji']} (ID: {gift_tg_id})\n"
                 f"Recipient: {order['recipient_id']}\n"
                 f"Stars: {order['total_stars']} ⭐\n"
-                f"Charge: {charge_id}",
+                f"Charge ID: {charge_id}",
             )
     except Exception as e:
         logger.error(f"payment handler error: {e}")

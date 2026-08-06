@@ -4,6 +4,13 @@
   margin: 0;
   padding: 0;
   -webkit-tap-highlight-color: transparent;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 [v-cloak] { display: none !important; }
 
@@ -343,32 +350,35 @@ html, body {
 }
 .sheet {
   width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
   background: linear-gradient(175deg, #15142E 0%, #0E0D1E 100%);
   border-radius: 24px 24px 0 0;
-  padding: 12px 22px calc(30px + env(safe-area-inset-bottom));
+  padding: 10px 18px calc(20px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   box-shadow: 0 -4px 40px rgba(0,0,0,0.8);
-  max-height: 92vh;
+  max-height: 90vh;
   overflow-y: auto;
+  scrollbar-width: none;
 }
 .sheet-handle {
   width: 38px;
   height: 4px;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.18);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 .sheet-anim-wrap {
   position: relative;
-  width: 150px;
-  height: 150px;
+  width: clamp(90px, 24vw, 130px);
+  height: clamp(90px, 24vw, 130px);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 4px 0;
+  margin: 2px 0;
 }
 .sheet-ring {
   position: absolute;
@@ -393,10 +403,10 @@ html, body {
   position: relative;
   z-index: 2;
 }
-.sheet-emoji { font-size: 4rem; z-index: 2; }
+.sheet-emoji { font-size: 3.5rem; z-index: 2; }
 
 .sheet-price {
-  font-size: 2rem;
+  font-size: 1.65rem;
   font-weight: 800;
   color: #FFD700;
 }

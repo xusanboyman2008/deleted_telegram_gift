@@ -136,11 +136,11 @@
 
         <div class="recipient-wrap">
           <div class="recipient-field">
-            <span class="at">@</span>
+            <span class="at" v-if="!isNumeric(recipient)">@</span>
             <input
               v-model="recipient"
               class="rec-input"
-              placeholder="username"
+              placeholder="username or User ID"
               autocomplete="off"
               @keydown.enter="pay"
             />
