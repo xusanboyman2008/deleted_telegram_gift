@@ -29,9 +29,17 @@ from telegram.ext import (
     PreCheckoutQueryHandler, MessageHandler, filters,
 )
 from starlette.middleware.base import BaseHTTPMiddleware
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import db
-from config import BOT_TOKEN, BASE_URL, ADMIN_ID
+try:
+    import db
+    from config import BOT_TOKEN, BASE_URL, ADMIN_ID
+except ImportError:
+    from backend import db
+    from backend.config import BOT_TOKEN, BASE_URL, ADMIN_ID
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

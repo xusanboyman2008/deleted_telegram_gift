@@ -2,7 +2,10 @@ import os
 import logging
 import aiosqlite
 import asyncpg
-from config import DB_PATH, DEFAULT_COMMISSION
+try:
+    from config import DB_PATH, DEFAULT_COMMISSION
+except ImportError:
+    from backend.config import DB_PATH, DEFAULT_COMMISSION
 
 logger = logging.getLogger(__name__)
 
