@@ -25,9 +25,6 @@ const api = (url, opts = {}) => fetch(url, {
   headers: { ...H, ...(opts.headers || {}) },
 });
 
-// ── Image Fallback mapping per animation ───────
-const IMG_MAP = {};
-
 // ── Image & Animated GIF Fallback mapping ───────
 const IMG_MAP = {};
 
