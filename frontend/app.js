@@ -478,6 +478,72 @@ createApp({
       showToast('🗑️ Deleted'); loadAdminGifts(); loadGifts();
     };
 
+    // ── Admin Userbot CRUD ──────────────────────
+    const adminUserbots = ref([]);
+    const ubForm = reactive({
+      show: false,
+      id: null,
+      first_name: '',
+      last_name: '',
+      username: '',
+      bio: '',
+      photo: '',
+      phone: '',
+      session_string: '',
+      active: true,
+    });
+
+    const loadAdminUserbots = async () => {
+      try {
+        const d = await api('/api/admin/userbots').then(r => r.json());
+        adminUserbots.value = Array.isArray(d) ? d : [];
+      } catch (e) {
+        console.error('loadAdminUserbots error:', e);
+      }
+    };
+
+    const editUserbot = ub => {
+      Object.assign(ubForm, {
+        show: true,
+        id: ub.id,
+        first_name: ub.first_name || '',
+        last_name: ub.last_name || '',
+        username: ub.username || '',
+        bio: ub.bio || ub.description || '',
+        photo: ub.photo || '',
+        phone: ub.phone || '',
+        session_string: ub.session_string || '',
+        active: ub.active !== false,
+      });
+    };
+
+    const saveUserbot = async () => {
+      if (!ubForm.id) return;
+      const body = {
+        first_name: ubForm.first_name,
+        last_name: ubForm.last_name,
+        username: ubForm.username,
+        bio: ubForm.bio,
+        photo: ubForm.photo,
+        phone: ubForm.phone,
+        session_string: ubForm.session_string,
+        active: ubForm.active,
+      };
+      const r = await api(`/api/admin/userbots/${ubForm.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (r.ok) {
+        ubForm.show = false;
+        loadAdminUserbots();
+        loadUserbotAccounts();
+        showToast('✅ Userbot Profile Saved!');
+      } else {
+        showToast('❌ Userbot Save Failed');
+      }
+    };
+
     // ── Boot ───────────────────────────────────
     onMounted(async () => {
       try {
@@ -514,12 +580,12 @@ createApp({
 
     return {
       tab, gifts, selected, recipient, giftMsg, paying, errMsg, toast,
-      isAdmin, showAdmin, aTab, adminGifts, adminOrders, myOrders, user, form,
+      isAdmin, showAdmin, aTab, adminGifts, adminOrders, adminUserbots, ubForm, myOrders, user, form,
       checkingUser, verifiedUser, userCheckError, userbotAccounts, selectedUserbot,
       sheetGlowStyle, sheetRingStyle, getGiftImg, getFallbackPng, scrollToGifts, openRealUserContact, isNumeric,
       openSheet, closeSheet, pickContact, setRecipientMe, pay, loadHistory,
       onRecipientInput, checkRecipientNow, clearRecipient,
-      loadAdminGifts, loadAdminOrders, openAddForm, editGift, saveGift, toggleActive, delGift,
+      loadAdminGifts, loadAdminOrders, loadAdminUserbots, editUserbot, saveUserbot, openAddForm, editGift, saveGift, toggleActive, delGift,
     };
   },
 }).mount('#app');

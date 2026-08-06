@@ -221,6 +221,7 @@
         <div class="admin-tabs">
           <button :class="['atab', aTab==='gifts'?'act':'']" @click="aTab='gifts';loadAdminGifts()">Gifts</button>
           <button :class="['atab', aTab==='orders'?'act':'']" @click="aTab='orders';loadAdminOrders()">Orders</button>
+          <button :class="['atab', aTab==='userbots'?'act':'']" @click="aTab='userbots';loadAdminUserbots()">Userbots</button>
         </div>
 
         <div v-if="aTab==='gifts'" class="admin-scroll">
@@ -248,6 +249,40 @@
             <div class="ao-top"><span>#{{ o.id }}</span><span :class="['ao-st','st-'+o.status]">{{ o.status }}</span></div>
             <div>{{ o.display_name || o.emoji }} → <b>{{ o.recipient_id }}</b> · {{ o.total_stars }}⭐</div>
             <small>{{ o.buyer_username ? '@'+o.buyer_username : o.buyer_tg_id }}</small>
+          </div>
+        </div>
+
+        <!-- ── Admin Userbots Tab ───────────────── -->
+        <div v-if="aTab==='userbots'" class="admin-scroll">
+          <div v-for="ub in adminUserbots" :key="ub.id" class="admin-row userbot-admin-row">
+            <img :src="ub.photo || 'assets/bot_photo.png'" class="ub-avatar-large" alt="ub" />
+            <div class="ar-inf">
+              <b>{{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }}</b>
+              <small>@{{ ub.username || 'no_username' }} | {{ ub.phone }}</small>
+              <small>Status: {{ ub.active ? '🟢 Active Sender' : '🔴 Inactive' }}</small>
+            </div>
+            <div class="ar-act">
+              <button class="ibtn edit-ub-btn" @click="editUserbot(ub)" title="Edit Profile">✏️ Edit Profile</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Userbot Profile Edit Form ────────── -->
+        <div v-if="ubForm.show" class="gift-form">
+          <h3>✏️ Edit Userbot Account #{{ ubForm.id }}</h3>
+          <input v-model="ubForm.first_name" class="fi" placeholder="First Name (e.g. TgGifts)"/>
+          <input v-model="ubForm.last_name" class="fi" placeholder="Last Name (e.g. Sender)"/>
+          <input v-model="ubForm.username" class="fi" placeholder="Username (e.g. tggifts_userbot)"/>
+          <input v-model="ubForm.bio" class="fi" placeholder="Bio / Description"/>
+          <input v-model="ubForm.photo" class="fi" placeholder="Photo URL (e.g. assets/bot_photo.png)"/>
+          <input v-model="ubForm.phone" class="fi" placeholder="Phone (e.g. +573023045559)"/>
+          <input v-model="ubForm.session_string" class="fi" placeholder="Session String"/>
+          <label class="fi-checkbox">
+            <input type="checkbox" v-model="ubForm.active"/> Account Active for Deliveries
+          </label>
+          <div class="form-row">
+            <button class="fsave" @click="saveUserbot">Save Account</button>
+            <button class="fcancel" @click="ubForm.show=false">Cancel</button>
           </div>
         </div>
 

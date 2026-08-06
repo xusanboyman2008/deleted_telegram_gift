@@ -397,12 +397,18 @@ async def successful_payment_handler(update: Update, context):
         order = await db.get_order(order_id)
         gift = await db.get_gift(order["gift_id"])
 
-        # Attempt instant automatic gift transfer via Telegram sendGift API
+        # Attempt automatic gift transfer via Userbot
         gift_tg_id = gift.get("gift_tg_id", "")
         gift_text = order.get("gift_text")
-        delivered = await deliver_gift_via_bot(context.bot, order["recipient_id"], gift_tg_id, gift_text=gift_text)
 
-        if delivered:
+        try:
+            from backend.userbot import attempt_send_gift_via_userbot
+        except ImportError:
+            from userbot import attempt_send_gift_via_userbot
+
+        res = await attempt_send_gift_via_userbot(1, order["recipient_id"], gift_tg_id, gift_text=gift_text)
+
+        if res.get("success"):
             await db.update_order_status(order_id, "delivered", charge_id)
             await update.message.reply_text(
                 f"🎉 <b>GIFT PURCHASED & DELIVERED INSTANTLY!</b>\n\n"
@@ -411,25 +417,30 @@ async def successful_payment_handler(update: Update, context):
                 parse_mode="HTML",
             )
         else:
+            warning_msg = res.get("warning") or (
+                "⚠️ <b>Note: Your Stars payment was received successfully!</b>\n\n"
+                "Automatic bot transfer had a limit/balance issue, but <b>do not worry — your gift will be sent manually by our team shortly!</b>"
+            )
             await update.message.reply_text(
                 f"✅ <b>Payment Received!</b>\n\n"
                 f"Gift: {gift['emoji']} <b>{gift.get('display_name') or gift['emoji']}</b>\n"
                 f"Recipient: <b>{order['recipient_id']}</b>\n\n"
-                f"⚡ Your gift transfer order #{order_id} is processing!",
+                f"{warning_msg}",
                 parse_mode="HTML",
             )
 
         if ADMIN_ID:
-            status_note = "✅ Delivered automatically via Python!" if delivered else "⏳ Pending manual transfer"
+            status_note = "✅ Delivered automatically!" if res.get("success") else "⚠️ Pending Manual Fulfill (Userbot Star/Limit issue)"
             note_str = f"\nMessage: {gift_text}" if gift_text else ""
             await context.bot.send_message(
                 ADMIN_ID,
-                f"🔔 New Paid Order #{order_id} ({status_note})\n"
+                f"🔔 <b>New Paid Order #{order_id}</b> ({status_note})\n\n"
                 f"Buyer: @{order.get('buyer_username') or order['buyer_tg_id']}\n"
-                f"Gift: {gift.get('display_name') or gift['emoji']} (ID: {gift_tg_id})\n"
-                f"Recipient: {order['recipient_id']}{note_str}\n"
-                f"Stars: {order['total_stars']} ⭐\n"
-                f"Charge ID: {charge_id}",
+                f"Gift: {gift.get('display_name') or gift['emoji']} (TG ID: {gift_tg_id})\n"
+                f"Recipient: <b>{order['recipient_id']}</b>{note_str}\n"
+                f"Stars Paid: <b>{order['total_stars']} ⭐</b>\n"
+                f"Charge ID: <code>{charge_id}</code>",
+                parse_mode="HTML"
             )
     except Exception as e:
         logger.error(f"payment handler error: {e}")
@@ -726,6 +737,42 @@ async def admin_delete_gift(gift_id: int, admin=Depends(get_admin)):
 @app.get("/api/admin/orders")
 async def admin_orders(admin=Depends(get_admin)):
     return await db.get_all_orders()
+
+
+# ── Admin Userbot Management ──────────────────────────────────────────────────
+@app.get("/api/admin/userbots")
+async def admin_get_userbots(admin=Depends(get_admin)):
+    try:
+        from backend.userbot import get_all_userbot_accounts
+    except ImportError:
+        from userbot import get_all_userbot_accounts
+    return get_all_userbot_accounts()
+
+
+class UserbotUpdate(BaseModel):
+    first_name: str = None
+    last_name: str = None
+    username: str = None
+    bio: str = None
+    photo: str = None
+    active: bool = None
+    phone: str = None
+    session_string: str = None
+    api_id: int = None
+    api_hash: str = None
+
+
+@app.patch("/api/admin/userbots/{account_id}")
+async def admin_update_userbot(account_id: int, body: UserbotUpdate, admin=Depends(get_admin)):
+    try:
+        from backend.userbot import update_userbot_account
+    except ImportError:
+        from userbot import update_userbot_account
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    success = update_userbot_account(account_id, **fields)
+    if not success:
+        raise HTTPException(status_code=404, detail="Userbot account not found")
+    return {"ok": True}
 
 
 # ── Static files ───────────────────────────────────────────────────────────────
