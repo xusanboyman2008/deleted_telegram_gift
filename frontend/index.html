@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+  <title>TgGifts</title>
+  <meta name="description" content="Buy rare deleted Telegram gifts with Stars"/>
+  <script src="lottie.min.js"></script>
+  <script src="vue.min.js"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<div id="app" v-cloak>
+
+  <!-- ── Header ─────────────────────────────── -->
+  <header class="app-header">
+    <div class="logo">
+      <span class="logo-icon">🎁</span>
+      <span class="logo-text">Tg<span class="logo-accent">Gifts</span></span>
+    </div>
+    <button class="menu-btn" @click="isAdmin ? showAdmin=true : null">
+      <svg width="20" height="16" viewBox="0 0 20 16" fill="currentColor">
+        <rect width="20" height="2.5" rx="1.25"/>
+        <rect y="6.75" width="20" height="2.5" rx="1.25"/>
+        <rect y="13.5" width="20" height="2.5" rx="1.25"/>
+      </svg>
+    </button>
+  </header>
+
+  <!-- ── Views Wrap ─────────────────────────── -->
+  <div class="view-wrap">
+
+    <!-- HOME TAB ────────────────── -->
+    <div v-show="tab==='home'" class="view">
+      <!-- Direct Contact Owner Banner -->
+      <div class="real-user-banner" @click="openRealUserContact">
+        <div class="rub-icon">👤</div>
+        <div class="rub-info">
+          <div class="rub-title">Buy via Real User</div>
+          <div class="rub-desc">Contact @xusanboyman200 for direct manual transfers</div>
+        </div>
+        <div class="rub-arrow">↗</div>
+      </div>
+
+      <!-- 3-Column Grid -->
+      <div class="gifts-grid" style="margin-top: 10px;">
+        <div v-for="g in gifts" :key="g.id" class="gift-card" @click="openSheet(g)">
+          <div class="card-media">
+            <img v-if="getGiftImg(g.animation)" :src="getGiftImg(g.animation)" class="card-img" alt="gift"/>
+            <lottie-anim v-else-if="g.animation" :filename="g.animation"></lottie-anim>
+            <span v-else class="card-emoji-fallback">{{ g.emoji }}</span>
+          </div>
+          <div class="card-title">{{ g.display_name || g.emoji }}</div>
+          <div class="card-price-pill">
+            <span class="star-icon">⭐</span> {{ g.base_stars + g.commission }}
+          </div>
+        </div>
+      </div>
+
+        <!-- Admin Management Box (Visible for Admin Users) -->
+      <div v-if="isAdmin" class="admin-bottom-box">
+        <div class="admin-box-header">
+          <div class="admin-box-title">⚡ Admin Management</div>
+          <button class="admin-panel-btn" @click="showAdmin=true; loadAdminGifts()">Open Dashboard ⚙️</button>
+        </div>
+        <div class="admin-add-card" @click="openAddForm">
+          <div class="big-plus">+</div>
+          <div class="add-card-text">Add New Gift</div>
+        </div>
+      </div>
+
+      <p class="footer-note">⭐ Price shown in Telegram Stars</p>
+    </div>
+
+    <!-- HISTORY TAB ─────────────── -->
+    <div v-show="tab==='history'" class="view">
+      <h2 class="view-title">📜 Order History</h2>
+      <div v-if="!user" class="empty-state">
+        <div class="empty-icon">🔒</div>
+        <p>Open in Telegram to view your orders</p>
+      </div>
+      <div v-else-if="myOrders.length === 0" class="empty-state">
+        <span class="empty-icon">🎁</span>
+        <p>No orders yet</p>
+      </div>
+      <div v-else class="orders-list">
+        <div v-for="o in myOrders" :key="o.id" class="order-item">
+          <div class="oi-left">
+            <span class="oi-emoji">{{ o.emoji }}</span>
+            <div class="oi-info">
+              <span class="oi-name">{{ o.display_name || o.emoji }}</span>
+              <span class="oi-recipient">To: {{ o.recipient_id }}</span>
+            </div>
+          </div>
+          <div class="oi-right">
+            <span class="oi-stars">⭐ {{ o.total_stars }}</span>
+            <span :class="['oi-status', 'st-'+o.status]">{{ o.status }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Bottom Navigation ──────────────────── -->
+  <nav class="bottom-nav">
+    <button :class="['nav-item', tab==='home'?'active':'']" @click="tab='home'">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 9.5L12 3l9 6.5V21H3V9.5z"/></svg>
+      <span>Gifts</span>
+    </button>
+    <button :class="['nav-item', tab==='history'?'active':'']" @click="loadHistory(); tab='history'">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span>History</span>
+    </button>
+  </nav>
+
+  <!-- ── Buy Bottom Sheet ────────────────────── -->
+  <transition name="sheet">
+    <div class="sheet-backdrop" v-if="selected" @click.self="closeSheet">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+
+        <div class="sheet-anim-wrap" :style="sheetGlowStyle">
+          <div class="sheet-ring sr1" :style="sheetRingStyle(1)"></div>
+          <div class="sheet-ring sr2" :style="sheetRingStyle(2)"></div>
+          <img v-if="getGiftImg(selected.animation)" :src="getGiftImg(selected.animation)" class="sheet-img-preview"/>
+          <lottie-anim v-else-if="selected.animation" :filename="selected.animation" class="sheet-lottie"></lottie-anim>
+          <div v-else class="sheet-emoji">{{ selected.emoji }}</div>
+        </div>
+
+        <div class="sheet-price">
+          ⭐ {{ selected.base_stars + selected.commission }}
+        </div>
+
+        <div class="recipient-wrap">
+          <div class="recipient-field">
+            <span class="at">@</span>
+            <input
+              v-model="recipient"
+              class="rec-input"
+              placeholder="username"
+              autocomplete="off"
+              @keydown.enter="pay"
+            />
+          </div>
+          <button class="me-btn" @click="setRecipientMe" title="Use my Telegram username/ID">Me</button>
+          <button class="pick-btn" @click="pickContact" title="Pick Telegram contact">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+          </button>
+        </div>
+
+        <a href="https://t.me/xusanboyman200" target="_blank" class="real-user-btn">
+          👤 Buy via Real User (@xusanboyman200)
+        </a>
+
+        <p v-if="errMsg" class="err-msg">{{ errMsg }}</p>
+
+        <button class="pay-btn" :disabled="paying || !recipient.trim()" @click="pay">
+          <span v-if="!paying">Pay {{ selected.base_stars + selected.commission }} ⭐</span>
+          <span v-else class="spin">⏳</span>
+        </button>
+      </div>
+    </div>
+  </transition>
+
+  <!-- ── Admin Panel ────────────────────────── -->
+  <transition name="sheet">
+    <div class="sheet-backdrop" v-if="showAdmin" @click.self="showAdmin=false">
+      <div class="sheet admin-sheet">
+        <div class="sheet-handle"></div>
+        <h2 class="admin-title">⚙️ Admin Panel</h2>
+
+        <div class="admin-tabs">
+          <button :class="['atab', aTab==='gifts'?'act':'']" @click="aTab='gifts';loadAdminGifts()">Gifts</button>
+          <button :class="['atab', aTab==='orders'?'act':'']" @click="aTab='orders';loadAdminOrders()">Orders</button>
+        </div>
+
+        <div v-if="aTab==='gifts'" class="admin-scroll">
+          <button class="add-btn" @click="openAddForm">+ Add Gift</button>
+          <div v-for="g in adminGifts" :key="g.id" class="admin-row">
+            <span class="ar-em">{{ g.emoji }}</span>
+            <div class="ar-inf">
+              <b>{{ g.display_name || g.emoji }}</b>
+              <small>{{ g.base_stars + g.commission }}⭐ · {{ g.date_label }}</small>
+            </div>
+            <div class="ar-act">
+              <button class="ibtn" @click="editGift(g)">✏️</button>
+              <button class="ibtn" @click="toggleActive(g)">{{ g.active ? '✅' : '❌' }}</button>
+              <button class="ibtn" @click="delGift(g.id)">🗑️</button>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="aTab==='orders'" class="admin-scroll">
+          <div v-for="o in adminOrders" :key="o.id" class="admin-order">
+            <div class="ao-top"><span>#{{ o.id }}</span><span :class="['ao-st','st-'+o.status]">{{ o.status }}</span></div>
+            <div>{{ o.display_name || o.emoji }} → <b>{{ o.recipient_id }}</b> · {{ o.total_stars }}⭐</div>
+            <small>{{ o.buyer_username ? '@'+o.buyer_username : o.buyer_tg_id }}</small>
+          </div>
+        </div>
+
+        <div v-if="form.show" class="gift-form">
+          <h3>{{ form.id ? 'Edit' : 'Add' }} Gift</h3>
+          <input v-model="form.emoji"        class="fi" placeholder="Emoji (e.g. 🧸)"/>
+          <input v-model="form.display_name" class="fi" placeholder="Display name (e.g. Super Bear)"/>
+          <input v-model="form.date_label"   class="fi" placeholder="Date label (e.g. 08/06/26)"/>
+          <input v-model="form.gift_tg_id"   class="fi" placeholder="TG Gift ID (e.g. 6012345678)"/>
+          <input v-model.number="form.base_stars"  class="fi" type="number" placeholder="Base stars (e.g. 50)"/>
+          <input v-model.number="form.commission"   class="fi" type="number" placeholder="Commission (e.g. 10)"/>
+          <input v-model="form.animation"   class="fi" placeholder="Animation File (e.g. hug_bear.json or worker.gif)"/>
+          <div class="form-row">
+            <button class="fsave" @click="saveGift">Save</button>
+            <button class="fcancel" @click="form.show=false">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </transition>
+
+  <!-- ── Toast ──────────────────────────────── -->
+  <transition name="toast">
+    <div class="toast" v-if="toast">{{ toast }}</div>
+  </transition>
+
+  <canvas id="confettiCanvas" style="position:fixed;inset:0;z-index:999;pointer-events:none"></canvas>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
