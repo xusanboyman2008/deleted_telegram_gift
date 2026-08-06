@@ -8,6 +8,10 @@ set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 BACKEND="$ROOT/backend"
 
+if [ -f "$ROOT/.env" ]; then
+  export $(grep -v '^#' "$ROOT/.env" | xargs)
+fi
+
 echo ""
 echo "  🎁  Deleted Gift Shop Launcher"
 echo "  ══════════════════════════════"

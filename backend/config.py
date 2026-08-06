@@ -1,14 +1,18 @@
 import os
 
+# Auto-load local .env if present (file is in .gitignore to prevent pushing tokens)
+env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+if os.path.exists(env_path):
+    with open(env_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-
-# Set your Telegram numeric user ID here (or via env var ADMIN_ID)
 ADMIN_ID = int(os.getenv("ADMIN_ID", "6588631008"))
-
-# ngrok / public HTTPS URL (set automatically by start.sh)
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
-
-# Default commission in stars added on top of gift base price
 DEFAULT_COMMISSION = int(os.getenv("DEFAULT_COMMISSION", "10"))
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
