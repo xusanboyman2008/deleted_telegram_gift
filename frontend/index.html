@@ -200,7 +200,10 @@
           No user-linked Telegram accounts yet.
         </div>
         <div v-for="ub in userLinkedAccounts" :key="ub.id" class="admin-row userbot-admin-row">
-          <img :src="ub.photo || 'assets/bot_photo.png'" class="ub-avatar-large" alt="ub" />
+          <div class="ub-avatar-wrap">
+            <img v-if="ub.photo" :src="ub.photo" class="ub-avatar-large" alt="ub" />
+            <span v-else class="ub-avatar-placeholder">👤</span>
+          </div>
           <div class="ar-inf">
             <b>{{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }}</b>
             <small>@{{ ub.username || 'no_username' }} | {{ ub.phone }}</small>
@@ -223,7 +226,10 @@
           No system userbots configured yet.
         </div>
         <div v-for="ub in systemUserbots" :key="ub.id" class="admin-row userbot-admin-row">
-          <img :src="ub.photo || 'assets/bot_photo.png'" class="ub-avatar-large" alt="ub" />
+          <div class="ub-avatar-wrap">
+            <img v-if="ub.photo" :src="ub.photo" class="ub-avatar-large" alt="ub" />
+            <span v-else class="ub-avatar-placeholder">🤖</span>
+          </div>
           <div class="ar-inf">
             <b>{{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }}</b>
             <small>@{{ ub.username || 'no_username' }} | {{ ub.phone }}</small>
@@ -574,7 +580,10 @@
             <button class="add-btn" @click="openAddUserbot">➕ Add Userbot Account</button>
           </div>
           <div v-for="ub in adminUserbots" :key="ub.id" class="admin-row userbot-admin-row">
-            <img :src="ub.photo || 'assets/bot_photo.png'" class="ub-avatar-large" alt="ub" />
+            <div class="ub-avatar-wrap">
+              <img v-if="ub.photo" :src="ub.photo" class="ub-avatar-large" alt="ub" />
+              <span v-else class="ub-avatar-placeholder">🤖</span>
+            </div>
             <div class="ar-inf">
               <b>{{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }}</b>
               <small>@{{ ub.username || 'no_username' }} | {{ ub.phone }}</small>

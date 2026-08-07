@@ -855,6 +855,46 @@ html, body {
   box-shadow: 0 4px 18px rgba(123, 97, 255, 0.45);
 }
 .ub-avatar { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(255, 255, 255, 0.2); flex-shrink: 0; }
+.ub-avatar-wrap {
+  width: 42px !important;
+  height: 42px !important;
+  min-width: 42px !important;
+  max-width: 42px !important;
+  min-height: 42px !important;
+  max-height: 42px !important;
+  border-radius: 50% !important;
+  overflow: hidden !important;
+  border: 1.5px solid rgba(168, 85, 247, 0.4) !important;
+  flex-shrink: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: linear-gradient(135deg, rgba(123, 97, 255, 0.25), rgba(168, 85, 247, 0.35));
+}
+.ub-avatar-wrap.small {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  max-width: 34px !important;
+  min-height: 34px !important;
+  max-height: 34px !important;
+}
+.ub-avatar-wrap img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 50% !important;
+}
+.ub-avatar-placeholder {
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.ub-avatar-placeholder.small {
+  font-size: 0.95rem;
+}
 .ub-avatar-large, .admin-row img, .userbot-admin-row img {
   width: 42px !important;
   height: 42px !important;
@@ -869,7 +909,7 @@ html, body {
 }
 .ub-info { flex: 1; }
 .ub-name { font-size: 0.85rem; font-weight: 700; color: #FFFFFF; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9); }
-.ub-uname { font-size: 0.72rem; color: rgba(255, 255, 255, 0.45); font-weight: 500; margin-top: 1px; }
+.ub-uname { font-size: 0.7rem; color: rgba(255, 255, 255, 0.4); font-weight: 500; margin-top: 1px; }
 .ub-check { color: #A07AF8; font-weight: 800; font-size: 1rem; text-shadow: 0 0 8px rgba(160, 122, 248, 0.6); }
 
 .status-pill { font-size: 0.65rem; padding: 1px 6px; border-radius: 10px; font-weight: 600; margin-left: 6px; }
