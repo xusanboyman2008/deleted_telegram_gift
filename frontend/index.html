@@ -487,7 +487,7 @@
             👤 {{ t('buyDirectBtn') }}
           </a>
 
-          <button class="sheet-pay-btn" :disabled="paying || !recipient.trim() || (userCheckError && !checkingUser)" @click="pay">
+          <button class="sheet-pay-btn" :disabled="paying || !recipient.trim()" @click="pay">
             <span v-if="!paying">{{ t('payBtn') }} {{ totalStars }} ⭐</span>
             <span v-else class="spin">⏳</span>
           </button>

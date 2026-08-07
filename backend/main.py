@@ -396,6 +396,8 @@ async def successful_payment_handler(update: Update, context):
 
         order = await db.get_order(order_id)
         gift = await db.get_gift(order["gift_id"])
+        gift_tg_id = gift.get("gift_tg_id")
+        gift_text = order.get("gift_text")
 
         # Check sender selection (Main Bot or specific Userbot)
         sender_type = order.get("sender_type", "bot")
@@ -408,6 +410,11 @@ async def successful_payment_handler(update: Update, context):
 
         if sender_type in ("userbot", "myaccount"):
             res = await attempt_send_gift_via_userbot(userbot_id, order["recipient_id"], gift_tg_id, gift_text=gift_text)
+            if not res.get("success"):
+                logger.warning(f"Userbot delivery failed ({res.get('error')}). Attempting automatic fallback via Main Bot...")
+                bot_delivered = await deliver_gift_via_bot(context.bot, order["recipient_id"], gift_tg_id, gift_text=gift_text)
+                if bot_delivered:
+                    res = {"success": True, "message": "🎁 Gift sent successfully via Main Shop Bot (automatic fallback)!"}
         else:
             bot_delivered = await deliver_gift_via_bot(context.bot, order["recipient_id"], gift_tg_id, gift_text=gift_text)
             if bot_delivered:
@@ -437,16 +444,24 @@ async def successful_payment_handler(update: Update, context):
             )
 
         if ADMIN_ID:
-            status_note = "✅ Delivered automatically!" if res.get("success") else "⚠️ Pending Manual Fulfill (Userbot Star/Limit issue)"
+            err_type = res.get("error_type", "UNKNOWN")
+            if res.get("success"):
+                status_note = "✅ Delivered automatically!"
+            elif err_type == "INSUFFICIENT_STARS":
+                status_note = "🚨 URGENT: Userbot Stars balance insufficient!"
+            else:
+                status_note = "⚠️ Pending Manual Fulfill"
+                
             note_str = f"\nMessage: {gift_text}" if gift_text else ""
+            err_detail = f"\nError Detail: <code>{res.get('error','')}</code>" if not res.get("success") else ""
             await context.bot.send_message(
                 ADMIN_ID,
-                f"🔔 <b>New Paid Order #{order_id}</b> ({status_note})\n\n"
+                f"🔔 <b>Paid Order #{order_id}</b> ({status_note})\n\n"
                 f"Buyer: @{order.get('buyer_username') or order['buyer_tg_id']}\n"
                 f"Gift: {gift.get('display_name') or gift['emoji']} (TG ID: {gift_tg_id})\n"
                 f"Recipient: <b>{order['recipient_id']}</b>{note_str}\n"
                 f"Stars Paid: <b>{order['total_stars']} ⭐</b>\n"
-                f"Charge ID: <code>{charge_id}</code>",
+                f"Charge ID: <code>{charge_id}</code>{err_detail}",
                 parse_mode="HTML"
             )
     except Exception as e:

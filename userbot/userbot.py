@@ -179,20 +179,26 @@ def update_userbot_account(account_id: int, **fields) -> bool:
 
 async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift_tg_id: str, gift_text: str = None) -> dict:
     """Attempts to deliver gift using the Hydrogram userbot account.
-    Returns warning if userbot lacks stars or session is inactive, while ensuring user knows gift will still be delivered manually!
+    Returns warning and error_type if userbot lacks stars or session is inactive, while ensuring user knows gift will still be delivered!
     """
     account = get_userbot_by_id(account_id)
+    ub_name = account.get('first_name') or f"Account #{account_id}" if account else f"Account #{account_id}"
+    
     if not account or not account.get("active"):
         return {
             "success": False,
-            "warning": "⚠️ Payment received! Auto-delivery userbot is currently inactive, but do not worry — your gift will be sent manually by our team shortly!"
+            "error_type": "INACTIVE_USERBOT",
+            "error": f"Userbot {ub_name} is inactive.",
+            "warning": "⚠️ Payment received! Auto-delivery userbot is currently inactive, but do not worry — your gift will be sent automatically via Main Bot or manually by our team shortly!"
         }
 
     session_string = account.get("session_string")
     if not session_string:
         return {
             "success": False,
-            "warning": "⚠️ Payment received! Userbot sender balance/session check pending. Do not worry — your gift will be sent manually by our team shortly!"
+            "error_type": "MISSING_SESSION",
+            "error": f"Userbot {ub_name} has no valid session string.",
+            "warning": "⚠️ Payment received! Userbot sender session check pending. Do not worry — your gift will be sent automatically via Main Bot or manually by our team shortly!"
         }
 
     # Execute Hydrogram Client sending logic
@@ -208,6 +214,8 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
             if not user:
                 return {
                     "success": False,
+                    "error_type": "RECIPIENT_NOT_FOUND",
+                    "error": f"Target recipient {recipient_id} not found by userbot.",
                     "warning": f"⚠️ Payment received! Target recipient {recipient_id} not found by userbot. Admin will send your gift manually!"
                 }
             
@@ -219,14 +227,30 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
                     message=gift_text or ""
                 )
             )
-            return {"success": True, "message": "🎁 Gift sent successfully via Userbot!"}
+            return {"success": True, "message": f"🎁 Gift sent successfully via Userbot {ub_name}!"}
 
     except Exception as e:
         err_msg = str(e)
+        err_upper = err_msg.upper()
         logger.error(f"Userbot gift transfer failed for account {account.get('id', 1)}: {err_msg}")
+        
+        is_star_error = any(token in err_upper for token in [
+            "BALANCE_TOO_LOW", "NOT_ENOUGH_STARS", "STARGIFT_USAGE_LIMITED", 
+            "STAR", "BALANCE", "PAYMENT_REQUIRED", "PREPAYMENT_REQUIRED"
+        ])
+        
+        if is_star_error:
+            error_type = "INSUFFICIENT_STARS"
+            clean_error = f"Userbot account {ub_name} has insufficient Telegram Stars balance to complete the transfer."
+        else:
+            error_type = "USERBOT_RPC_ERROR"
+            clean_error = f"Userbot {ub_name} returned error: {err_msg}"
+
         return {
             "success": False,
-            "warning": f"⚠️ Payment received! Sender userbot encountered an issue ({err_msg}). Do not worry — your gift will be sent manually by our team shortly!"
+            "error_type": error_type,
+            "error": clean_error,
+            "warning": f"⚠️ Payment received! {clean_error} Do not worry — your gift will be sent automatically via Main Bot or manually by our team shortly!"
         }
 
 async def verify_telegram_user(bot_token: str, query: str) -> dict:
