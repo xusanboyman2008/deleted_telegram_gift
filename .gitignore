@@ -14,3 +14,4 @@ userbot/*.json
 *.json
 !frontend/assets/*.json
 !animations/*.json
+frontend/assets/user_photos/

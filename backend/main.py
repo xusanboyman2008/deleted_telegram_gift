@@ -664,11 +664,9 @@ async def get_userbot_accounts(user: dict = Depends(get_optional_user)):
     
     # Load userbots directly from Database
     raw_accs = await db.async_get_userbot_accounts(active_only=True, user_tg_id=user_id, is_admin=is_admin)
-    
-    if is_admin:
-        return raw_accs
         
-    # Strictly sanitize public data for non-admin users (NO session_string, NO phone, NO api keys, HASHED ID)
+    # Strictly sanitize public data for non-admin users & public app callers
+    # (NO session_string, NO phone, NO api keys, HASHED ID for control)
     sanitized = []
     for acc in raw_accs:
         fname = acc.get("first_name", "") or ""

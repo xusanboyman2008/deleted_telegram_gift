@@ -80,10 +80,19 @@ def load_userbot_accounts(active_only: bool = True, user_tg_id: int = None, is_a
     # Fallback for public: only system userbots
     return [acc for acc in accounts if not acc.get("owner_tg_id")]
 
-def get_userbot_by_id(account_id: int):
+def get_userbot_by_id(account_id):
     accounts = get_all_userbot_accounts()
+    str_id = str(account_id)
+    try:
+        from backend.db import hash_userbot_id
+    except ImportError:
+        try:
+            from db import hash_userbot_id
+        except ImportError:
+            hash_userbot_id = lambda x: str(x)
+
     for acc in accounts:
-        if acc.get("id") == account_id:
+        if str(acc.get("id")) == str_id or hash_userbot_id(acc.get("id")) == str_id:
             return acc
     return accounts[0] if accounts else None
 
@@ -190,12 +199,11 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
     try:
         from hydrogram import Client
         from hydrogram.raw.functions.payments import SendGift
-        from hydrogram.raw.types import InputUser
 
         api_id = account.get("api_id")
         api_hash = account.get("api_hash")
 
-        async with Client(f"userbot_{account_id}", api_id=api_id, api_hash=api_hash, session_string=session_string, in_memory=True) as client:
+        async with Client(f"userbot_{account.get('id', 1)}", api_id=api_id, api_hash=api_hash, session_string=session_string, in_memory=True) as client:
             user = await client.get_users(recipient_id)
             if not user:
                 return {
@@ -215,101 +223,137 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
 
     except Exception as e:
         err_msg = str(e)
-        logger.error(f"Userbot gift transfer failed for account {account_id}: {err_msg}")
+        logger.error(f"Userbot gift transfer failed for account {account.get('id', 1)}: {err_msg}")
         return {
             "success": False,
             "warning": f"⚠️ Payment received! Sender userbot encountered an issue ({err_msg}). Do not worry — your gift will be sent manually by our team shortly!"
         }
 
 async def verify_telegram_user(bot_token: str, query: str) -> dict:
-    """Verifies whether a Telegram user exists by username or User ID via Bot API getChat."""
+    """Verifies whether a Telegram user exists by username or User ID via Bot API getChat and Hydrogram Userbot.
+    Downloads profile photo to frontend/assets/user_photos/{user_id}.jpg so frontend displays real profile image.
+    """
     raw = query.strip()
     if not raw:
         return {"exists": False, "found": False, "error": "Empty query"}
 
-    # Strip leading @ or t.me/ or telegram.me/ links
     clean_query = re.sub(r'^(https?://)?(t\.me/|telegram\.me/)?@?', '', raw).strip()
     if not clean_query:
         return {"exists": False, "found": False, "error": "Invalid query"}
 
     is_id = clean_query.isdigit()
-    if is_id:
-        target = int(clean_query)
-    else:
-        target = "@" + clean_query
+    target = int(clean_query) if is_id else clean_query
+    bot_target = target if is_id else "@" + clean_query
 
-    async with httpx.AsyncClient(timeout=6.0) as client:
+    photos_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "assets", "user_photos"))
+    os.makedirs(photos_dir, exist_ok=True)
+
+    # 1. Try Telegram Bot API getChat first (fast & reliable for numeric IDs)
+    async with httpx.AsyncClient(timeout=6.0) as http_client:
         try:
-            res = await client.post(
+            res = await http_client.post(
                 f"https://api.telegram.org/bot{bot_token}/getChat",
-                json={"chat_id": target}
+                json={"chat_id": bot_target}
             )
             data = res.json()
             if data.get("ok"):
                 result = data["result"]
+                user_id = result["id"]
                 username = result.get("username")
                 first_name = result.get("first_name", "")
                 last_name = result.get("last_name", "")
                 full_name = f"{first_name} {last_name}".strip() or "Telegram User"
-                
-                # Fetch profile photo if available
+
                 photo_url = None
-                try:
-                    photos_res = await client.post(
-                        f"https://api.telegram.org/bot{bot_token}/getUserProfilePhotos",
-                        json={"user_id": result["id"], "limit": 1}
-                    )
-                    photos_data = photos_res.json()
-                    if photos_data.get("ok") and photos_data["result"]["total_count"] > 0:
-                        file_id = photos_data["result"]["photos"][0][-1]["file_id"]
-                        file_res = await client.post(
-                            f"https://api.telegram.org/bot{bot_token}/getFile",
-                            json={"file_id": file_id}
-                        )
-                        file_data = file_res.json()
-                        if file_data.get("ok"):
-                            file_path = file_data["result"]["file_path"]
-                            photo_url = f"https://api.telegram.org/file/bot{bot_token}/{file_path}"
-                except Exception as photo_err:
-                    logger.warning(f"Failed to fetch profile photo: {photo_err}")
+                if result.get("photo"):
+                    try:
+                        file_id = result["photo"].get("big_file_id") or result["photo"].get("small_file_id")
+                        if file_id:
+                            f_res = await http_client.post(
+                                f"https://api.telegram.org/bot{bot_token}/getFile",
+                                json={"file_id": file_id}
+                            )
+                            f_data = f_res.json()
+                            if f_data.get("ok"):
+                                file_path = f_data["result"]["file_path"]
+                                img_dl = await http_client.get(f"https://api.telegram.org/file/bot{bot_token}/{file_path}")
+                                if img_dl.status_code == 200:
+                                    photo_path = os.path.join(photos_dir, f"{user_id}.jpg")
+                                    with open(photo_path, "wb") as f:
+                                        f.write(img_dl.content)
+                                    photo_url = f"assets/user_photos/{user_id}.jpg"
+                    except Exception as photo_err:
+                        logger.warning(f"Failed to download Bot API profile photo: {photo_err}")
 
                 return {
                     "exists": True,
                     "found": True,
-                    "id": result["id"],
-                    "username": f"@{username}" if username else f"ID:{result['id']}",
+                    "id": user_id,
+                    "username": f"@{username}" if username else f"ID:{user_id}",
                     "first_name": first_name,
                     "last_name": last_name,
                     "full_name": full_name,
                     "photo_url": photo_url
                 }
-            else:
-                if not is_id and len(clean_query) >= 3:
+        except Exception as e:
+            logger.warning(f"Bot API getChat check failed for {bot_target}: {e}")
+
+    # 2. Try Hydrogram Userbot resolution (resolves any username or peer on Telegram MTProto)
+    accounts = get_all_userbot_accounts()
+    active_acc = next((a for a in accounts if a.get("active") and a.get("session_string")), None)
+
+    if active_acc:
+        try:
+            from hydrogram import Client
+            api_id = active_acc.get("api_id")
+            api_hash = active_acc.get("api_hash")
+            session_string = active_acc.get("session_string")
+
+            async with Client(f"verify_user_{active_acc['id']}", api_id=api_id, api_hash=api_hash, session_string=session_string, in_memory=True) as ub_client:
+                try:
+                    user = await ub_client.get_users(target)
+                except Exception as get_usr_err:
+                    logger.warning(f"Hydrogram get_users failed for {target}: {get_usr_err}")
+                    user = None
+
+                if user:
+                    user_id = user.id
+                    first_name = user.first_name or ""
+                    last_name = user.last_name or ""
+                    full_name = f"{first_name} {last_name}".strip() or "Telegram User"
+                    username = f"@{user.username}" if user.username else f"ID:{user_id}"
+
+                    photo_url = None
+                    if user.photo:
+                        try:
+                            photo_path = os.path.join(photos_dir, f"{user_id}.jpg")
+                            if not os.path.exists(photo_path):
+                                try:
+                                    await ub_client.download_media(user.photo.big_file_id or user.photo.small_file_id, file_name=photo_path)
+                                except Exception:
+                                    await ub_client.download_media(user.photo, file_name=photo_path)
+                            if os.path.exists(photo_path):
+                                photo_url = f"assets/user_photos/{user_id}.jpg"
+                        except Exception as p_err:
+                            logger.warning(f"Failed downloading profile photo via Userbot for user {user_id}: {p_err}")
+
                     return {
                         "exists": True,
                         "found": True,
-                        "id": "@" + clean_query,
-                        "username": "@" + clean_query,
-                        "first_name": clean_query,
-                        "full_name": "@" + clean_query,
-                        "photo_url": None,
-                        "unverified": True
+                        "id": user_id,
+                        "username": username,
+                        "first_name": first_name,
+                        "last_name": last_name,
+                        "full_name": full_name,
+                        "photo_url": photo_url
                     }
-                return {"exists": False, "found": False, "error": data.get("description", "User not found")}
-        except Exception as e:
-            logger.error(f"verify_telegram_user error for {target}: {e}")
-            if not is_id and len(clean_query) >= 3:
-                return {
-                    "exists": True,
-                    "found": True,
-                    "id": "@" + clean_query,
-                    "username": "@" + clean_query,
-                    "first_name": clean_query,
-                    "full_name": "@" + clean_query,
-                    "photo_url": None,
-                    "unverified": True
-                }
-            return {"exists": False, "found": False, "error": str(e)}
+                else:
+                    return {"exists": False, "found": False, "error": "User does not exist on Telegram"}
+
+        except Exception as ub_err:
+            logger.error(f"Userbot verify_telegram_user exception: {ub_err}")
+
+    return {"exists": False, "found": False, "error": "User does not exist on Telegram"}
 
 
 async def userbot_send_message(account_id: int, recipient: str, message_text: str) -> dict:
@@ -331,7 +375,7 @@ async def userbot_send_message(account_id: int, recipient: str, message_text: st
 
     try:
         from hydrogram import Client
-        async with Client(f"ub_send_{account_id}", api_id=api_id, api_hash=api_hash, session_string=session_string, in_memory=True) as client:
+        async with Client(f"ub_send_{account.get('id', 1)}", api_id=api_id, api_hash=api_hash, session_string=session_string, in_memory=True) as client:
             sent = await client.send_message(chat_id=target, text=message_text)
             return {
                 "success": True,
@@ -339,7 +383,7 @@ async def userbot_send_message(account_id: int, recipient: str, message_text: st
                 "chat_id": sent.chat.id
             }
     except Exception as e:
-        logger.error(f"userbot_send_message failed for account {account_id}: {e}")
+        logger.error(f"userbot_send_message failed for account {account.get('id', 1)}: {e}")
         return {"success": False, "error": str(e)}
 
 
@@ -444,9 +488,28 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
         save_userbot_file_data(data)
         _PENDING_CLIENTS.pop(clean_phone, None)
 
+        try:
+            from backend.db import hash_userbot_id
+        except ImportError:
+            try:
+                from db import hash_userbot_id
+            except ImportError:
+                hash_userbot_id = lambda x: str(x)
+
+        hashed_id = hash_userbot_id(acc_result["id"])
+        sanitized_account = {
+            "id": hashed_id,
+            "first_name": (me.first_name or "").strip().split(" ")[0] or "Userbot",
+            "last_name": me.last_name or "",
+            "username": me.username or "",
+            "photo": acc_result.get("photo", ""),
+            "active": True,
+            "owner_tg_id": owner_tg_id
+        }
+
         return {
             "success": True,
-            "account": acc_result,
+            "account": sanitized_account,
             "message": f"Successfully authenticated {me.first_name} (@{me.username or 'no_user'})!"
         }
     except Exception as e:
