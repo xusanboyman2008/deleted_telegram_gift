@@ -724,6 +724,9 @@ createApp({
       loadAdminUserbots();
     };
 
+    const openAddForm = () => {
+      Object.assign(form, { show: true, id: null, emoji: '🧸', display_name: '', date_label: '08/07/26', gift_tg_id: '', base_stars: 50, commission: 10, animation: '' });
+    };
     const editGift = g => {
       Object.assign(form, { show: true, id: g.id, emoji: g.emoji, display_name: g.display_name || '', date_label: g.date_label, gift_tg_id: g.gift_tg_id, base_stars: g.base_stars, commission: g.commission, animation: g.animation || '' });
     };

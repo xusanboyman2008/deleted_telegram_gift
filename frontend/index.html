@@ -22,7 +22,7 @@
     </div>
     <div class="header-right">
       <button class="lang-pill" @click="tab='settings'">
-        {{ currentLang.toUpperCase() }}
+        {{ (currentLang || 'en').toUpperCase() }}
       </button>
       <button v-if="isAdmin" class="menu-btn" @click="openAdmin">
         <svg width="20" height="16" viewBox="0 0 20 16" fill="currentColor">
