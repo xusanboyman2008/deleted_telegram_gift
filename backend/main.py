@@ -17,7 +17,7 @@ from urllib.parse import parse_qsl
 
 user_last_invoice_time = {}
 
-from fastapi import FastAPI, Request, HTTPException, Depends, Header, BackgroundTasks
+from fastapi import FastAPI, Request, HTTPException, Depends, Header, BackgroundTasks, File, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
