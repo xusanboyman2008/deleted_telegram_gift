@@ -467,8 +467,85 @@ async def get_orders_by_user(buyer_tg_id: int):
 
 import sqlite3
 
+import hashlib
+
+def hash_userbot_id(raw_id) -> str:
+    """Generates an obfuscated 12-char hash for public API exposure."""
+    try:
+        val = int(raw_id)
+        return hashlib.sha256(f"ub_secret_salt_2026_{val}".encode()).hexdigest()[:12]
+    except (ValueError, TypeError):
+        return str(raw_id)
+
+async def async_get_userbot_accounts(active_only: bool = True, user_tg_id: int = None, is_admin: bool = False) -> list:
+    """Async database fetch for userbot accounts from PostgreSQL or SQLite."""
+    accounts = []
+    if IS_POSTGRES and pool:
+        try:
+            async with pool.acquire() as conn:
+                res = await conn.fetch("SELECT * FROM userbot_accounts ORDER BY id ASC")
+                accounts = [dict(r) for r in res]
+        except Exception as e:
+            logger.error(f"PostgreSQL async_get_userbot_accounts error: {e}")
+
+    if not accounts:
+        try:
+            async with aiosqlite.connect(DB_PATH) as db:
+                db.row_factory = aiosqlite.Row
+                cur = await db.execute("SELECT * FROM userbot_accounts ORDER BY id ASC")
+                res = await cur.fetchall()
+                accounts = [dict(r) for r in res]
+        except Exception as e:
+            logger.error(f"SQLite async_get_userbot_accounts error: {e}")
+
+    if not accounts:
+        accounts = db_get_userbot_accounts()
+
+    for acc in accounts:
+        acc["active"] = bool(acc.get("active", 1))
+
+    if active_only:
+        accounts = [acc for acc in accounts if acc.get("active", True)]
+
+    if is_admin:
+        return accounts
+
+    if user_tg_id:
+        return [acc for acc in accounts if not acc.get("owner_tg_id") or acc.get("owner_tg_id") == user_tg_id]
+
+    return [acc for acc in accounts if not acc.get("owner_tg_id")]
+
+async def get_userbot_by_id_or_hash(identifier) -> dict:
+    """Finds a userbot account by integer ID or obfuscated hashed ID."""
+    accounts = await async_get_userbot_accounts(active_only=False, is_admin=True)
+    str_id = str(identifier)
+    for acc in accounts:
+        if str(acc.get("id")) == str_id or hash_userbot_id(acc.get("id")) == str_id:
+            return acc
+    return accounts[0] if accounts else None
+
 def db_get_userbot_accounts() -> list:
-    """Synchronous fallback to read userbots directly from SQLite database."""
+    """Synchronous read of userbots directly from PostgreSQL or SQLite database."""
+    if IS_POSTGRES and DATABASE_URL:
+        try:
+            import psycopg2
+            from psycopg2.extras import RealDictCursor
+            pg_url = DATABASE_URL.replace("postgres://", "postgresql://")
+            conn = psycopg2.connect(pg_url)
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("SELECT * FROM userbot_accounts ORDER BY id ASC")
+            rows = cur.fetchall()
+            conn.close()
+            accounts = []
+            for r in rows:
+                acc = dict(r)
+                acc["active"] = bool(acc.get("active", 1))
+                accounts.append(acc)
+            if accounts:
+                return accounts
+        except Exception as e:
+            logger.error(f"PostgreSQL db_get_userbot_accounts failed: {e}")
+
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row

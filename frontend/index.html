@@ -408,10 +408,11 @@
               </div>
             </template>
             <template v-else-if="selectedSender === 'myaccount'">
-              <div class="ub-avatar my-account-avatar">👤</div>
+              <img v-if="getUserPhoto()" :src="getUserPhoto()" class="ub-avatar" style="border-radius: 50%; object-fit: cover;" alt="user" />
+              <div v-else class="ub-avatar my-account-avatar">👤</div>
               <div class="ub-info">
-                <div class="ub-name">{{ t('myAccountSender') }}</div>
-                <div class="ub-uname">{{ pricing.myaccount_stars }} ⭐ · {{ userAccount ? (userAccount.phone || userAccount.first_name) : t('connectMyAccount') }}</div>
+                <div class="ub-name">{{ getUserFirstName() }}</div>
+                <div class="ub-uname">{{ pricing.myaccount_stars }} ⭐ · {{ userAccount ? getUserFirstName() : t('connectMyAccount') }}</div>
               </div>
             </template>
             <span class="ub-check" style="font-size: 0.85rem;">▾</span>
@@ -441,7 +442,7 @@
             >
               <img :src="acc.photo || 'assets/bot_photo.png'" class="ub-avatar" alt="userbot" />
               <div class="ub-info">
-                <div class="ub-name">{{ ((acc.first_name || '') + ' ' + (acc.last_name || '')).trim() || ('Userbot #' + acc.id) }}</div>
+                <div class="ub-name">{{ (acc.first_name || 'Userbot').trim().split(' ')[0] }}</div>
                 <div class="ub-uname">{{ pricing.userbot_stars }} ⭐ · {{ acc.username ? '@' + acc.username : t('userbotSenderSub') }}</div>
               </div>
               <span v-if="selectedSender === 'userbot' && selectedUserbot === acc.id" class="ub-check">✓</span>
@@ -452,11 +453,12 @@
               :class="['ub-acc-card', selectedSender === 'myaccount' ? 'active' : '']"
               @click="selectedSender = 'myaccount'; showSenderDropdown = false"
             >
-              <div class="ub-avatar my-account-avatar">👤</div>
+              <img v-if="getUserPhoto()" :src="getUserPhoto()" class="ub-avatar" style="border-radius: 50%; object-fit: cover;" alt="user" />
+              <div v-else class="ub-avatar my-account-avatar">👤</div>
               <div class="ub-info">
-                <div class="ub-name">{{ t('myAccountSender') }}</div>
+                <div class="ub-name">{{ getUserFirstName() }}</div>
                 <div class="ub-uname">
-                  {{ pricing.myaccount_stars }} ⭐ · {{ userAccount ? (userAccount.phone || userAccount.first_name) : t('connectMyAccount') }}
+                  {{ pricing.myaccount_stars }} ⭐ · {{ userAccount ? getUserFirstName() : t('connectMyAccount') }}
                 </div>
               </div>
               <button v-if="!userAccount" class="ub-connect-btn" @click.stop="openPhoneAuth">

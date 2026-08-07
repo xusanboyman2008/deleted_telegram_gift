@@ -819,8 +819,24 @@ createApp({
     const getSelectedUserbotName = () => {
       const u = getSelectedUserbotObj();
       if (!u) return 'Userbot';
-      const name = ((u.first_name || '') + ' ' + (u.last_name || '')).trim();
-      return name || (u.username ? '@' + u.username : `Userbot #${u.id}`);
+      const name = (u.first_name || '').trim().split(' ')[0];
+      return name || (u.username ? '@' + u.username : 'Userbot');
+    };
+
+    const getUserFirstName = () => {
+      if (userAccount.value && userAccount.value.first_name) {
+        return userAccount.value.first_name.trim().split(' ')[0];
+      }
+      if (ME && ME.first_name) {
+        return ME.first_name.trim().split(' ')[0];
+      }
+      return 'My Account';
+    };
+
+    const getUserPhoto = () => {
+      if (ME && ME.photo_url) return ME.photo_url;
+      if (userAccount.value && userAccount.value.photo) return userAccount.value.photo;
+      return null;
     };
 
     const openAddForm = () => {
@@ -1066,7 +1082,7 @@ createApp({
       tab, gifts, selected, recipient, giftMsg, paying, errMsg, toast, totalStars,
       isAdmin, showAdmin, aTab, adminGifts, adminOrders, adminUserbots, userLinkedAccounts, systemUserbots, ubForm, ubMsgForm, myOrders, user, form,
       checkingUser, verifiedUser, userCheckError, userbotAccounts, publicUserbots, selectedSender, selectedUserbot, userAccount,
-      showSenderDropdown, getSelectedUserbotObj, getSelectedUserbotName, onAnimationFileSelect,
+      showSenderDropdown, getSelectedUserbotObj, getSelectedUserbotName, getUserFirstName, getUserPhoto, onAnimationFileSelect,
       currentLang, setLanguage, t, pricing, savePricing, phoneModal, openPhoneAuth, requestPhoneCode, confirmPhoneCode, disconnectMyAccount,
       sheetGlowStyle, sheetRingStyle, giftName, getGiftImg, getFallbackPng, scrollToGifts, openRealUserContact, isNumeric,
       openSheet, closeSheet, pickContact, setRecipientMe, pay, loadHistory, openAdmin,

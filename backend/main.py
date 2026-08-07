@@ -659,13 +659,30 @@ async def admin_update_pricing(body: AdminPricingUpdatePayload, admin=Depends(ge
 
 @app.get("/api/userbot-accounts")
 async def get_userbot_accounts(user: dict = Depends(get_optional_user)):
-    try:
-        from userbot.userbot import load_userbot_accounts
-    except ImportError:
-        from userbot import load_userbot_accounts
     user_id = user.get("id") if user else None
     is_admin = (user_id == ADMIN_ID) if user_id else False
-    return load_userbot_accounts(active_only=True, user_tg_id=user_id, is_admin=is_admin)
+    
+    # Load userbots directly from Database
+    raw_accs = await db.async_get_userbot_accounts(active_only=True, user_tg_id=user_id, is_admin=is_admin)
+    
+    if is_admin:
+        return raw_accs
+        
+    # Strictly sanitize public data for non-admin users (NO session_string, NO phone, NO api keys, HASHED ID)
+    sanitized = []
+    for acc in raw_accs:
+        fname = acc.get("first_name", "") or ""
+        lname = acc.get("last_name", "") or ""
+        first_name_only = fname.strip().split(" ")[0] if fname.strip() else (lname.strip().split(" ")[0] if lname.strip() else "Userbot")
+        sanitized.append({
+            "id": db.hash_userbot_id(acc["id"]),
+            "first_name": first_name_only,
+            "username": acc.get("username", ""),
+            "photo": acc.get("photo", ""),
+            "active": bool(acc.get("active", True)),
+            "owner_tg_id": acc.get("owner_tg_id")
+        })
+    return sanitized
 
 
 class UserRequestCodePayload(BaseModel):
@@ -756,6 +773,12 @@ async def create_invoice(body: CreateInvoiceRequest, user: dict = Depends(get_us
     else:
         total = pricing.get("bot_stars", gift["base_stars"] + gift["commission"])
 
+    target_ub_id = None
+    if body.userbot_id:
+        ub_obj = await db.get_userbot_by_id_or_hash(body.userbot_id)
+        if ub_obj:
+            target_ub_id = ub_obj.get("id")
+
     name = gift.get("display_name") or gift["emoji"]
     order_id = await db.create_order(
         buyer_tg_id=user["id"],
@@ -766,7 +789,7 @@ async def create_invoice(body: CreateInvoiceRequest, user: dict = Depends(get_us
         total_stars=total,
         gift_text=body.gift_text,
         sender_type=body.sender_type or "bot",
-        userbot_id=body.userbot_id
+        userbot_id=target_ub_id
     )
     try:
         desc = f"Rare deleted Telegram gift → {body.recipient_id}"

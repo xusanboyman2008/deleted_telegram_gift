@@ -9,7 +9,19 @@ ACCOUNT_FILE = os.path.join(os.path.dirname(__file__), "account.json")
 USER_ACCOUNTS_FILE = os.path.join(os.path.dirname(__file__), "user_accounts.json")
 
 def load_userbot_file_data():
-    # 1. Try reading JSON files first
+    # 1. Primary: Try reading from Database
+    try:
+        try:
+            from backend.db import db_get_userbot_accounts
+        except ImportError:
+            from db import db_get_userbot_accounts
+        db_accs = db_get_userbot_accounts()
+        if db_accs:
+            return {"enabled": True, "accounts": db_accs}
+    except Exception as db_err:
+        logger.error(f"Database userbot load failed: {db_err}")
+
+    # 2. Fallback: Try reading JSON files
     for filepath in [ACCOUNT_FILE, USER_ACCOUNTS_FILE]:
         if os.path.exists(filepath):
             try:
@@ -19,19 +31,6 @@ def load_userbot_file_data():
                         return content
             except Exception as e:
                 logger.warning(f"Error reading {filepath}: {e}")
-
-    # 2. If JSON fails or is empty, fallback to Database
-    try:
-        try:
-            from backend.db import db_get_userbot_accounts
-        except ImportError:
-            from db import db_get_userbot_accounts
-        db_accs = db_get_userbot_accounts()
-        if db_accs:
-            logger.info("Loaded userbot accounts from Database fallback.")
-            return {"enabled": True, "accounts": db_accs}
-    except Exception as db_err:
-        logger.error(f"Database fallback load failed: {db_err}")
 
     return {"enabled": True, "accounts": []}
 
