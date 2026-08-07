@@ -240,15 +240,20 @@ async def init_db():
 # ── Gift CRUD ──────────────────────────────────────────────────────────────
 
 async def get_all_gifts(active_only: bool = True):
-    if IS_POSTGRES:
-        async with pool.acquire() as conn:
-            q = "SELECT * FROM gifts"
-            if active_only:
-                q += " WHERE active=1"
-            q += " ORDER BY id"
-            rows = await conn.fetch(q)
-            return [dict(r) for r in rows]
-    else:
+    if IS_POSTGRES and pool:
+        try:
+            async with pool.acquire() as conn:
+                q = "SELECT * FROM gifts"
+                if active_only:
+                    q += " WHERE active=1"
+                q += " ORDER BY id"
+                rows = await conn.fetch(q)
+                if rows:
+                    return [dict(r) for r in rows]
+        except Exception as e:
+            logger.error(f"PostgreSQL get_all_gifts error: {e}")
+
+    try:
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             q = "SELECT * FROM gifts"
@@ -257,20 +262,41 @@ async def get_all_gifts(active_only: bool = True):
             q += " ORDER BY id"
             cur = await db.execute(q)
             rows = await cur.fetchall()
-            return [dict(r) for r in rows]
+            if rows:
+                return [dict(r) for r in rows]
+    except Exception as e:
+        logger.error(f"SQLite get_all_gifts error: {e}")
+
+    return [
+        {"id": i+1, "emoji": g[0], "display_name": g[1], "date_label": g[2], "gift_tg_id": g[3], "base_stars": g[4], "commission": g[5], "active": 1, "animation": g[6]}
+        for i, g in enumerate(GIFTS_SEED)
+    ]
 
 
 async def get_gift(gift_id: int):
-    if IS_POSTGRES:
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT * FROM gifts WHERE id=$1", gift_id)
-            return dict(row) if row else None
-    else:
+    if IS_POSTGRES and pool:
+        try:
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM gifts WHERE id=$1", gift_id)
+                if row:
+                    return dict(row)
+        except Exception as e:
+            logger.error(f"PostgreSQL get_gift error: {e}")
+
+    try:
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             cur = await db.execute("SELECT * FROM gifts WHERE id=?", (gift_id,))
             row = await cur.fetchone()
-            return dict(row) if row else None
+            if row:
+                return dict(row)
+    except Exception as e:
+        logger.error(f"SQLite get_gift error: {e}")
+
+    for i, g in enumerate(GIFTS_SEED):
+        if (i + 1) == gift_id:
+            return {"id": i+1, "emoji": g[0], "display_name": g[1], "date_label": g[2], "gift_tg_id": g[3], "base_stars": g[4], "commission": g[5], "active": 1, "animation": g[6]}
+    return None
 
 
 async def add_gift(emoji, date_label, gift_tg_id, base_stars, commission, animation=None):

@@ -384,13 +384,26 @@ function confetti() {
   })();
 }
 
+const DEFAULT_GIFTS_SEED = [
+  { id: 1, emoji: "🧸", display_name: "Bunny Basket", date_label: "03/08/26", gift_tg_id: "5866352046986232958", base_stars: 50, commission: 10, active: 1, animation: "bunny_bear.json" },
+  { id: 2, emoji: "🧸", display_name: "Balloon Bear", date_label: "03/17/26", gift_tg_id: "5893356958802511476", base_stars: 50, commission: 10, active: 1, animation: "joker_bear.json" },
+  { id: 3, emoji: "🧸", display_name: "Rose Bear", date_label: "02/14/26", gift_tg_id: "5801108895304779062", base_stars: 50, commission: 10, active: 1, animation: "pink_bear.json" },
+  { id: 4, emoji: "🧸", display_name: "Worker Bear", date_label: "04/01/26", gift_tg_id: "5935895822435615975", base_stars: 50, commission: 10, active: 1, animation: "worker_bear.json" },
+  { id: 5, emoji: "🧸", display_name: "Football Bear", date_label: "05/01/26", gift_tg_id: "6026193266406327981", base_stars: 50, commission: 10, active: 1, animation: "football_bear.json" },
+  { id: 6, emoji: "🧸", display_name: "Santa Teddy", date_label: "12/25/25", gift_tg_id: "5922558454332916696", base_stars: 50, commission: 10, active: 1, animation: "santa_bear.json" },
+  { id: 7, emoji: "🧸", display_name: "Gnome Bear", date_label: "07/20/26", gift_tg_id: "5974210632977745012", base_stars: 50, commission: 10, active: 1, animation: "gnome_bear.json" },
+  { id: 8, emoji: "💖", display_name: "I Love U", date_label: "02/14/26", gift_tg_id: "5800655655995968839", base_stars: 50, commission: 10, active: 1, animation: "hear.json" },
+  { id: 9, emoji: "🎄", display_name: "Christmas Tree", date_label: "12/31/25", gift_tg_id: "5956217000635139069", base_stars: 50, commission: 10, active: 1, animation: "green_tree.json" },
+  { id: 10, emoji: "🧸", display_name: "Hug Bear", date_label: "05/10/26", gift_tg_id: "5800655655995968830", base_stars: 50, commission: 10, active: 1, animation: "hug_bear.json" }
+];
+
 // ── Main App ───────────────────────────────────
 createApp({
   components: { 'lottie-anim': LottieAnim },
 
   setup() {
     const tab = ref('home');
-    const gifts = ref([]);
+    const gifts = ref(DEFAULT_GIFTS_SEED);
     const selected = ref(null);
     const recipient = ref('');
     const giftMsg = ref('');
@@ -616,9 +629,12 @@ createApp({
 
     const loadGifts = async () => {
       try {
-        const data = await fetch('/api/gifts', { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
-        gifts.value = data;
-        data.forEach(g => g.animation && preloadAnim(g.animation));
+        const res = await fetch('/api/gifts', { headers: { 'ngrok-skip-browser-warning': '69420' } });
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          gifts.value = data;
+          data.forEach(g => g.animation && preloadAnim(g.animation));
+        }
       } catch (e) { console.error('loadGifts error:', e); }
     };
 
