@@ -731,14 +731,14 @@ createApp({
     };
 
     const pay = async () => {
-      let rcpt = recipient.value.trim();
-      if (!rcpt) { errMsg.value = t('recipientInputPlaceholder'); return; }
-      if (!ME) { showToast('Open in Telegram to purchase'); return; }
-
       if (selectedSender.value === 'myaccount' && !userAccount.value) {
         openPhoneAuth();
         return;
       }
+
+      let rcpt = recipient.value.trim();
+      if (!rcpt) { errMsg.value = t('recipientInputPlaceholder'); return; }
+      if (!ME) { showToast('Open in Telegram to purchase'); return; }
 
       if (/^\d+$/.test(rcpt)) {
         rcpt = rcpt;
@@ -838,6 +838,16 @@ createApp({
       if (userAccount.value && userAccount.value.photo) return userAccount.value.photo;
       return null;
     };
+
+    const sortedAdminGifts = computed(() => {
+      if (!adminGifts.value) return [];
+      return [...adminGifts.value].sort((a, b) => {
+        const aActive = a.active ? 1 : 0;
+        const bActive = b.active ? 1 : 0;
+        if (aActive === bActive) return a.id - b.id;
+        return bActive - aActive; // Active first (1), deleted at bottom (0)
+      });
+    });
 
     const openAddForm = () => {
       Object.assign(form, { show: true, id: null, emoji: '🧸', display_name: '', date_label: '08/07/26', gift_tg_id: '', base_stars: 50, commission: 10, animation: '' });
@@ -1080,7 +1090,7 @@ createApp({
 
     return {
       tab, gifts, selected, recipient, giftMsg, paying, errMsg, toast, totalStars,
-      isAdmin, showAdmin, aTab, adminGifts, adminOrders, adminUserbots, userLinkedAccounts, systemUserbots, ubForm, ubMsgForm, myOrders, user, form,
+      isAdmin, showAdmin, aTab, adminGifts, sortedAdminGifts, adminOrders, adminUserbots, userLinkedAccounts, systemUserbots, ubForm, ubMsgForm, myOrders, user, form,
       checkingUser, verifiedUser, userCheckError, userbotAccounts, publicUserbots, selectedSender, selectedUserbot, userAccount,
       showSenderDropdown, getSelectedUserbotObj, getSelectedUserbotName, getUserFirstName, getUserPhoto, onAnimationFileSelect,
       currentLang, setLanguage, t, pricing, savePricing, phoneModal, openPhoneAuth, requestPhoneCode, confirmPhoneCode, disconnectMyAccount,

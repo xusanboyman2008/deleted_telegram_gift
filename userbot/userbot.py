@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import httpx
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -222,15 +223,20 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
 
 async def verify_telegram_user(bot_token: str, query: str) -> dict:
     """Verifies whether a Telegram user exists by username or User ID via Bot API getChat."""
-    clean_query = query.strip()
-    if not clean_query:
-        return {"exists": False, "error": "Empty query"}
+    raw = query.strip()
+    if not raw:
+        return {"exists": False, "found": False, "error": "Empty query"}
 
-    # Format username / user_id
-    if clean_query.isdigit():
+    # Strip leading @ or t.me/ or telegram.me/ links
+    clean_query = re.sub(r'^(https?://)?(t\.me/|telegram\.me/)?@?', '', raw).strip()
+    if not clean_query:
+        return {"exists": False, "found": False, "error": "Invalid query"}
+
+    is_id = clean_query.isdigit()
+    if is_id:
         target = int(clean_query)
     else:
-        target = "@" + clean_query.lstrip("@")
+        target = "@" + clean_query
 
     async with httpx.AsyncClient(timeout=6.0) as client:
         try:
@@ -269,18 +275,41 @@ async def verify_telegram_user(bot_token: str, query: str) -> dict:
 
                 return {
                     "exists": True,
+                    "found": True,
                     "id": result["id"],
-                    "username": f"@{username}" if username else None,
+                    "username": f"@{username}" if username else f"ID:{result['id']}",
                     "first_name": first_name,
                     "last_name": last_name,
                     "full_name": full_name,
                     "photo_url": photo_url
                 }
             else:
-                return {"exists": False, "error": data.get("description", "User not found")}
+                if not is_id and len(clean_query) >= 3:
+                    return {
+                        "exists": True,
+                        "found": True,
+                        "id": "@" + clean_query,
+                        "username": "@" + clean_query,
+                        "first_name": clean_query,
+                        "full_name": "@" + clean_query,
+                        "photo_url": None,
+                        "unverified": True
+                    }
+                return {"exists": False, "found": False, "error": data.get("description", "User not found")}
         except Exception as e:
             logger.error(f"verify_telegram_user error for {target}: {e}")
-            return {"exists": False, "error": str(e)}
+            if not is_id and len(clean_query) >= 3:
+                return {
+                    "exists": True,
+                    "found": True,
+                    "id": "@" + clean_query,
+                    "username": "@" + clean_query,
+                    "first_name": clean_query,
+                    "full_name": "@" + clean_query,
+                    "photo_url": None,
+                    "unverified": True
+                }
+            return {"exists": False, "found": False, "error": str(e)}
 
 
 async def userbot_send_message(account_id: int, recipient: str, message_text: str) -> dict:

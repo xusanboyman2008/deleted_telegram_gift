@@ -354,7 +354,7 @@
             <span v-else-if="verifiedUser && verifiedUser.exists" class="rec-small-initial">
               {{ (verifiedUser.first_name || 'U')[0] }}
             </span>
-            <span v-else class="rec-icon">@</span>
+            <span v-else-if="!recipient" class="rec-icon">@</span>
 
             <input
               v-model="recipient"
@@ -392,7 +392,7 @@
           </div>
 
           <!-- Active Selected Sender Card (Single Box) -->
-          <div class="ub-acc-card active" @click="showSenderDropdown = !showSenderDropdown" style="cursor: pointer;">
+          <div class="ub-acc-card active" @click="selectedSender === 'myaccount' && !userAccount ? openPhoneAuth() : showSenderDropdown = !showSenderDropdown" style="cursor: pointer;">
             <template v-if="selectedSender === 'bot'">
               <img src="assets/bot_photo.png" class="ub-avatar" alt="bot" />
               <div class="ub-info">
@@ -412,7 +412,9 @@
               <div v-else class="ub-avatar my-account-avatar">👤</div>
               <div class="ub-info">
                 <div class="ub-name">{{ getUserFirstName() }}</div>
-                <div class="ub-uname">{{ pricing.myaccount_stars }} ⭐ · {{ userAccount ? getUserFirstName() : t('connectMyAccount') }}</div>
+                <div class="ub-uname" @click.stop="!userAccount ? openPhoneAuth() : null" style="cursor: pointer;">
+                  {{ pricing.myaccount_stars }} ⭐ · {{ userAccount ? getUserFirstName() : t('connectMyAccount') }}
+                </div>
               </div>
             </template>
             <span class="ub-check" style="font-size: 0.85rem;">▾</span>
@@ -451,7 +453,7 @@
             <!-- Option 3: Use My Account (60 Stars) -->
             <div
               :class="['ub-acc-card', selectedSender === 'myaccount' ? 'active' : '']"
-              @click="selectedSender = 'myaccount'; showSenderDropdown = false"
+              @click="selectedSender = 'myaccount'; if (!userAccount) openPhoneAuth(); else showSenderDropdown = false;"
             >
               <img v-if="getUserPhoto()" :src="getUserPhoto()" class="ub-avatar" style="border-radius: 50%; object-fit: cover;" alt="user" />
               <div v-else class="ub-avatar my-account-avatar">👤</div>
@@ -524,7 +526,7 @@
         <!-- ── Admin Gifts Tab ────────────────────── -->
         <div v-if="aTab==='gifts'" class="admin-scroll">
           <button class="add-btn" @click="openAddForm">+ Add Gift</button>
-          <div v-for="g in adminGifts" :key="g.id" :class="['admin-row', g.active ? '' : 'deleted-gift-row']">
+          <div v-for="g in sortedAdminGifts" :key="g.id" :class="['admin-row', g.active ? '' : 'deleted-gift-row']">
             <div class="ar-media" style="width: 36px; height: 36px; flex-shrink: 0;">
               <img v-if="getGiftImg(g.animation)" :src="getGiftImg(g.animation)" class="ar-img" style="width: 100%; height: 100%; object-fit: contain;" alt="gift"/>
               <lottie-anim v-else-if="g.animation" :filename="g.animation" :fallback-img="getFallbackPng(g.animation)"></lottie-anim>
@@ -540,7 +542,9 @@
             </div>
             <div class="ar-act">
               <button class="ibtn" @click="editGift(g)" title="Edit">✏️</button>
-              <button class="ibtn" @click="toggleActive(g)" :title="g.active ? 'Delete/Hide' : 'Restore'">{{ g.active ? '✅' : '🔴' }}</button>
+              <button class="ibtn" @click="toggleActive(g)" :title="g.active ? 'Delete/Hide' : 'Undo / Restore to Active'">
+                {{ g.active ? '🔴 Delete' : '↩️ Undo' }}
+              </button>
               <button class="ibtn" @click="delGift(g.id)" title="Hard Delete">🗑️</button>
             </div>
           </div>
@@ -632,6 +636,58 @@
           <div class="form-row">
             <button class="fsave" @click="saveGift">Save</button>
             <button class="fcancel" @click="form.show=false">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </transition>
+
+  <!-- ── Phone Auth Modal for "Use My Account" ── -->
+  <transition name="sheet">
+    <div class="sheet-backdrop" v-if="phoneModal.show" @click.self="phoneModal.show=false" style="z-index: 10000;">
+      <div class="sheet admin-sheet" style="max-height: 480px; padding: 24px 20px;">
+        <div class="sheet-handle"></div>
+        <h2 class="admin-title">📱 {{ t('connectMyAccount') }}</h2>
+        <p style="font-size: 0.85rem; color: rgba(255,255,255,0.7); text-align: center; margin-bottom: 16px;">
+          Connect your Telegram account session to send gifts directly from your personal profile!
+        </p>
+
+        <!-- Step 1: Phone Number -->
+        <div v-if="phoneModal.step === 1" class="admin-pricing-box">
+          <label class="fi-lbl">Phone Number (with country code):</label>
+          <input v-model="phoneModal.phone" type="tel" class="fi" placeholder="+998901234567" style="font-size: 1.1rem; text-align: center;" />
+          <p v-if="phoneModal.error" class="err-msg" style="margin-top: 8px;">{{ phoneModal.error }}</p>
+
+          <div class="form-row" style="margin-top: 14px;">
+            <button class="fsave" :disabled="phoneModal.loading" @click="requestPhoneCode">
+              <span v-if="!phoneModal.loading">Send Verification Code 📩</span>
+              <span v-else class="spin">⏳</span>
+            </button>
+            <button class="fcancel" @click="phoneModal.show=false">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Step 2: Verification Code & 2FA -->
+        <div v-if="phoneModal.step === 2" class="admin-pricing-box">
+          <p style="color: #10B981; font-weight: bold; text-align: center; font-size: 0.9rem;">
+            📩 Code sent to Telegram app for {{ phoneModal.phone }}
+          </p>
+          <label class="fi-lbl">Enter Telegram Verification Code:</label>
+          <input v-model="phoneModal.code" type="text" class="fi" placeholder="12345" style="font-size: 1.3rem; letter-spacing: 4px; text-align: center;" />
+
+          <div v-if="phoneModal.requires_password" style="margin-top: 10px;">
+            <label class="fi-lbl">Two-Step Verification (2FA Password):</label>
+            <input v-model="phoneModal.password" type="password" class="fi" placeholder="Enter 2FA Password" />
+          </div>
+
+          <p v-if="phoneModal.error" class="err-msg" style="margin-top: 8px;">{{ phoneModal.error }}</p>
+
+          <div class="form-row" style="margin-top: 14px;">
+            <button class="fsave" :disabled="phoneModal.loading" @click="confirmPhoneCode">
+              <span v-if="!phoneModal.loading">Confirm & Connect Account ⚡</span>
+              <span v-else class="spin">⏳</span>
+            </button>
+            <button class="fcancel" @click="phoneModal.step=1">Back</button>
           </div>
         </div>
       </div>
