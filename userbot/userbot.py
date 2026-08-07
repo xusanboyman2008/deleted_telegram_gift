@@ -9,31 +9,76 @@ ACCOUNT_FILE = os.path.join(os.path.dirname(__file__), "account.json")
 USER_ACCOUNTS_FILE = os.path.join(os.path.dirname(__file__), "user_accounts.json")
 
 def load_userbot_file_data():
-    filepath = ACCOUNT_FILE if os.path.exists(ACCOUNT_FILE) else USER_ACCOUNTS_FILE
-    if not os.path.exists(filepath):
-        return {"enabled": True, "accounts": []}
+    # 1. Try reading JSON files first
+    for filepath in [ACCOUNT_FILE, USER_ACCOUNTS_FILE]:
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    content = json.load(f)
+                    if content.get("accounts"):
+                        return content
+            except Exception as e:
+                logger.warning(f"Error reading {filepath}: {e}")
+
+    # 2. If JSON fails or is empty, fallback to Database
     try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error(f"Error reading userbot account file: {e}")
-        return {"enabled": True, "accounts": []}
+        try:
+            from backend.db import db_get_userbot_accounts
+        except ImportError:
+            from db import db_get_userbot_accounts
+        db_accs = db_get_userbot_accounts()
+        if db_accs:
+            logger.info("Loaded userbot accounts from Database fallback.")
+            return {"enabled": True, "accounts": db_accs}
+    except Exception as db_err:
+        logger.error(f"Database fallback load failed: {db_err}")
+
+    return {"enabled": True, "accounts": []}
+
 
 def save_userbot_file_data(data: dict):
+    accounts = data.get("accounts", [])
+    json_saved = False
+    # 1. Save to JSON files
     for path in [ACCOUNT_FILE, USER_ACCOUNTS_FILE]:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            json_saved = True
+        except Exception as e:
+            logger.error(f"Failed to write to {path}: {e}")
+
+    # 2. Always sync to Database as persistent fallback
+    try:
+        try:
+            from backend.db import db_save_userbot_accounts
+        except ImportError:
+            from db import db_save_userbot_accounts
+        db_save_userbot_accounts(accounts)
+    except Exception as db_err:
+        logger.error(f"Database sync save failed: {db_err}")
+        if not json_saved:
+            raise RuntimeError(f"Failed to save userbot accounts to both JSON and Database! Error: {db_err}")
 
 def get_all_userbot_accounts():
     data = load_userbot_file_data()
     return data.get("accounts", [])
 
-def load_userbot_accounts(active_only: bool = True):
+def load_userbot_accounts(active_only: bool = True, user_tg_id: int = None, is_admin: bool = False):
     accounts = get_all_userbot_accounts()
     if active_only:
-        return [acc for acc in accounts if acc.get("active", True)]
-    return accounts
+        accounts = [acc for acc in accounts if acc.get("active", True)]
+    
+    if is_admin:
+        return accounts
+    
+    if user_tg_id:
+        # System userbots (no owner) + user's own account
+        return [acc for acc in accounts if not acc.get("owner_tg_id") or acc.get("owner_tg_id") == user_tg_id]
+    
+    # Fallback for public: only system userbots
+    return [acc for acc in accounts if not acc.get("owner_tg_id")]
 
 def get_userbot_by_id(account_id: int):
     accounts = get_all_userbot_accounts()
@@ -308,7 +353,7 @@ async def request_userbot_phone_code(phone: str, api_id: int = None, api_hash: s
         return {"success": False, "error": str(e)}
 
 
-async def confirm_userbot_phone_code(phone: str, code: str, password: str = None) -> dict:
+async def confirm_userbot_phone_code(phone: str, code: str, password: str = None, owner_tg_id: int = None) -> dict:
     clean_phone = phone.strip()
     pending = _PENDING_CLIENTS.get(clean_phone)
     if not pending:
@@ -345,6 +390,8 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
             existing["last_name"] = me.last_name or ""
             existing["username"] = me.username or ""
             existing["active"] = True
+            if owner_tg_id:
+                existing["owner_tg_id"] = owner_tg_id
             acc_result = existing
         else:
             max_id = max([a.get("id", 0) for a in accounts], default=0)
@@ -359,7 +406,8 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
                 "last_name": me.last_name or "",
                 "username": me.username or "",
                 "photo": "",
-                "active": True
+                "active": True,
+                "owner_tg_id": owner_tg_id
             }
             accounts.append(new_acc)
             acc_result = new_acc
@@ -381,4 +429,21 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
             await client.disconnect()
         except:
             pass
+
+
+def delete_userbot_account(account_id: int, owner_tg_id: int = None) -> bool:
+    """Deletes a userbot account from storage. If owner_tg_id is specified, verifies ownership."""
+    data = load_userbot_file_data()
+    accounts = data.get("accounts", [])
+    acc = next((a for a in accounts if a.get("id") == account_id), None)
+    if not acc:
+        return False
+
+    if owner_tg_id and acc.get("owner_tg_id") != owner_tg_id:
+        return False
+
+    new_accs = [a for a in accounts if a.get("id") != account_id]
+    data["accounts"] = new_accs
+    save_userbot_file_data(data)
+    return True
 
