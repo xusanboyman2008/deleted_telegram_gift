@@ -1052,7 +1052,7 @@ createApp({
       checkingUser, verifiedUser, userCheckError, userbotAccounts, publicUserbots, selectedSender, selectedUserbot, userAccount,
       showSenderDropdown, getSelectedUserbotObj, getSelectedUserbotName, onAnimationFileSelect,
       currentLang, setLanguage, t, pricing, savePricing, phoneModal, openPhoneAuth, requestPhoneCode, confirmPhoneCode, disconnectMyAccount,
-      sheetGlowStyle, sheetRingStyle, getGiftImg, getFallbackPng, scrollToGifts, openRealUserContact, isNumeric,
+      sheetGlowStyle, sheetRingStyle, giftName, getGiftImg, getFallbackPng, scrollToGifts, openRealUserContact, isNumeric,
       openSheet, closeSheet, pickContact, setRecipientMe, pay, loadHistory, openAdmin,
       onRecipientInput, checkRecipientNow, clearRecipient,
       loadAdminGifts, loadAdminOrders, loadAdminUserbots, openAddUserbot, editUserbot, saveUserbot, openAddForm, editGift, saveGift, toggleActive, delGift,
