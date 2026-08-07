@@ -17,7 +17,7 @@ from urllib.parse import parse_qsl
 
 user_last_invoice_time = {}
 
-from fastapi import FastAPI, Request, HTTPException, Depends, Header
+from fastapi import FastAPI, Request, HTTPException, Depends, Header, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -397,16 +397,23 @@ async def successful_payment_handler(update: Update, context):
         order = await db.get_order(order_id)
         gift = await db.get_gift(order["gift_id"])
 
-        # Attempt automatic gift transfer via Userbot
-        gift_tg_id = gift.get("gift_tg_id", "")
-        gift_text = order.get("gift_text")
+        # Check sender selection (Main Bot or specific Userbot)
+        sender_type = order.get("sender_type", "bot")
+        userbot_id = order.get("userbot_id") or 1
 
         try:
-            from backend.userbot import attempt_send_gift_via_userbot
+            from userbot.userbot import attempt_send_gift_via_userbot
         except ImportError:
             from userbot import attempt_send_gift_via_userbot
 
-        res = await attempt_send_gift_via_userbot(1, order["recipient_id"], gift_tg_id, gift_text=gift_text)
+        if sender_type == "userbot":
+            res = await attempt_send_gift_via_userbot(userbot_id, order["recipient_id"], gift_tg_id, gift_text=gift_text)
+        else:
+            bot_delivered = await deliver_gift_via_bot(context.bot, order["recipient_id"], gift_tg_id, gift_text=gift_text)
+            if bot_delivered:
+                res = {"success": True, "message": "🎁 Gift sent successfully via Main Shop Bot!"}
+            else:
+                res = await attempt_send_gift_via_userbot(userbot_id, order["recipient_id"], gift_tg_id, gift_text=gift_text)
 
         if res.get("success"):
             await db.update_order_status(order_id, "delivered", charge_id)
@@ -613,7 +620,7 @@ async def get_gift(gift_id: int):
 @app.get("/api/check-user")
 async def check_user(query: str):
     try:
-        from backend.userbot import verify_telegram_user
+        from userbot.userbot import verify_telegram_user
     except ImportError:
         from userbot import verify_telegram_user
     res = await verify_telegram_user(BOT_TOKEN, query)
@@ -623,7 +630,7 @@ async def check_user(query: str):
 @app.get("/api/userbot-accounts")
 async def get_userbot_accounts():
     try:
-        from backend.userbot import load_userbot_accounts
+        from userbot.userbot import load_userbot_accounts
     except ImportError:
         from userbot import load_userbot_accounts
     return load_userbot_accounts()
@@ -634,6 +641,8 @@ class CreateInvoiceRequest(BaseModel):
     recipient_id: str
     gift_id: int
     gift_text: str = None
+    sender_type: str = "bot"
+    userbot_id: int = None
 
 
 @app.post("/api/invoice")
@@ -659,6 +668,8 @@ async def create_invoice(body: CreateInvoiceRequest, user: dict = Depends(get_us
         gift_id=body.gift_id,
         total_stars=total,
         gift_text=body.gift_text,
+        sender_type=body.sender_type or "bot",
+        userbot_id=body.userbot_id
     )
     try:
         desc = f"Rare deleted Telegram gift → {body.recipient_id}"
@@ -743,10 +754,35 @@ async def admin_orders(admin=Depends(get_admin)):
 @app.get("/api/admin/userbots")
 async def admin_get_userbots(admin=Depends(get_admin)):
     try:
-        from backend.userbot import get_all_userbot_accounts
+        from userbot.userbot import get_all_userbot_accounts
     except ImportError:
         from userbot import get_all_userbot_accounts
     return get_all_userbot_accounts()
+
+
+class UserbotCreate(BaseModel):
+    phone: str = ""
+    session_string: str = ""
+    api_id: int = 0
+    api_hash: str = ""
+    first_name: str = ""
+    last_name: str = ""
+    username: str = ""
+    bio: str = ""
+    photo: str = ""
+    active: bool = True
+
+
+@app.post("/api/admin/userbots")
+async def admin_create_userbot(body: UserbotCreate, background_tasks: BackgroundTasks, admin=Depends(get_admin)):
+    try:
+        from userbot.userbot import create_userbot_account, sync_userbot_telegram_profile
+    except ImportError:
+        from userbot import create_userbot_account, sync_userbot_telegram_profile
+    new_acc = create_userbot_account(body.model_dump())
+    if new_acc.get("session_string"):
+        background_tasks.add_task(sync_userbot_telegram_profile, new_acc)
+    return new_acc
 
 
 class UserbotUpdate(BaseModel):
@@ -763,16 +799,73 @@ class UserbotUpdate(BaseModel):
 
 
 @app.patch("/api/admin/userbots/{account_id}")
-async def admin_update_userbot(account_id: int, body: UserbotUpdate, admin=Depends(get_admin)):
+async def admin_update_userbot(account_id: int, body: UserbotUpdate, background_tasks: BackgroundTasks, admin=Depends(get_admin)):
     try:
-        from backend.userbot import update_userbot_account
+        from userbot.userbot import update_userbot_account, get_userbot_by_id, sync_userbot_telegram_profile
     except ImportError:
-        from userbot import update_userbot_account
+        from userbot import update_userbot_account, get_userbot_by_id, sync_userbot_telegram_profile
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
     success = update_userbot_account(account_id, **fields)
     if not success:
         raise HTTPException(status_code=404, detail="Userbot account not found")
+    acc = get_userbot_by_id(account_id)
+    if acc and acc.get("session_string"):
+        background_tasks.add_task(sync_userbot_telegram_profile, acc)
     return {"ok": True}
+
+
+class UserbotSendMessageRequest(BaseModel):
+    account_id: int
+    recipient: str
+    message: str
+
+
+@app.post("/api/admin/userbot/send-message")
+async def admin_send_userbot_message(body: UserbotSendMessageRequest, admin=Depends(get_admin)):
+    try:
+        from userbot.userbot import userbot_send_message
+    except ImportError:
+        from userbot import userbot_send_message
+    res = await userbot_send_message(body.account_id, body.recipient, body.message)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Failed to send message via userbot"))
+    return res
+
+
+class RequestPhoneCodeRequest(BaseModel):
+    phone: str
+    api_id: int = None
+    api_hash: str = None
+
+
+@app.post("/api/admin/userbot/request-code")
+async def admin_request_phone_code(body: RequestPhoneCodeRequest, admin=Depends(get_admin)):
+    try:
+        from userbot.userbot import request_userbot_phone_code
+    except ImportError:
+        from userbot import request_userbot_phone_code
+    res = await request_userbot_phone_code(body.phone, body.api_id, body.api_hash)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Failed to send verification code"))
+    return res
+
+
+class ConfirmPhoneCodeRequest(BaseModel):
+    phone: str
+    code: str
+    password: str = None
+
+
+@app.post("/api/admin/userbot/confirm-code")
+async def admin_confirm_phone_code(body: ConfirmPhoneCodeRequest, admin=Depends(get_admin)):
+    try:
+        from userbot.userbot import confirm_userbot_phone_code
+    except ImportError:
+        from userbot import confirm_userbot_phone_code
+    res = await confirm_userbot_phone_code(body.phone, body.code, body.password)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Failed to confirm code"))
+    return res
 
 
 # ── Static files ───────────────────────────────────────────────────────────────

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Lottie Debug</title>
+<script src="lottie.min.js"></script>
+<style>
+body { background: #111; color: #fff; font-family: sans-serif; }
+.grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; padding: 20px; }
+.cell { background: #222; border-radius: 12px; padding: 10px; text-align: center; }
+.cell .anim { width: 150px; height: 150px; margin: 0 auto; background: rgba(255,255,255,0.05); }
+.cell .name { margin-top: 8px; font-size: 12px; }
+.cell .status { margin-top: 4px; font-size: 11px; color: #888; }
+</style>
+</head>
+<body>
+<h2>Lottie Debug — All 10 Gift Animations</h2>
+<div class="grid" id="grid"></div>
+<script>
+const files = [
+  'bunny_bear.json', 'joker_bear.json', 'pink_bear.json',
+  'plumber_bear.json', 'football_bear.json', 'santa_bear.json',
+  'gnome_bear.json', 'hear.json', 'green_tree.json', 'hug_bear.json'
+];
+
+files.forEach((file, i) => {
+  const cell = document.createElement('div');
+  cell.className = 'cell';
+  cell.innerHTML = `<div class="anim" id="anim-${i}"></div><div class="name">${file}</div><div class="status" id="st-${i}">Loading...</div>`;
+  document.getElementById('grid').appendChild(cell);
+
+  fetch('assets/' + file)
+    .then(r => r.json())
+    .then(data => {
+      const container = document.getElementById('anim-' + i);
+      const statusEl = document.getElementById('st-' + i);
+
+      // Log key animation properties
+      console.log(file, 'v:', data.v, 'fr:', data.fr, 'w:', data.w, 'h:', data.h,
+                  'layers:', data.layers?.length, 'tgs:', data.tgs);
+
+      try {
+        const inst = lottie.loadAnimation({
+          container: container,
+          renderer: 'svg',
+          loop: true,
+          autoplay: true,
+          animationData: data,
+        });
+
+        inst.addEventListener('DOMLoaded', () => {
+          const svg = container.querySelector('svg');
+          statusEl.textContent = '✅ SVG loaded, children: ' + (svg ? svg.children.length : 0);
+          statusEl.style.color = '#4f4';
+          console.log(file, 'SVG viewBox:', svg?.getAttribute('viewBox'),
+                      'width:', svg?.getAttribute('width'), 'height:', svg?.getAttribute('height'),
+                      'children:', svg?.children.length);
+        });
+
+        inst.addEventListener('error', (e) => {
+          statusEl.textContent = '❌ Error: ' + JSON.stringify(e);
+          statusEl.style.color = '#f44';
+          console.error(file, 'LOTTIE ERROR:', e);
+        });
+
+        inst.addEventListener('data_failed', (e) => {
+          statusEl.textContent = '❌ Data failed';
+          statusEl.style.color = '#f44';
+          console.error(file, 'DATA FAILED:', e);
+        });
+
+      } catch (e) {
+        statusEl.textContent = '❌ Exception: ' + e.message;
+        statusEl.style.color = '#f44';
+        console.error(file, 'EXCEPTION:', e);
+      }
+    })
+    .catch(e => {
+      document.getElementById('st-' + i).textContent = '❌ Fetch failed: ' + e.message;
+    });
+});
+</script>
+</body>
+</html>

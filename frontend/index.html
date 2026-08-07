@@ -122,9 +122,8 @@
       <div class="sheet">
         <div class="sheet-handle"></div>
 
-        <div class="sheet-anim-wrap" :style="sheetGlowStyle">
-          <div class="sheet-ring sr1" :style="sheetRingStyle(1)"></div>
-          <div class="sheet-ring sr2" :style="sheetRingStyle(2)"></div>
+        <!-- ── Gift Circular Preview ── -->
+        <div class="sheet-avatar-circle">
           <img v-if="getGiftImg(selected.animation)" :src="getGiftImg(selected.animation)" class="sheet-img-preview"/>
           <lottie-anim v-else-if="selected.animation" :filename="selected.animation" :fallback-img="getFallbackPng(selected.animation)" class="sheet-lottie"></lottie-anim>
           <div v-else class="sheet-emoji">{{ selected.emoji }}</div>
@@ -134,6 +133,7 @@
           ⭐ {{ selected.base_stars + selected.commission }}
         </div>
 
+        <!-- ── Recipient Input Row ── -->
         <div class="recipient-wrap">
           <div class="rec-input-box">
             <!-- Small Circular Avatar inside Input Field -->
@@ -176,37 +176,57 @@
           />
         </div>
 
-        <!-- ── Userbot Account Selector Option ── -->
-        <div v-if="userbotAccounts && userbotAccounts.length > 0" class="userbot-select-wrap">
-          <label class="ub-label">⚡ Send via Sender Userbot Account:</label>
+        <!-- ── Sender Selection (Official Bot vs Userbots) ── -->
+        <div class="userbot-select-wrap">
+          <div class="ub-toggle-header">
+            <span>⚡ Choose Sender (Bot or Userbot):</span>
+          </div>
           <div class="ub-accounts-list">
+            <!-- Option 1: Official Bot -->
+            <div
+              :class="['ub-acc-card', selectedSender === 'bot' ? 'active' : '']"
+              @click="selectedSender = 'bot'"
+            >
+              <img src="assets/bot_photo.png" class="ub-avatar" alt="bot" />
+              <div class="ub-info">
+                <div class="ub-name">Official Shop Bot 🤖</div>
+                <div class="ub-uname">Main Bot Sender</div>
+              </div>
+              <span v-if="selectedSender === 'bot'" class="ub-check">✓</span>
+            </div>
+
+            <!-- Option 2+: Userbot Accounts -->
             <div
               v-for="acc in userbotAccounts"
               :key="acc.id"
-              :class="['ub-acc-card', selectedUserbot === acc.id ? 'active' : '']"
-              @click="selectedUserbot = acc.id"
+              :class="['ub-acc-card', selectedSender === 'userbot' && selectedUserbot === acc.id ? 'active' : '']"
+              @click="selectedSender = 'userbot'; selectedUserbot = acc.id"
             >
               <img :src="acc.photo || 'assets/bot_photo.png'" class="ub-avatar" alt="userbot" />
               <div class="ub-info">
-                <div class="ub-name">{{ acc.first_name }} {{ acc.last_name }}</div>
-                <div class="ub-uname">@{{ acc.username }}</div>
+                <div class="ub-name">{{ ((acc.first_name || '') + ' ' + (acc.last_name || '')).trim() || ('Userbot #' + acc.id) }}</div>
+                <div class="ub-uname">{{ acc.username ? '@' + acc.username : ('Userbot #' + acc.id) }}</div>
               </div>
-              <span v-if="selectedUserbot === acc.id" class="ub-check">✓</span>
+              <span v-if="selectedSender === 'userbot' && selectedUserbot === acc.id" class="ub-check">✓</span>
             </div>
           </div>
         </div>
 
-        <a href="https://t.me/xusanboyman200" target="_blank" class="real-user-btn">
-          👤 Buy Direct (@xusanboyman200)
-        </a>
-
+        <!-- ── Error Messages ── -->
         <p v-if="errMsg" class="err-msg">{{ errMsg }}</p>
         <p v-if="userCheckError" class="err-msg">❌ {{ userCheckError }}</p>
 
-        <button class="pay-btn" :disabled="paying || !recipient.trim() || (userCheckError && !checkingUser)" @click="pay">
-          <span v-if="!paying">Pay {{ selected.base_stars + selected.commission }} ⭐</span>
-          <span v-else class="spin">⏳</span>
-        </button>
+        <!-- ── Action Buttons Stack ── -->
+        <div class="sheet-action-stack">
+          <a href="https://t.me/xusanboyman200" target="_blank" class="sheet-direct-btn">
+            👤 Buy Direct (@xusanboyman200)
+          </a>
+
+          <button class="sheet-pay-btn" :disabled="paying || !recipient.trim() || (userCheckError && !checkingUser)" @click="pay">
+            <span v-if="!paying">Pay {{ selected.base_stars + selected.commission }} ⭐</span>
+            <span v-else class="spin">⏳</span>
+          </button>
+        </div>
       </div>
     </div>
   </transition>
@@ -224,6 +244,7 @@
           <button :class="['atab', aTab==='userbots'?'act':'']" @click="aTab='userbots';loadAdminUserbots()">Userbots</button>
         </div>
 
+        <!-- ── Admin Gifts Tab ────────────────────── -->
         <div v-if="aTab==='gifts'" class="admin-scroll">
           <button class="add-btn" @click="openAddForm">+ Add Gift</button>
           <div v-for="g in adminGifts" :key="g.id" :class="['admin-row', g.active ? '' : 'deleted-gift-row']">
@@ -244,6 +265,7 @@
           </div>
         </div>
 
+        <!-- ── Admin Orders Tab ───────────────────── -->
         <div v-if="aTab==='orders'" class="admin-scroll">
           <div v-for="o in adminOrders" :key="o.id" class="admin-order">
             <div class="ao-top"><span>#{{ o.id }}</span><span :class="['ao-st','st-'+o.status]">{{ o.status }}</span></div>
@@ -254,6 +276,9 @@
 
         <!-- ── Admin Userbots Tab ───────────────── -->
         <div v-if="aTab==='userbots'" class="admin-scroll">
+          <div style="margin-bottom: 12px; display: flex; justify-content: flex-end;">
+            <button class="add-btn" @click="openAddUserbot">➕ Add Userbot Account</button>
+          </div>
           <div v-for="ub in adminUserbots" :key="ub.id" class="admin-row userbot-admin-row">
             <img :src="ub.photo || 'assets/bot_photo.png'" class="ub-avatar-large" alt="ub" />
             <div class="ar-inf">
@@ -261,15 +286,29 @@
               <small>@{{ ub.username || 'no_username' }} | {{ ub.phone }}</small>
               <small>Status: {{ ub.active ? '🟢 Active Sender' : '🔴 Inactive' }}</small>
             </div>
-            <div class="ar-act">
-              <button class="ibtn edit-ub-btn" @click="editUserbot(ub)" title="Edit Profile">✏️ Edit Profile</button>
+            <div class="ar-act" style="display: flex; gap: 6px;">
+              <button class="ibtn" @click="editUserbot(ub)" title="Edit Profile">✏️ Edit</button>
+              <button class="ibtn" @click="openUserbotMsg(ub)" style="background: rgba(16, 185, 129, 0.2); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.4);" title="Send Message via Userbot">💬 Message</button>
             </div>
+          </div>
+        </div>
+
+        <!-- ── Userbot Send Message Modal ──────── -->
+        <div v-if="ubMsgForm.show" class="gift-form">
+          <h3>💬 Send Direct Message via {{ ubMsgForm.account_name }}</h3>
+          <input v-model="ubMsgForm.recipient" class="fi" placeholder="Target User ID or @username (e.g. @xusanboyman200)"/>
+          <textarea v-model="ubMsgForm.message" class="fi" style="height: 80px; resize: none;" placeholder="Type your message text here..."></textarea>
+          <div class="form-row">
+            <button class="fsave" :disabled="ubMsgForm.sending" @click="sendUserbotMsg">
+              {{ ubMsgForm.sending ? 'Sending via Hydrogram...' : 'Send Message ⚡' }}
+            </button>
+            <button class="fcancel" @click="ubMsgForm.show=false">Cancel</button>
           </div>
         </div>
 
         <!-- ── Userbot Profile Edit Form ────────── -->
         <div v-if="ubForm.show" class="gift-form">
-          <h3>✏️ Edit Userbot Account #{{ ubForm.id }}</h3>
+          <h3>{{ ubForm.id ? ('✏️ Edit Userbot Account #' + ubForm.id) : '➕ Add New Userbot Account' }}</h3>
           <input v-model="ubForm.first_name" class="fi" placeholder="First Name (e.g. TgGifts)"/>
           <input v-model="ubForm.last_name" class="fi" placeholder="Last Name (e.g. Sender)"/>
           <input v-model="ubForm.username" class="fi" placeholder="Username (e.g. tggifts_userbot)"/>
@@ -294,7 +333,7 @@
           <input v-model="form.gift_tg_id"   class="fi" placeholder="TG Gift ID (e.g. 6012345678)"/>
           <input v-model.number="form.base_stars"  class="fi" type="number" placeholder="Base stars (e.g. 50)"/>
           <input v-model.number="form.commission"   class="fi" type="number" placeholder="Commission (e.g. 10)"/>
-          <input v-model="form.animation"   class="fi" placeholder="Animation File (e.g. hug_bear.json or worker.gif)"/>
+          <input v-model="form.animation"   class="fi" placeholder="Animation File (e.g. pink_bear.json or hug_bear.json)"/>
           <div class="form-row">
             <button class="fsave" @click="saveGift">Save</button>
             <button class="fcancel" @click="form.show=false">Cancel</button>

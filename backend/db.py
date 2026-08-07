@@ -52,6 +52,8 @@ CREATE TABLE IF NOT EXISTS orders (
     status          TEXT NOT NULL DEFAULT 'pending',
     payment_charge  TEXT,
     gift_text       TEXT,
+    sender_type     TEXT DEFAULT 'bot',
+    userbot_id      INTEGER,
     created_at      TEXT DEFAULT (datetime('now')),
     updated_at      TEXT DEFAULT (datetime('now'))
 )
@@ -84,6 +86,8 @@ CREATE TABLE IF NOT EXISTS orders (
     status          TEXT NOT NULL DEFAULT 'pending',
     payment_charge  TEXT,
     gift_text       TEXT,
+    sender_type     TEXT DEFAULT 'bot',
+    userbot_id      INTEGER,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
@@ -105,6 +109,10 @@ async def init_db():
             await conn.execute(CREATE_ORDERS_POSTGRES)
             try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS gift_text TEXT")
             except Exception: pass
+            try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS sender_type TEXT DEFAULT 'bot'")
+            except Exception: pass
+            try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS userbot_id INTEGER")
+            except Exception: pass
             
             # Legacy cleanup: fix Hug Bear gift_tg_id mapping and remove duplicate rows
             try:
@@ -125,6 +133,10 @@ async def init_db():
             await db.execute(CREATE_GIFTS_SQLITE)
             await db.execute(CREATE_ORDERS_SQLITE)
             try: await db.execute("ALTER TABLE orders ADD COLUMN gift_text TEXT")
+            except Exception: pass
+            try: await db.execute("ALTER TABLE orders ADD COLUMN sender_type TEXT DEFAULT 'bot'")
+            except Exception: pass
+            try: await db.execute("ALTER TABLE orders ADD COLUMN userbot_id INTEGER")
             except Exception: pass
             
             # Legacy cleanup: fix Hug Bear gift_tg_id mapping and remove duplicate rows
@@ -236,23 +248,23 @@ async def hard_delete_gift(gift_id: int):
 
 # ── Order CRUD ─────────────────────────────────────────────────────────────
 
-async def create_order(buyer_tg_id, buyer_username, recipient_id, recipient_type, gift_id, total_stars, gift_text: str = None):
+async def create_order(buyer_tg_id, buyer_username, recipient_id, recipient_type, gift_id, total_stars, gift_text: str = None, sender_type: str = "bot", userbot_id: int = None):
     if IS_POSTGRES:
         async with pool.acquire() as conn:
             new_id = await conn.fetchval(
                 """INSERT INTO orders
-                   (buyer_tg_id, buyer_username, recipient_id, recipient_type, gift_id, total_stars, gift_text)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id""",
-                int(buyer_tg_id), buyer_username, recipient_id, recipient_type, int(gift_id), int(total_stars), gift_text
+                   (buyer_tg_id, buyer_username, recipient_id, recipient_type, gift_id, total_stars, gift_text, sender_type, userbot_id)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id""",
+                int(buyer_tg_id), buyer_username, recipient_id, recipient_type, int(gift_id), int(total_stars), gift_text, sender_type, userbot_id
             )
             return new_id
     else:
         async with aiosqlite.connect(DB_PATH) as db:
             cur = await db.execute(
                 """INSERT INTO orders
-                   (buyer_tg_id, buyer_username, recipient_id, recipient_type, gift_id, total_stars, gift_text)
-                   VALUES (?,?,?,?,?,?,?)""",
-                (buyer_tg_id, buyer_username, recipient_id, recipient_type, gift_id, total_stars, gift_text),
+                   (buyer_tg_id, buyer_username, recipient_id, recipient_type, gift_id, total_stars, gift_text, sender_type, userbot_id)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                (buyer_tg_id, buyer_username, recipient_id, recipient_type, gift_id, total_stars, gift_text, sender_type, userbot_id),
             )
             await db.commit()
             return cur.lastrowid

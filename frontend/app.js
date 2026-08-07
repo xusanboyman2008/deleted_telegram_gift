@@ -28,11 +28,11 @@ const api = (url, opts = {}) => fetch(url, {
 // ── Image & Animated GIF Fallback mapping ───────
 const IMG_MAP = {};
 
-// ── Fallback mapping (tries .json, if fails or incompatible uses .gif/.png) ──
+// ── Fallback mapping (tries .json, if fails or incompatible uses .png) ──
 const FALLBACK_PNG_MAP = {
-  'pink_bear.json': 'assets/rose_bear.gif',
-  'plumber_bear.json': 'assets/worker.gif',
-  'football_bear.json': 'assets/football.gif',
+  'pink_bear.json': 'assets/rose_bear.png',
+  'worker_bear.json': 'assets/worker_bear.png',
+  'football_bear.json': 'assets/football_bear.png',
   'bunny_bear.json': 'assets/bunny_basket.png',
   'joker_bear.json': 'assets/balloon_bear.png',
   'santa_bear.json': 'assets/santa_teddy.png',
@@ -44,6 +44,27 @@ const FALLBACK_PNG_MAP = {
 };
 const getFallbackPng = anim => FALLBACK_PNG_MAP[anim] || null;
 
+// ── Lottie Dash Fix (TGS uses "n", lottie-web expects "nm") ──
+function fixLottieDashes(obj) {
+  if (!obj || typeof obj !== 'object') return;
+  if (Array.isArray(obj)) { obj.forEach(fixLottieDashes); return; }
+  if ((obj.ty === 'st' || obj.ty === 'gs') && Array.isArray(obj.d)) {
+    obj.d.forEach(d => { if (d.n !== undefined && d.nm === undefined) d.nm = d.n; });
+  }
+  for (const k in obj) if (obj.hasOwnProperty(k)) fixLottieDashes(obj[k]);
+}
+
+// ── Detect complex files that need canvas renderer ──
+// Files with many gradient strokes/fills or mattes break SVG renderer
+const CANVAS_RENDERER_FILES = new Set([
+  'pink_bear.json',
+  'football_bear.json',
+  'worker_bear.json',
+]);
+function getRenderer(filename) {
+  return CANVAS_RENDERER_FILES.has(filename) ? 'canvas' : 'svg';
+}
+
 // ── Lottie Cache ───────────────────────────────
 const animCache = {};
 async function preloadAnim(filename) {
@@ -53,6 +74,7 @@ async function preloadAnim(filename) {
     const r = await fetch(`assets/${filename}`, { headers: { 'ngrok-skip-browser-warning': '69420' } });
     if (!r.ok) return null;
     const data = await r.json();
+    fixLottieDashes(data);
     animCache[filename] = data;
     return data;
   } catch (e) {
@@ -61,7 +83,7 @@ async function preloadAnim(filename) {
   }
 }
 
-// ── Lottie Component with Automatic GIF Fallback ──
+// ── Lottie Component with Automatic PNG Fallback ──
 const LottieAnim = {
   props: { filename: String, fallbackImg: String },
   setup(props) {
@@ -69,8 +91,10 @@ const LottieAnim = {
     const failed = ref(false);
     let inst = null;
     let isPlaying = false;
+    let failTimer = null;
 
     const destroy = () => {
+      if (failTimer) { clearTimeout(failTimer); failTimer = null; }
       if (inst) {
         try { inst.destroy(); } catch {}
         inst = null;
@@ -78,7 +102,7 @@ const LottieAnim = {
     };
 
     const playAnim = () => {
-      if (inst && !isPlaying) {
+      if (inst) {
         try {
           isPlaying = true;
           inst.goToAndPlay(0, true);
@@ -92,11 +116,6 @@ const LottieAnim = {
         failed.value = true;
         return;
       }
-      // Direct fallbacks for custom vector files that rely on GIF animations
-      if (['pink_bear.json', 'plumber_bear.json', 'football_bear.json'].includes(props.filename)) {
-        failed.value = true;
-        return;
-      }
       failed.value = false;
       const data = await preloadAnim(props.filename);
       if (!data || !el.value) {
@@ -104,21 +123,45 @@ const LottieAnim = {
         return;
       }
       destroy();
+      const renderer = getRenderer(props.filename);
       try {
         inst = lottie.loadAnimation({
           container: el.value,
-          renderer: 'canvas',
+          renderer: renderer,
           loop: false,
           autoplay: true,
           animationData: JSON.parse(JSON.stringify(data)),
+          rendererSettings: renderer === 'canvas'
+            ? { clearCanvas: true, progressiveLoad: true }
+            : {},
         });
         isPlaying = true;
+        let rendered = false;
+        inst.addEventListener('enterFrame', () => {
+          rendered = true;
+        });
         inst.addEventListener('complete', () => {
           isPlaying = false;
         });
         inst.addEventListener('error', () => {
+          console.warn('Lottie load error event for:', props.filename);
           failed.value = true;
         });
+        inst.addEventListener('data_failed', () => {
+          console.warn('Lottie data_failed for:', props.filename);
+          failed.value = true;
+        });
+        inst.addEventListener('DOMLoaded', () => {
+          rendered = true;
+        });
+        // Safety timeout: if no frame rendered within 3s, fall back to PNG
+        failTimer = setTimeout(() => {
+          if (!rendered && !failed.value) {
+            console.warn('Lottie render timeout for:', props.filename, '— falling back to PNG');
+            failed.value = true;
+            destroy();
+          }
+        }, 3000);
       } catch (e) {
         console.warn('Lottie render error:', props.filename, e);
         failed.value = true;
@@ -262,6 +305,7 @@ createApp({
     const verifiedUser = ref(null);
     const userCheckError = ref(null);
     const userbotAccounts = ref([]);
+    const selectedSender = ref('bot');
     const selectedUserbot = ref(1);
     let recipientTimer = null;
 
@@ -404,7 +448,9 @@ createApp({
           body: JSON.stringify({
             recipient_id: rcpt,
             gift_id: selected.value.id,
-            gift_text: giftMsg.value.trim() || null
+            gift_text: giftMsg.value.trim() || null,
+            sender_type: selectedSender.value,
+            userbot_id: selectedSender.value === 'userbot' ? selectedUserbot.value : null
           }),
         });
         const data = await r.json();
@@ -499,6 +545,21 @@ createApp({
       }
     };
 
+    const openAddUserbot = () => {
+      Object.assign(ubForm, {
+        show: true,
+        id: null,
+        first_name: '',
+        last_name: '',
+        username: '',
+        bio: '',
+        photo: '',
+        phone: '',
+        session_string: '',
+        active: true,
+      });
+    };
+
     const editUserbot = ub => {
       Object.assign(ubForm, {
         show: true,
@@ -515,7 +576,6 @@ createApp({
     };
 
     const saveUserbot = async () => {
-      if (!ubForm.id) return;
       const body = {
         first_name: ubForm.first_name,
         last_name: ubForm.last_name,
@@ -526,8 +586,10 @@ createApp({
         session_string: ubForm.session_string,
         active: ubForm.active,
       };
-      const r = await api(`/api/admin/userbots/${ubForm.id}`, {
-        method: 'PATCH',
+      const url = ubForm.id ? `/api/admin/userbots/${ubForm.id}` : '/api/admin/userbots';
+      const method = ubForm.id ? 'PATCH' : 'POST';
+      const r = await api(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
@@ -535,9 +597,59 @@ createApp({
         ubForm.show = false;
         loadAdminUserbots();
         loadUserbotAccounts();
-        showToast('✅ Userbot Profile Saved!');
+        showToast('✅ Userbot saved & profile synced live!');
       } else {
         showToast('❌ Userbot Save Failed');
+      }
+    };
+
+    // ── Admin Userbot Direct Messaging ─────────────
+    const ubMsgForm = reactive({
+      show: false,
+      account_id: null,
+      account_name: '',
+      recipient: '',
+      message: '',
+      sending: false,
+    });
+
+    const openUserbotMsg = (ub) => {
+      ubMsgForm.account_id = ub.id;
+      ubMsgForm.account_name = ub.first_name ? `${ub.first_name} (@${ub.username || 'no_user'})` : `Account #${ub.id}`;
+      ubMsgForm.recipient = '';
+      ubMsgForm.message = '';
+      ubMsgForm.sending = false;
+      ubMsgForm.show = true;
+    };
+
+    const sendUserbotMsg = async () => {
+      const rec = ubMsgForm.recipient.trim();
+      const msg = ubMsgForm.message.trim();
+      if (!rec) { showToast('Enter recipient username or Telegram ID'); return; }
+      if (!msg) { showToast('Enter message text to send'); return; }
+
+      ubMsgForm.sending = true;
+      try {
+        const r = await api('/api/admin/userbot/send-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            account_id: ubMsgForm.account_id,
+            recipient: rec,
+            message: msg,
+          }),
+        });
+        const data = await r.json();
+        ubMsgForm.sending = false;
+        if (r.ok) {
+          ubMsgForm.show = false;
+          showToast(`⚡ Message sent via Userbot #${ubMsgForm.account_id}!`);
+        } else {
+          showToast(`❌ ${data.detail || 'Failed to send message'}`);
+        }
+      } catch (e) {
+        ubMsgForm.sending = false;
+        showToast(`❌ ${e.message}`);
       }
     };
 
@@ -577,12 +689,13 @@ createApp({
 
     return {
       tab, gifts, selected, recipient, giftMsg, paying, errMsg, toast,
-      isAdmin, showAdmin, aTab, adminGifts, adminOrders, adminUserbots, ubForm, myOrders, user, form,
-      checkingUser, verifiedUser, userCheckError, userbotAccounts, selectedUserbot,
+      isAdmin, showAdmin, aTab, adminGifts, adminOrders, adminUserbots, ubForm, ubMsgForm, myOrders, user, form,
+      checkingUser, verifiedUser, userCheckError, userbotAccounts, selectedSender, selectedUserbot,
       sheetGlowStyle, sheetRingStyle, getGiftImg, getFallbackPng, scrollToGifts, openRealUserContact, isNumeric,
       openSheet, closeSheet, pickContact, setRecipientMe, pay, loadHistory,
       onRecipientInput, checkRecipientNow, clearRecipient,
-      loadAdminGifts, loadAdminOrders, loadAdminUserbots, editUserbot, saveUserbot, openAddForm, editGift, saveGift, toggleActive, delGift,
+      loadAdminGifts, loadAdminOrders, loadAdminUserbots, openAddUserbot, editUserbot, saveUserbot, openAddForm, editGift, saveGift, toggleActive, delGift,
+      openUserbotMsg, sendUserbotMsg,
     };
   },
 }).mount('#app');
