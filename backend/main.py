@@ -406,7 +406,7 @@ async def successful_payment_handler(update: Update, context):
         except ImportError:
             from userbot import attempt_send_gift_via_userbot
 
-        if sender_type == "userbot":
+        if sender_type in ("userbot", "myaccount"):
             res = await attempt_send_gift_via_userbot(userbot_id, order["recipient_id"], gift_tg_id, gift_text=gift_text)
         else:
             bot_delivered = await deliver_gift_via_bot(context.bot, order["recipient_id"], gift_tg_id, gift_text=gift_text)
@@ -627,13 +627,103 @@ async def check_user(query: str):
     return res
 
 
+async def get_optional_user(
+    x_init_data: str = Header(None, alias="X-Init-Data"),
+) -> dict:
+    if x_init_data:
+        return verify_init_data(x_init_data)
+    return None
+
+
+@app.get("/api/pricing")
+async def get_public_pricing():
+    return await db.get_pricing_settings()
+
+
+@app.get("/api/admin/pricing")
+async def admin_get_pricing(admin=Depends(get_admin)):
+    return await db.get_pricing_settings()
+
+
+class AdminPricingUpdatePayload(BaseModel):
+    bot_stars: int = 53
+    userbot_stars: int = 55
+    myaccount_stars: int = 60
+
+
+@app.post("/api/admin/pricing")
+async def admin_update_pricing(body: AdminPricingUpdatePayload, admin=Depends(get_admin)):
+    success = await db.set_pricing_settings(body.model_dump())
+    return {"ok": success}
+
+
 @app.get("/api/userbot-accounts")
-async def get_userbot_accounts():
+async def get_userbot_accounts(user: dict = Depends(get_optional_user)):
     try:
         from userbot.userbot import load_userbot_accounts
     except ImportError:
         from userbot import load_userbot_accounts
-    return load_userbot_accounts()
+    user_id = user.get("id") if user else None
+    is_admin = (user_id == ADMIN_ID) if user_id else False
+    return load_userbot_accounts(active_only=True, user_tg_id=user_id, is_admin=is_admin)
+
+
+class UserRequestCodePayload(BaseModel):
+    phone: str
+
+
+@app.post("/api/user/userbot/request-code")
+async def user_request_phone_code(body: UserRequestCodePayload, user: dict = Depends(get_user)):
+    try:
+        from userbot.userbot import request_userbot_phone_code
+    except ImportError:
+        from userbot import request_userbot_phone_code
+    res = await request_userbot_phone_code(body.phone)
+    if not res.get("success"):
+        return {
+            "success": False,
+            "error": res.get("error", "Failed to send verification code"),
+            "support_contact": "@xusanboyman200",
+            "support_message": "Something went wrong! Please contact support: @xusanboyman200"
+        }
+    return res
+
+
+class UserConfirmCodePayload(BaseModel):
+    phone: str
+    code: str
+    password: str = None
+
+
+@app.post("/api/user/userbot/confirm-code")
+async def user_confirm_phone_code(body: UserConfirmCodePayload, user: dict = Depends(get_user)):
+    try:
+        from userbot.userbot import confirm_userbot_phone_code
+    except ImportError:
+        from userbot import confirm_userbot_phone_code
+    res = await confirm_userbot_phone_code(body.phone, body.code, body.password, owner_tg_id=user["id"])
+    if not res.get("success"):
+        return {
+            "success": False,
+            "requires_password": res.get("requires_password", False),
+            "error": res.get("error", "Failed to confirm code"),
+            "support_contact": "@xusanboyman200",
+            "support_message": "Something went wrong! Please contact support: @xusanboyman200"
+        }
+    return res
+
+
+@app.delete("/api/user/userbot/account/{account_id}")
+async def user_delete_account(account_id: int, user: dict = Depends(get_user)):
+    try:
+        from userbot.userbot import delete_userbot_account
+    except ImportError:
+        from userbot import delete_userbot_account
+    is_admin = user.get("id") == ADMIN_ID
+    success = delete_userbot_account(account_id, owner_tg_id=None if is_admin else user["id"])
+    if not success:
+        raise HTTPException(status_code=400, detail="Account not found or access denied")
+    return {"ok": True}
 
 
 # ── Authenticated: create invoice ──────────────────────────────────────────────
@@ -658,7 +748,14 @@ async def create_invoice(body: CreateInvoiceRequest, user: dict = Depends(get_us
     if not gift or not gift["active"]:
         raise HTTPException(status_code=404, detail="Gift not available")
 
-    total = gift["base_stars"] + gift["commission"]
+    pricing = await db.get_pricing_settings()
+    if body.sender_type == "myaccount":
+        total = pricing.get("myaccount_stars", 60)
+    elif body.sender_type == "userbot":
+        total = pricing.get("userbot_stars", 55)
+    else:
+        total = pricing.get("bot_stars", gift["base_stars"] + gift["commission"])
+
     name = gift.get("display_name") or gift["emoji"]
     order_id = await db.create_order(
         buyer_tg_id=user["id"],

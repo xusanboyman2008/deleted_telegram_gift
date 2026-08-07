@@ -16,7 +16,7 @@ GIFTS_SEED = [
     ("🧸", "Bunny Basket",  "03/08/26", "5866352046986232958", 50, DEFAULT_COMMISSION, "bunny_bear.json"),
     ("🧸", "Balloon Bear",  "03/17/26", "5893356958802511476", 50, DEFAULT_COMMISSION, "joker_bear.json"),
     ("🧸", "Rose Bear",     "02/14/26", "5801108895304779062", 50, DEFAULT_COMMISSION, "pink_bear.json"),
-    ("🧸", "Worker Bear",   "04/01/26", "5935895822435615975", 50, DEFAULT_COMMISSION, "plumber_bear.json"),
+    ("🧸", "Worker Bear",   "04/01/26", "5935895822435615975", 50, DEFAULT_COMMISSION, "worker_bear.json"),
     ("🧸", "Football Bear", "05/01/26", "6026193266406327981", 50, DEFAULT_COMMISSION, "football_bear.json"),
     ("🧸", "Santa Teddy",   "12/25/25", "5922558454332916696", 50, DEFAULT_COMMISSION, "santa_bear.json"),
     ("🧸", "Gnome Bear",    "07/20/26", "5974210632977745012", 50, DEFAULT_COMMISSION, "gnome_bear.json"),
@@ -24,6 +24,7 @@ GIFTS_SEED = [
     ("🎄", "Christmas Tree","12/31/25", "5956217000635139069", 50, DEFAULT_COMMISSION, "green_tree.json"),
     ("🧸", "Hug Bear",      "05/10/26", "5800655655995968830", 50, DEFAULT_COMMISSION, "hug_bear.json"),
 ]
+
 
 CREATE_GIFTS_SQLITE = """
 CREATE TABLE IF NOT EXISTS gifts (
@@ -93,6 +94,56 @@ CREATE TABLE IF NOT EXISTS orders (
 )
 """
 
+CREATE_USERBOTS_SQLITE = """
+CREATE TABLE IF NOT EXISTS userbot_accounts (
+    id              INTEGER PRIMARY KEY,
+    session         TEXT,
+    phone           TEXT,
+    session_string  TEXT,
+    api_id          INTEGER,
+    api_hash        TEXT,
+    first_name      TEXT,
+    last_name       TEXT,
+    username        TEXT,
+    bio             TEXT,
+    photo           TEXT,
+    active          INTEGER DEFAULT 1,
+    owner_tg_id     INTEGER
+)
+"""
+
+CREATE_USERBOTS_POSTGRES = """
+CREATE TABLE IF NOT EXISTS userbot_accounts (
+    id              INTEGER PRIMARY KEY,
+    session         TEXT,
+    phone           TEXT,
+    session_string  TEXT,
+    api_id          INTEGER,
+    api_hash        TEXT,
+    first_name      TEXT,
+    last_name       TEXT,
+    username        TEXT,
+    bio             TEXT,
+    photo           TEXT,
+    active          INTEGER DEFAULT 1,
+    owner_tg_id     BIGINT
+)
+"""
+
+CREATE_SETTINGS_SQLITE = """
+CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+)
+"""
+
+CREATE_SETTINGS_POSTGRES = """
+CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+)
+"""
+
 pool = None
 
 
@@ -114,8 +165,9 @@ async def init_db():
             try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS userbot_id INTEGER")
             except Exception: pass
             
-            # Legacy cleanup: fix Hug Bear gift_tg_id mapping and remove duplicate rows
+            # Legacy cleanup: fix Worker Bear animation, Hug Bear gift_tg_id mapping, and remove duplicate rows
             try:
+                await conn.execute("UPDATE gifts SET animation='worker_bear.json' WHERE display_name='Worker Bear' OR animation='plumber_bear.json'")
                 await conn.execute("UPDATE gifts SET display_name='Hug Bear', emoji='🧸', animation='hug_bear.json' WHERE gift_tg_id='5800655655995968830'")
                 await conn.execute("DELETE FROM gifts WHERE id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER(PARTITION BY gift_tg_id ORDER BY id) as row_num FROM gifts) t WHERE t.row_num > 1)")
             except Exception: pass
@@ -132,15 +184,20 @@ async def init_db():
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(CREATE_GIFTS_SQLITE)
             await db.execute(CREATE_ORDERS_SQLITE)
+            await db.execute(CREATE_USERBOTS_SQLITE)
+            await db.execute(CREATE_SETTINGS_SQLITE)
             try: await db.execute("ALTER TABLE orders ADD COLUMN gift_text TEXT")
             except Exception: pass
             try: await db.execute("ALTER TABLE orders ADD COLUMN sender_type TEXT DEFAULT 'bot'")
             except Exception: pass
             try: await db.execute("ALTER TABLE orders ADD COLUMN userbot_id INTEGER")
             except Exception: pass
+            try: await db.execute("ALTER TABLE userbot_accounts ADD COLUMN owner_tg_id INTEGER")
+            except Exception: pass
             
-            # Legacy cleanup: fix Hug Bear gift_tg_id mapping and remove duplicate rows
+            # Legacy cleanup: fix Worker Bear animation, Hug Bear gift_tg_id mapping, and remove duplicate rows
             try:
+                await db.execute("UPDATE gifts SET animation='worker_bear.json' WHERE display_name='Worker Bear' OR animation='plumber_bear.json'")
                 await db.execute("UPDATE gifts SET display_name='Hug Bear', emoji='🧸', animation='hug_bear.json' WHERE gift_tg_id='5800655655995968830'")
                 await db.execute("DELETE FROM gifts WHERE id NOT IN (SELECT MIN(id) FROM gifts GROUP BY gift_tg_id)")
                 await db.commit()
@@ -354,3 +411,93 @@ async def get_orders_by_user(buyer_tg_id: int):
             )
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
+
+
+import sqlite3
+
+def db_get_userbot_accounts() -> list:
+    """Synchronous fallback to read userbots directly from SQLite database."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM userbot_accounts ORDER BY id ASC")
+        rows = cur.fetchall()
+        accounts = []
+        for r in rows:
+            acc = dict(r)
+            acc["active"] = bool(acc.get("active", 1))
+            accounts.append(acc)
+        conn.close()
+        return accounts
+    except Exception as e:
+        logger.error(f"db_get_userbot_accounts failed: {e}")
+        return []
+
+
+def db_save_userbot_accounts(accounts: list) -> bool:
+    """Synchronous fallback to save userbots directly into SQLite database."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute("CREATE TABLE IF NOT EXISTS userbot_accounts (id INTEGER PRIMARY KEY, session TEXT, phone TEXT, session_string TEXT, api_id INTEGER, api_hash TEXT, first_name TEXT, last_name TEXT, username TEXT, bio TEXT, photo TEXT, active INTEGER DEFAULT 1, owner_tg_id INTEGER)")
+        cur.execute("DELETE FROM userbot_accounts")
+        for a in accounts:
+            cur.execute(
+                "INSERT INTO userbot_accounts (id, session, phone, session_string, api_id, api_hash, first_name, last_name, username, bio, photo, active, owner_tg_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    a.get("id"), a.get("session",""), a.get("phone",""), a.get("session_string",""),
+                    a.get("api_id", 0), a.get("api_hash",""), a.get("first_name",""), a.get("last_name",""),
+                    a.get("username",""), a.get("bio",""), a.get("photo",""), 1 if a.get("active", True) else 0,
+                    a.get("owner_tg_id")
+                )
+            )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"db_save_userbot_accounts failed: {e}")
+        return False
+
+
+async def get_pricing_settings() -> dict:
+    """Returns dynamic pricing settings for Bot, Userbot, and My Account senders."""
+    defaults = {"bot_stars": 53, "userbot_stars": 55, "myaccount_stars": 60}
+    try:
+        if IS_POSTGRES:
+            async with pool.acquire() as conn:
+                rows = await conn.fetch("SELECT key, value FROM settings WHERE key LIKE '%_stars'")
+                for r in rows:
+                    if r["key"] in defaults:
+                        try: defaults[r["key"]] = int(r["value"])
+                        except ValueError: pass
+        else:
+            async with aiosqlite.connect(DB_PATH) as db:
+                db.row_factory = aiosqlite.Row
+                cur = await db.execute("SELECT key, value FROM settings WHERE key LIKE '%_stars'")
+                rows = await cur.fetchall()
+                for r in rows:
+                    if r["key"] in defaults:
+                        try: defaults[r["key"]] = int(r["value"])
+                        except ValueError: pass
+    except Exception as e:
+        logger.error(f"get_pricing_settings error: {e}")
+    return defaults
+
+
+async def set_pricing_settings(prices: dict) -> bool:
+    """Updates dynamic pricing settings in database."""
+    try:
+        if IS_POSTGRES:
+            async with pool.acquire() as conn:
+                for k, v in prices.items():
+                    await conn.execute("INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value=$2", str(k), str(v))
+        else:
+            async with aiosqlite.connect(DB_PATH) as db:
+                for k, v in prices.items():
+                    await db.execute("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=?", (str(k), str(v), str(v)))
+                await db.commit()
+        return True
+    except Exception as e:
+        logger.error(f"set_pricing_settings error: {e}")
+        return False

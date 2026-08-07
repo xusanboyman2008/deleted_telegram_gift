@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════
-   TgGifts — Vue 3 App Logic
+   TgGifts — Vue 3 App Logic with i18n & Phone Auth
    ═══════════════════════════════════════════════ */
 
 const { createApp, ref, reactive, computed, onMounted, watch, nextTick } = Vue;
@@ -25,10 +25,138 @@ const api = (url, opts = {}) => fetch(url, {
   headers: { ...H, ...(opts.headers || {}) },
 });
 
-// ── Image & Animated GIF Fallback mapping ───────
-const IMG_MAP = {};
+// ── i18n Translations Dictionary ───────────────
+const I18N = {
+  en: {
+    gifts: "Gifts",
+    history: "History",
+    settings: "Settings",
+    chooseLanguage: "Choose App Language",
+    senderType: "Sender Type",
+    officialBot: "Official Shop Bot 🤖",
+    officialBotSub: "Sent directly by TgGifts main bot",
+    userbotSender: "Telegram Userbot",
+    userbotSenderSub: "Sent via automated userbot account",
+    myAccountSender: "Use My Telegram Account 👤",
+    myAccountSenderSub: "Connect & send using your own Telegram session",
+    connectMyAccount: "Connect My Account",
+    myAccountConnected: "My Account Connected",
+    disconnectAccount: "Disconnect Account",
+    phoneAuthTitle: "Connect Telegram Account",
+    phoneLabel: "Phone Number",
+    phonePlaceholder: "+998901234567",
+    sendCodeBtn: "Send Verification Code",
+    enterCodeTitle: "Enter Telegram Code",
+    codeLabel: "Telegram Code",
+    codePlaceholder: "12345",
+    passwordLabel: "2FA Password (If required)",
+    confirmCodeBtn: "Confirm & Connect",
+    supportContact: "Need Help? Contact Support",
+    supportBtn: "💬 @xusanboyman200 (24/7 Support)",
+    somethingWentWrong: "Something went wrong! Please contact support: @xusanboyman200",
+    adminPanel: "Admin Control Center",
+    pricingSettings: "Pricing & Commissions (⭐ Stars)",
+    botPriceLabel: "Official Bot Total Stars",
+    userbotPriceLabel: "Userbot Total Stars",
+    myAccountPriceLabel: "My Account Total Stars",
+    savePricingBtn: "Save Stars Pricing",
+    payBtn: "Pay",
+    buyDirectBtn: "Buy Direct (@xusanboyman200)",
+    recipientInputPlaceholder: "Recipient Username or ID",
+    giftMsgPlaceholder: "Optional message on gift...",
+    userNotConnectedWarning: "Please connect your Telegram Account in Settings or select another sender.",
+    userbots: "Userbots",
+    userAccounts: "Users' Telegram Accounts",
+    systemUserbots: "Official System Userbots",
+  },
+  uz: {
+    gifts: "Sovg'alar",
+    history: "Tarix",
+    settings: "Sozlamalar",
+    chooseLanguage: "Dastur tilini tanlang",
+    senderType: "Yuboruvchi turi",
+    officialBot: "Rasmiy Bot 🤖",
+    officialBotSub: "TgGifts asosiy boti orqali yuborish",
+    userbotSender: "Telegram Userbot",
+    userbotSenderSub: "Avtomatlashtirilgan userbot orqali yuborish",
+    myAccountSender: "O'z hisobimdan yuborish 👤",
+    myAccountSenderSub: "O'z Telegram hisobingizni ulang va yuboring",
+    connectMyAccount: "Hisobimni ulash",
+    myAccountConnected: "Hisobim ulangan",
+    disconnectAccount: "Hisobni uzish",
+    phoneAuthTitle: "Telegram hisobni ulash",
+    phoneLabel: "Telefon raqam",
+    phonePlaceholder: "+998901234567",
+    sendCodeBtn: "Kodni yuborish",
+    enterCodeTitle: "Telegram kodini kiriting",
+    codeLabel: "Telegram Kodi",
+    codePlaceholder: "12345",
+    passwordLabel: "2FA Parol (Agar bor bo'lsa)",
+    confirmCodeBtn: "Tasdiqlash va Ulash",
+    supportContact: "Yordam kerakmi? Qo'llab-quvvatlash bilan bog'laning",
+    supportBtn: "💬 @xusanboyman200 (24/7 Yordam)",
+    somethingWentWrong: "Nimadir xato ketdi! Iltimos admin bilan bog'laning: @xusanboyman200",
+    adminPanel: "Admin Boshqaruv Paneli",
+    pricingSettings: "Narxlar va Komissiyalar (⭐ Stars)",
+    botPriceLabel: "Rasmiy Bot Stars Narxi",
+    userbotPriceLabel: "Userbot Stars Narxi",
+    myAccountPriceLabel: "O'z Hisobim Stars Narxi",
+    savePricingBtn: "Narxlarni saqlash",
+    payBtn: "To'lash",
+    buyDirectBtn: "To'g'ridan-to'g'ri sotib olish (@xusanboyman200)",
+    recipientInputPlaceholder: "Qabul qiluvchi Username yoki ID",
+    giftMsgPlaceholder: "Sovg'aga qo'shimcha xabar...",
+    userNotConnectedWarning: "Iltimos Sozlamalar bo'limida Telegram hisobingizni ulang yoki boshqa yuboruvchini tanlang.",
+    userbots: "Userbotlar",
+    userAccounts: "Foydalanuvchi akkauntlari",
+    systemUserbots: "Rasmiy tizim userbotlari",
+  },
+  ru: {
+    gifts: "Подарки",
+    history: "История",
+    settings: "Настройки",
+    chooseLanguage: "Выберите язык приложения",
+    senderType: "Тип отправителя",
+    officialBot: "Официальный Бот 🤖",
+    officialBotSub: "Отправка через основного бота TgGifts",
+    userbotSender: "Telegram Юзербот",
+    userbotSenderSub: "Отправка через автоматический юзербот",
+    myAccountSender: "Использовать мой аккаунт 👤",
+    myAccountSenderSub: "Подключить и отправить со своего Telegram аккаунта",
+    connectMyAccount: "Подключить мой аккаунт",
+    myAccountConnected: "Мой аккаунт подключен",
+    disconnectAccount: "Отключить аккаунт",
+    phoneAuthTitle: "Подключение аккаунта Telegram",
+    phoneLabel: "Номер телефона",
+    phonePlaceholder: "+998901234567",
+    sendCodeBtn: "Отправить код",
+    enterCodeTitle: "Введите код Telegram",
+    codeLabel: "Код Telegram",
+    codePlaceholder: "12345",
+    passwordLabel: "2FA Пароль (Если включен)",
+    confirmCodeBtn: "Подтвердить и подключить",
+    supportContact: "Нужна помощь? Свяжитесь с поддержкой",
+    supportBtn: "💬 @xusanboyman200 (24/7 Поддержка)",
+    somethingWentWrong: "Что-то пошло не так! Пожалуйста, свяжитесь с поддержкой: @xusanboyman200",
+    adminPanel: "Панель администратора",
+    pricingSettings: "Настройка цен и комиссий (⭐ Stars)",
+    botPriceLabel: "Цена через Бот (Stars)",
+    userbotPriceLabel: "Цена через Юзербот (Stars)",
+    myAccountPriceLabel: "Цена через Свой аккаунт (Stars)",
+    savePricingBtn: "Сохранить цены",
+    payBtn: "Оплатить",
+    buyDirectBtn: "Купить напрямую (@xusanboyman200)",
+    recipientInputPlaceholder: "Username или ID получателя",
+    giftMsgPlaceholder: "Сообщение к подарку...",
+    userNotConnectedWarning: "Пожалуйста, подключите аккаунт Telegram в Настройках или выберите другого отправителя.",
+    userbots: "Юзерботы",
+    userAccounts: "Telegram-аккаунты пользователей",
+    systemUserbots: "Официальные юзерботы",
+  }
+};
 
-// ── Fallback mapping (tries .json, if fails or incompatible uses .png) ──
+// ── Image & Fallback mapping ───────────────────
+const IMG_MAP = {};
 const FALLBACK_PNG_MAP = {
   'pink_bear.json': 'assets/rose_bear.png',
   'worker_bear.json': 'assets/worker_bear.png',
@@ -44,7 +172,7 @@ const FALLBACK_PNG_MAP = {
 };
 const getFallbackPng = anim => FALLBACK_PNG_MAP[anim] || null;
 
-// ── Lottie Dash Fix (TGS uses "n", lottie-web expects "nm") ──
+// ── Lottie Dash Fix ───────────────────────────
 function fixLottieDashes(obj) {
   if (!obj || typeof obj !== 'object') return;
   if (Array.isArray(obj)) { obj.forEach(fixLottieDashes); return; }
@@ -54,18 +182,10 @@ function fixLottieDashes(obj) {
   for (const k in obj) if (obj.hasOwnProperty(k)) fixLottieDashes(obj[k]);
 }
 
-// ── Detect complex files that need canvas renderer ──
-// Files with many gradient strokes/fills or mattes break SVG renderer
-const CANVAS_RENDERER_FILES = new Set([
-  'pink_bear.json',
-  'football_bear.json',
-  'worker_bear.json',
-]);
 function getRenderer(filename) {
-  return CANVAS_RENDERER_FILES.has(filename) ? 'canvas' : 'svg';
+  return 'svg';
 }
 
-// ── Lottie Cache ───────────────────────────────
 const animCache = {};
 async function preloadAnim(filename) {
   if (!filename) return null;
@@ -83,7 +203,6 @@ async function preloadAnim(filename) {
   }
 }
 
-// ── Lottie Component with Automatic PNG Fallback ──
 const LottieAnim = {
   props: { filename: String, fallbackImg: String },
   setup(props) {
@@ -101,102 +220,82 @@ const LottieAnim = {
       }
     };
 
-    const playAnim = () => {
-      if (inst) {
-        try {
-          isPlaying = true;
-          inst.goToAndPlay(0, true);
-        } catch {}
-      }
-    };
-
-    const load = async () => {
-      await nextTick();
-      if (!props.filename) {
-        failed.value = true;
-        return;
-      }
-      failed.value = false;
-      const data = await preloadAnim(props.filename);
-      if (!data || !el.value) {
-        failed.value = true;
-        return;
-      }
+    const init = async () => {
       destroy();
-      const renderer = getRenderer(props.filename);
+      failed.value = false;
+      if (!props.filename) return;
+
+      const data = await preloadAnim(props.filename);
+      if (!data) { failed.value = true; return; }
+
+      await nextTick();
+      if (!el.value) return;
+
+      failTimer = setTimeout(() => {
+        if (!isPlaying) {
+          console.warn('Lottie render timeout, falling back to PNG:', props.filename);
+          failed.value = true;
+          destroy();
+        }
+      }, 3000);
+
       try {
         inst = lottie.loadAnimation({
           container: el.value,
-          renderer: renderer,
-          loop: false,
+          renderer: getRenderer(props.filename),
+          loop: true,
           autoplay: true,
-          animationData: JSON.parse(JSON.stringify(data)),
-          rendererSettings: renderer === 'canvas'
-            ? { clearCanvas: true, progressiveLoad: true }
-            : {},
+          animationData: data,
         });
-        isPlaying = true;
-        let rendered = false;
-        inst.addEventListener('enterFrame', () => {
-          rendered = true;
-        });
-        inst.addEventListener('complete', () => {
+
+        const onReady = () => {
+          isPlaying = true;
+          if (failTimer) { clearTimeout(failTimer); failTimer = null; }
+        };
+
+        inst.addEventListener('DOMLoaded', onReady);
+        inst.addEventListener('data_ready', onReady);
+        inst.addEventListener('configReady', onReady);
+        inst.addEventListener('drawnFrame', onReady);
+        inst.addEventListener('error', (err) => {
+          console.error('Lottie runtime error:', props.filename, err);
           isPlaying = false;
-        });
-        inst.addEventListener('error', () => {
-          console.warn('Lottie load error event for:', props.filename);
           failed.value = true;
+          destroy();
         });
-        inst.addEventListener('data_failed', () => {
-          console.warn('Lottie data_failed for:', props.filename);
-          failed.value = true;
-        });
-        inst.addEventListener('DOMLoaded', () => {
-          rendered = true;
-        });
-        // Safety timeout: if no frame rendered within 3s, fall back to PNG
-        failTimer = setTimeout(() => {
-          if (!rendered && !failed.value) {
-            console.warn('Lottie render timeout for:', props.filename, '— falling back to PNG');
-            failed.value = true;
-            destroy();
-          }
-        }, 3000);
       } catch (e) {
-        console.warn('Lottie render error:', props.filename, e);
+        console.error('Lottie setup error:', e);
         failed.value = true;
       }
     };
 
-    onMounted(load);
-    watch(() => props.filename, load);
-    Vue.onUnmounted(destroy);
-    return { el, failed, playAnim };
+    onMounted(init);
+    watch(() => props.filename, init);
+
+    return () => {
+      if (failed.value && props.fallbackImg) {
+        return Vue.h('img', { src: props.fallbackImg, class: 'gift-png-fallback' });
+      }
+      return Vue.h('div', { ref: el, class: 'lottie-box' });
+    };
   },
-  template: `
-    <div
-      class="lottie-box-wrap"
-      style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"
-      @mouseenter="playAnim"
-      @touchstart.passive="playAnim"
-    >
-      <div v-show="!failed" ref="el" class="lottie-box"></div>
-      <img v-if="failed && fallbackImg" :src="fallbackImg" class="card-img" alt="gift"/>
-    </div>
-  `,
 };
 
-// ── Gift Color Scheme ──────────────────────────
-const GC = {
-  '🎄': { c1: '#22c55e', c2: '#86efac', glow: 'rgba(34,197,94,.55)' },
-  '🎁': { c1: '#7B61FF', c2: '#a07af8', glow: 'rgba(123,97,255,.55)' },
-  '🧸': { c1: '#f5c842', c2: '#fb923c', glow: 'rgba(245,200,66,.55)' },
+const COLOR_MAP = {
+  '🧸': { c1: '#FF9A9E', c2: '#FECFEF', glow: 'rgba(255, 154, 158, 0.4)' },
+  '🎈': { c1: '#A18CD1', c2: '#FBC2EB', glow: 'rgba(161, 140, 209, 0.4)' },
+  '🌹': { c1: '#FF758C', c2: '#FF7EB3', glow: 'rgba(255, 117, 140, 0.4)' },
+  '👷': { c1: '#F6D365', c2: '#FDA085', glow: 'rgba(246, 211, 101, 0.4)' },
+  '⚽': { c1: '#84FAB0', c2: '#8FD3F4', glow: 'rgba(132, 250, 176, 0.4)' },
+  '🎅': { c1: '#FF4E50', c2: '#F9D423', glow: 'rgba(255, 78, 80, 0.4)' },
+  '🧙': { c1: '#43E97B', c2: '#38F9D7', glow: 'rgba(67, 233, 123, 0.4)' },
+  '❤️': { c1: '#FF0844', c2: '#FFB199', glow: 'rgba(255, 8, 68, 0.4)' },
+  '🎄': { c1: '#11998E', c2: '#38EF7D', glow: 'rgba(17, 153, 142, 0.4)' },
 };
-const gc = e => GC[e] || GC['🎁'];
+const gc = emoji => COLOR_MAP[emoji] || { c1: '#7B61FF', c2: '#5A3FD4', glow: 'rgba(123, 97, 255, 0.4)' };
 
-// ── Confetti ───────────────────────────────────
 function confetti() {
-  const canvas = document.getElementById('confettiCanvas');
+  const canvas = document.getElementById('confetti');
   if (!canvas) return;
   canvas.width = innerWidth; canvas.height = innerHeight;
   const ctx = canvas.getContext('2d');
@@ -245,18 +344,193 @@ createApp({
     const adminOrders = ref([]);
     const myOrders = ref([]);
     const user = ref(ME);
+
+    // ── Language i18n State ─────────────────────
+    const currentLang = ref(localStorage.getItem('user_lang') || 'en');
+    const setLanguage = (lang) => {
+      currentLang.value = lang;
+      localStorage.setItem('user_lang', lang);
+      showToast(lang === 'uz' ? "Til O'zbekchaga o'zgartirildi" : lang === 'ru' ? 'Язык изменен на русский' : 'Language set to English');
+    };
+    const t = (key) => I18N[currentLang.value]?.[key] || I18N['en']?.[key] || key;
+
+    // ── Pricing Settings State ──────────────────
+    const pricing = reactive({
+      bot_stars: 53,
+      userbot_stars: 55,
+      myaccount_stars: 60,
+    });
+
+    const loadPricing = async () => {
+      try {
+        const p = await fetch('/api/pricing', { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
+        if (p) Object.assign(pricing, p);
+      } catch (e) {
+        console.error('loadPricing error:', e);
+      }
+    };
+
+    const savePricing = async () => {
+      try {
+        const r = await api('/api/admin/pricing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(pricing),
+        });
+        if (r.ok) showToast('✅ Pricing settings saved!');
+        else showToast('❌ Failed to save pricing');
+      } catch (e) {
+        showToast(`❌ ${e.message}`);
+      }
+    };
+
+    // ── Userbot Accounts & Sender Selection State ─
+    const userbotAccounts = ref([]);
+    const selectedSender = ref('bot'); // 'bot', 'userbot', 'myaccount'
+    const selectedUserbot = ref(null);
+
+    const userAccount = computed(() => {
+      if (!ME) return null;
+      return userbotAccounts.value.find(acc => acc.owner_tg_id === ME.id) || null;
+    });
+
+    const publicUserbots = computed(() => {
+      return userbotAccounts.value.filter(acc => !acc.owner_tg_id);
+    });
+
+    const loadUserbotAccounts = async () => {
+      try {
+        const d = await api('/api/userbot-accounts').then(r => r.json());
+        userbotAccounts.value = Array.isArray(d) ? d : [];
+        if (publicUserbots.value.length > 0 && !selectedUserbot.value) {
+          selectedUserbot.value = publicUserbots.value[0].id;
+        }
+      } catch (e) {
+        console.error('loadUserbotAccounts error:', e);
+      }
+    };
+
+    // ── Phone Auth Modal State for "Use My Account" ─
+    const phoneModal = reactive({
+      show: false,
+      step: 1, // 1: phone, 2: code, 3: password
+      phone: '',
+      code: '',
+      password: '',
+      requires_password: false,
+      loading: false,
+      error: '',
+    });
+
+    const openPhoneAuth = () => {
+      Object.assign(phoneModal, {
+        show: true,
+        step: 1,
+        phone: ME?.phone_number || '',
+        code: '',
+        password: '',
+        requires_password: false,
+        loading: false,
+        error: '',
+      });
+    };
+
+    const requestPhoneCode = async () => {
+      if (!phoneModal.phone.trim()) {
+        phoneModal.error = 'Please enter phone number (+998...)';
+        return;
+      }
+      phoneModal.loading = true;
+      phoneModal.error = '';
+      try {
+        const r = await api('/api/user/userbot/request-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: phoneModal.phone.trim() }),
+        });
+        const data = await r.json();
+        phoneModal.loading = false;
+        if (data.success) {
+          phoneModal.step = 2;
+          showToast('📩 Verification code sent to Telegram!');
+        } else {
+          phoneModal.error = data.support_message || data.error || 'Failed to send verification code.';
+        }
+      } catch (e) {
+        phoneModal.loading = false;
+        phoneModal.error = 'Something went wrong! Please contact support: @xusanboyman200';
+      }
+    };
+
+    const confirmPhoneCode = async () => {
+      if (!phoneModal.code.trim()) {
+        phoneModal.error = 'Please enter verification code';
+        return;
+      }
+      phoneModal.loading = true;
+      phoneModal.error = '';
+      try {
+        const r = await api('/api/user/userbot/confirm-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: phoneModal.phone.trim(),
+            code: phoneModal.code.trim(),
+            password: phoneModal.password.trim() || null,
+          }),
+        });
+        const data = await r.json();
+        phoneModal.loading = false;
+        if (data.success) {
+          phoneModal.show = false;
+          showToast('🎉 Account connected successfully!');
+          await loadUserbotAccounts();
+          selectedSender.value = 'myaccount';
+        } else if (data.requires_password) {
+          phoneModal.requires_password = true;
+          phoneModal.step = 3;
+          phoneModal.error = '2FA Password is required for this account.';
+        } else {
+          phoneModal.error = data.support_message || data.error || 'Failed to confirm code.';
+        }
+      } catch (e) {
+        phoneModal.loading = false;
+        phoneModal.error = 'Something went wrong! Please contact support: @xusanboyman200';
+      }
+    };
+
+    const disconnectMyAccount = async () => {
+      const myAcc = userAccount.value;
+      if (!myAcc) return;
+      if (!confirm('Are you sure you want to disconnect your account?')) return;
+      try {
+        const r = await api(`/api/user/userbot/account/${myAcc.id}`, { method: 'DELETE' });
+        if (r.ok) {
+          showToast('🔌 Account disconnected');
+          await loadUserbotAccounts();
+          selectedSender.value = 'bot';
+        }
+      } catch (e) {
+        showToast('❌ Failed to disconnect account');
+      }
+    };
+
+    // ── Form & Recipient Verification State ────────
     const form = reactive({ show: false, id: null, emoji: '', display_name: '', date_label: '', gift_tg_id: '', base_stars: 50, commission: 10 });
+    const checkingUser = ref(false);
+    const verifiedUser = ref(null);
+    const userCheckError = ref('');
+    let checkTimeout = null;
 
     let toastTimer = null;
     const showToast = msg => {
       toast.value = msg;
       clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => { toast.value = ''; }, 2800);
+      toastTimer = setTimeout(() => { toast.value = ''; }, 3200);
     };
 
     const getGiftImg = anim => IMG_MAP[anim] || null;
 
-    // ── Style Helpers ──────────────────────────
     const sheetGlowStyle = computed(() => selected.value
       ? { filter: `drop-shadow(0 0 30px ${gc(selected.value.emoji).glow})` }
       : {}
@@ -269,17 +543,14 @@ createApp({
         : { borderBottomColor: c.c2, borderLeftColor: c.c2 + '44', borderTopColor: 'transparent', borderRightColor: 'transparent', border: '1.5px solid' };
     };
 
-    // ── Load Gifts ─────────────────────────────
     const loadGifts = async () => {
       try {
         const data = await fetch('/api/gifts', { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
         gifts.value = data;
-        // Preload all Lottie animations immediately
         data.forEach(g => g.animation && preloadAnim(g.animation));
       } catch (e) { console.error('loadGifts error:', e); }
     };
 
-    // ── Load History ───────────────────────────
     const loadHistory = async () => {
       if (!ME) return;
       try {
@@ -288,9 +559,9 @@ createApp({
       } catch {}
     };
 
-    // ── Sheet Controls ─────────────────────────
     const openSheet = g => {
       selected.value = g; recipient.value = ''; giftMsg.value = ''; errMsg.value = '';
+      verifiedUser.value = null; userCheckError.value = '';
       if (tg) { tg.BackButton.show(); tg.BackButton.onClick(closeSheet); }
     };
     const closeSheet = () => {
@@ -298,142 +569,90 @@ createApp({
       if (tg) tg.BackButton.hide();
     };
 
-    const isNumeric = val => /^\d+$/.test((val || '').trim());
-
-    // ── Live Recipient Verification & Userbot State ──────────
-    const checkingUser = ref(false);
-    const verifiedUser = ref(null);
-    const userCheckError = ref(null);
-    const userbotAccounts = ref([]);
-    const selectedSender = ref('bot');
-    const selectedUserbot = ref(1);
-    let recipientTimer = null;
-
-    const loadUserbotAccounts = async () => {
-      try {
-        const res = await fetch('/api/userbot-accounts', { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
-        userbotAccounts.value = Array.isArray(res) ? res : [];
-        if (userbotAccounts.value.length > 0) {
-          selectedUserbot.value = userbotAccounts.value[0].id;
-        }
-      } catch (e) {
-        console.warn('Failed to load userbot accounts:', e);
-      }
+    const setRecipientMe = () => {
+      if (!ME) { showToast('Open in Telegram to auto-fill username'); return; }
+      recipient.value = ME.username ? `@${ME.username}` : `${ME.id}`;
+      checkRecipientNow();
     };
 
+    const isNumeric = str => /^\d+$/.test(str.trim());
+
     const checkRecipientNow = async () => {
-      const val = recipient.value.trim();
-      if (!val) {
-        verifiedUser.value = null;
-        userCheckError.value = null;
-        checkingUser.value = false;
-        return;
-      }
-      checkingUser.value = true;
-      userCheckError.value = null;
+      const q = recipient.value.trim();
+      if (!q) { verifiedUser.value = null; userCheckError.value = ''; return; }
+      checkingUser.value = true; userCheckError.value = ''; verifiedUser.value = null;
       try {
-        const res = await fetch(`/api/check-user?query=${encodeURIComponent(val)}`, { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
+        const res = await api(`/api/check-user?query=${encodeURIComponent(q)}`).then(r => r.json());
         checkingUser.value = false;
-        if (res && res.exists) {
+        if (res.found) {
           verifiedUser.value = res;
-          userCheckError.value = null;
         } else {
-          verifiedUser.value = null;
-          userCheckError.value = (res && res.error) || 'User does not exist on Telegram';
+          userCheckError.value = res.error || 'Recipient profile could not be verified.';
         }
       } catch (e) {
         checkingUser.value = false;
-        verifiedUser.value = null;
-        userCheckError.value = 'User verification error';
+        userCheckError.value = 'Failed to verify recipient.';
       }
     };
 
     const onRecipientInput = () => {
-      verifiedUser.value = null;
-      userCheckError.value = null;
-      clearTimeout(recipientTimer);
-      if (!recipient.value.trim()) {
-        checkingUser.value = false;
-        return;
-      }
-      checkingUser.value = true;
-      recipientTimer = setTimeout(checkRecipientNow, 600);
+      verifiedUser.value = null; userCheckError.value = '';
+      clearTimeout(checkTimeout);
+      const q = recipient.value.trim();
+      if (!q) return;
+      checkTimeout = setTimeout(() => { checkRecipientNow(); }, 700);
     };
 
     const clearRecipient = () => {
-      recipient.value = '';
-      verifiedUser.value = null;
-      userCheckError.value = null;
-      checkingUser.value = false;
-      clearTimeout(recipientTimer);
-    };
-
-    // ── Contact Picker & Me Button ───────────
-    const setRecipientMe = () => {
-      if (ME && ME.username) {
-        recipient.value = '@' + ME.username;
-      } else if (ME && ME.id) {
-        recipient.value = String(ME.id);
-      } else {
-        showToast('Open in Telegram to autofill');
-      }
-      checkRecipientNow();
+      recipient.value = ''; verifiedUser.value = null; userCheckError.value = '';
     };
 
     const pickContact = () => {
       if (!tg) {
-        const inp = prompt('Enter Telegram Username (@username) or User ID (e.g. 6588631008):');
-        if (inp) recipient.value = inp.trim();
+        const inp = prompt('Enter Telegram Username (@username) or User ID:');
+        if (inp) { recipient.value = inp.trim(); checkRecipientNow(); }
         return;
       }
 
-      // Priority 1: Telegram WebApp requestContact API
       if (typeof tg.requestContact === 'function') {
         try {
           tg.requestContact((ok, res) => {
             if (ok && res) {
               const c = res.responseUnsafe?.contact || res;
               const val = c.username ? `@${c.username}` : (c.user_id ? `${c.user_id}` : (c.phone_number || ''));
-              if (val) {
-                recipient.value = val;
-                showToast(`Selected: ${val}`);
-              }
+              if (val) { recipient.value = val; checkRecipientNow(); showToast(`Selected: ${val}`); }
             }
           });
           return;
-        } catch (e) {
-          console.warn('requestContact failed:', e);
-        }
+        } catch (e) {}
       }
 
-      // Priority 2: Telegram requestUser API
       if (typeof tg.requestUser === 'function') {
         try {
           tg.requestUser({ bot_is_member: false }, (ok, u) => {
             if (ok && u) {
               const val = u.username ? `@${u.username}` : `${u.id}`;
-              recipient.value = val;
-              showToast(`Selected: ${val}`);
+              recipient.value = val; checkRecipientNow(); showToast(`Selected: ${val}`);
             }
           });
           return;
-        } catch (e) {
-          console.warn('requestUser failed:', e);
-        }
+        } catch (e) {}
       }
 
-      // Fallback
-      const inp = prompt('Enter Telegram Username (@username) or User ID (e.g. 6588631008):');
-      if (inp) recipient.value = inp.trim();
+      const inp = prompt('Enter Telegram Username (@username) or User ID:');
+      if (inp) { recipient.value = inp.trim(); checkRecipientNow(); }
     };
 
-    // ── Pay via tg.openInvoice ─────────────────
     const pay = async () => {
       let rcpt = recipient.value.trim();
-      if (!rcpt) { errMsg.value = 'Enter a recipient username or User ID'; return; }
+      if (!rcpt) { errMsg.value = t('recipientInputPlaceholder'); return; }
       if (!ME) { showToast('Open in Telegram to purchase'); return; }
 
-      // Format recipient ID: numeric ID (e.g. 6588631008) vs @username
+      if (selectedSender.value === 'myaccount' && !userAccount.value) {
+        openPhoneAuth();
+        return;
+      }
+
       if (/^\d+$/.test(rcpt)) {
         rcpt = rcpt;
       } else {
@@ -450,7 +669,7 @@ createApp({
             gift_id: selected.value.id,
             gift_text: giftMsg.value.trim() || null,
             sender_type: selectedSender.value,
-            userbot_id: selectedSender.value === 'userbot' ? selectedUserbot.value : null
+            userbot_id: selectedSender.value === 'myaccount' ? userAccount.value?.id : (selectedSender.value === 'userbot' ? selectedUserbot.value : null)
           }),
         });
         const data = await r.json();
@@ -478,7 +697,7 @@ createApp({
         }
       } catch (e) {
         paying.value = false;
-        errMsg.value = e.message;
+        errMsg.value = t('somethingWentWrong');
       }
     };
 
@@ -489,17 +708,22 @@ createApp({
         adminGifts.value = d;
       } catch {}
     };
+
     const loadAdminOrders = async () => {
       try {
         const d = await api('/api/admin/orders').then(r => r.json());
         adminOrders.value = d;
       } catch {}
     };
-    const openAddForm = () => {
-      Object.assign(form, { show: true, id: null, emoji: '🧸', display_name: '', date_label: '08/06/26', gift_tg_id: '', base_stars: 50, commission: 10, animation: '' });
+
+    const openAdmin = () => {
       showAdmin.value = true;
       aTab.value = 'gifts';
+      loadAdminGifts();
+      loadAdminOrders();
+      loadAdminUserbots();
     };
+
     const editGift = g => {
       Object.assign(form, { show: true, id: g.id, emoji: g.emoji, display_name: g.display_name || '', date_label: g.date_label, gift_tg_id: g.gift_tg_id, base_stars: g.base_stars, commission: g.commission, animation: g.animation || '' });
     };
@@ -513,16 +737,32 @@ createApp({
     };
     const toggleActive = async g => {
       await api(`/api/admin/gifts/${g.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: g.active ? 0 : 1 }) });
+      showToast(g.active ? '🔴 Gift Deactivated' : '🟢 Gift Activated');
       loadAdminGifts(); loadGifts();
     };
     const delGift = async id => {
-      if (!confirm('Delete this gift?')) return;
-      await api(`/api/admin/gifts/${id}`, { method: 'DELETE' });
-      showToast('🗑️ Deleted'); loadAdminGifts(); loadGifts();
+      const doDel = async () => {
+        const r = await api(`/api/admin/gifts/${id}`, { method: 'DELETE' });
+        if (r.ok) {
+          showToast('🗑️ Gift Deleted');
+          loadAdminGifts();
+          loadGifts();
+        } else {
+          showToast('❌ Failed to delete gift');
+        }
+      };
+      if (window.Telegram?.WebApp?.showConfirm) {
+        window.Telegram.WebApp.showConfirm('Are you sure you want to delete this gift?', (ok) => {
+          if (ok) doDel();
+        });
+      } else {
+        doDel();
+      }
     };
 
-    // ── Admin Userbot CRUD ──────────────────────
     const adminUserbots = ref([]);
+    const userLinkedAccounts = computed(() => adminUserbots.value.filter(u => u.owner_tg_id));
+    const systemUserbots = computed(() => adminUserbots.value.filter(u => !u.owner_tg_id));
     const ubForm = reactive({
       show: false,
       id: null,
@@ -603,7 +843,6 @@ createApp({
       }
     };
 
-    // ── Admin Userbot Direct Messaging ─────────────
     const ubMsgForm = reactive({
       show: false,
       account_id: null,
@@ -660,6 +899,7 @@ createApp({
         if (ME && ME.id === cfg.admin_id) isAdmin.value = true;
       } catch {}
 
+      await loadPricing();
       await loadGifts();
       await loadUserbotAccounts();
       if (ME) loadHistory();
@@ -667,6 +907,7 @@ createApp({
       if (tg) {
         tg.BackButton.onClick(() => {
           if (showAdmin.value) showAdmin.value = false;
+          else if (phoneModal.show) phoneModal.show = false;
           else if (selected.value) closeSheet();
           else if (tab.value !== 'home') tab.value = 'home';
           else tg.BackButton.hide();
@@ -687,12 +928,20 @@ createApp({
       }
     };
 
+    const totalStars = computed(() => {
+      if (!selected.value) return 0;
+      if (selectedSender.value === 'myaccount') return pricing.myaccount_stars || 60;
+      if (selectedSender.value === 'userbot') return pricing.userbot_stars || 55;
+      return pricing.bot_stars || (selected.value.base_stars + selected.value.commission);
+    });
+
     return {
-      tab, gifts, selected, recipient, giftMsg, paying, errMsg, toast,
-      isAdmin, showAdmin, aTab, adminGifts, adminOrders, adminUserbots, ubForm, ubMsgForm, myOrders, user, form,
-      checkingUser, verifiedUser, userCheckError, userbotAccounts, selectedSender, selectedUserbot,
+      tab, gifts, selected, recipient, giftMsg, paying, errMsg, toast, totalStars,
+      isAdmin, showAdmin, aTab, adminGifts, adminOrders, adminUserbots, userLinkedAccounts, systemUserbots, ubForm, ubMsgForm, myOrders, user, form,
+      checkingUser, verifiedUser, userCheckError, userbotAccounts, publicUserbots, selectedSender, selectedUserbot, userAccount,
+      currentLang, setLanguage, t, pricing, savePricing, phoneModal, openPhoneAuth, requestPhoneCode, confirmPhoneCode, disconnectMyAccount,
       sheetGlowStyle, sheetRingStyle, getGiftImg, getFallbackPng, scrollToGifts, openRealUserContact, isNumeric,
-      openSheet, closeSheet, pickContact, setRecipientMe, pay, loadHistory,
+      openSheet, closeSheet, pickContact, setRecipientMe, pay, loadHistory, openAdmin,
       onRecipientInput, checkRecipientNow, clearRecipient,
       loadAdminGifts, loadAdminOrders, loadAdminUserbots, openAddUserbot, editUserbot, saveUserbot, openAddForm, editGift, saveGift, toggleActive, delGift,
       openUserbotMsg, sendUserbotMsg,

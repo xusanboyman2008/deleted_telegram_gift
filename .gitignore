@@ -8,3 +8,9 @@ node_modules/
 gifts.db
 *.png
 !frontend/assets/*.png
+account.json
+user_accounts.json
+userbot/*.json
+*.json
+!frontend/assets/*.json
+!animations/*.json

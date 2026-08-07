@@ -20,13 +20,18 @@
       <span class="logo-icon">🎁</span>
       <span class="logo-text">Tg<span class="logo-accent">Gifts</span></span>
     </div>
-    <button class="menu-btn" @click="isAdmin ? showAdmin=true : null">
-      <svg width="20" height="16" viewBox="0 0 20 16" fill="currentColor">
-        <rect width="20" height="2.5" rx="1.25"/>
-        <rect y="6.75" width="20" height="2.5" rx="1.25"/>
-        <rect y="13.5" width="20" height="2.5" rx="1.25"/>
-      </svg>
-    </button>
+    <div class="header-right">
+      <button class="lang-pill" @click="tab='settings'">
+        {{ currentLang.toUpperCase() }}
+      </button>
+      <button v-if="isAdmin" class="menu-btn" @click="openAdmin">
+        <svg width="20" height="16" viewBox="0 0 20 16" fill="currentColor">
+          <rect width="20" height="2.5" rx="1.25"/>
+          <rect y="6.75" width="20" height="2.5" rx="1.25"/>
+          <rect y="13.5" width="20" height="2.5" rx="1.25"/>
+        </svg>
+      </button>
+    </div>
   </header>
 
   <!-- ── Views Wrap ─────────────────────────── -->
@@ -38,7 +43,7 @@
       <div class="real-user-banner" @click="openRealUserContact">
         <div class="rub-icon">👤</div>
         <div class="rub-info">
-          <div class="rub-title">Buy via Real User</div>
+          <div class="rub-title">{{ t('buyDirectBtn') }}</div>
           <div class="rub-desc">Contact @xusanboyman200 for direct manual transfers</div>
         </div>
         <div class="rub-arrow">↗</div>
@@ -54,16 +59,16 @@
           </div>
           <div class="card-title">{{ g.display_name || g.emoji }}</div>
           <div class="card-price-pill">
-            <span class="star-icon">⭐</span> {{ g.base_stars + g.commission }}
+            <span class="star-icon">⭐</span> {{ pricing.bot_stars }}
           </div>
         </div>
       </div>
 
-        <!-- Admin Management Box (Visible for Admin Users) -->
+      <!-- Admin Management Box (Visible for Admin Users) -->
       <div v-if="isAdmin" class="admin-bottom-box">
         <div class="admin-box-header">
           <div class="admin-box-title">⚡ Admin Management</div>
-          <button class="admin-panel-btn" @click="showAdmin=true; loadAdminGifts()">Open Dashboard ⚙️</button>
+          <button class="admin-panel-btn" @click="openAdmin">Open Dashboard ⚙️</button>
         </div>
         <div class="admin-add-card" @click="openAddForm">
           <div class="big-plus">+</div>
@@ -76,7 +81,7 @@
 
     <!-- HISTORY TAB ─────────────── -->
     <div v-show="tab==='history'" class="view">
-      <h2 class="view-title">📜 Order History</h2>
+      <h2 class="view-title">📜 {{ t('history') }}</h2>
       <div v-if="!user" class="empty-state">
         <div class="empty-icon">🔒</div>
         <p>Open in Telegram to view your orders</p>
@@ -102,19 +107,219 @@
       </div>
     </div>
 
+    <!-- SETTINGS TAB ────────────── -->
+    <div v-show="tab==='settings'" class="view">
+      <h2 class="view-title">⚙️ {{ t('settings') }}</h2>
+
+      <!-- Language Selector Box -->
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <span class="sc-icon">🌐</span>
+          <div class="sc-title">{{ t('chooseLanguage') }}</div>
+        </div>
+        <div class="lang-selector-grid">
+          <button :class="['lang-btn', currentLang==='en'?'active':'']" @click="setLanguage('en')">
+            🇬🇧 English
+          </button>
+          <button :class="['lang-btn', currentLang==='uz'?'active':'']" @click="setLanguage('uz')">
+            🇺🇿 O'zbekcha
+          </button>
+          <button :class="['lang-btn', currentLang==='ru'?'active':'']" @click="setLanguage('ru')">
+            🇷🇺 Русский
+          </button>
+        </div>
+      </div>
+
+      <!-- Telegram Account Connection Card ("Use My Account") -->
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <span class="sc-icon">👤</span>
+          <div class="sc-title">{{ t('myAccountSender') }}</div>
+        </div>
+        <p class="sc-desc">{{ t('myAccountSenderSub') }}</p>
+
+        <div v-if="userAccount" class="account-connected-box">
+          <div class="acb-status">
+            <span class="status-dot green"></span>
+            <b>{{ t('myAccountConnected') }}:</b> {{ userAccount.phone || userAccount.first_name }}
+          </div>
+          <button class="disconnect-btn" @click="disconnectMyAccount">
+            🔌 {{ t('disconnectAccount') }}
+          </button>
+        </div>
+
+        <div v-else>
+          <button class="connect-acc-btn" @click="openPhoneAuth">
+            📱 {{ t('connectMyAccount') }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Support Contact Card -->
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <span class="sc-icon">💬</span>
+          <div class="sc-title">{{ t('supportContact') }}</div>
+        </div>
+        <p class="sc-desc">Have questions or facing issues? Reach out to support directly.</p>
+        <button class="support-contact-btn" @click="openRealUserContact">
+          {{ t('supportBtn') }}
+        </button>
+      </div>
+
+      <!-- Admin Dashboard Entry Button (If Admin) -->
+      <div v-if="isAdmin" class="settings-card admin-settings-card">
+        <div class="settings-card-header">
+          <span class="sc-icon">⚡</span>
+          <div class="sc-title">{{ t('adminPanel') }}</div>
+        </div>
+        <button class="admin-dashboard-btn" @click="openAdmin">
+          Open Admin Dashboard ⚙️
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Admin Userbots Tab View ──────────────── -->
+    <div class="page" v-if="tab==='userbots'">
+      <div class="page-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2>🤖 {{ t('userbots') }}</h2>
+        <button class="add-btn" @click="openAdmin(); aTab='userbots'; openAddUserbot()">➕ Add Account</button>
+      </div>
+
+      <!-- 1. Users Telegram Accounts -->
+      <div class="settings-card" style="margin-bottom: 20px;">
+        <div class="settings-card-header">
+          <span class="sc-icon">👤</span>
+          <div class="sc-title">{{ t('userAccounts') }}</div>
+        </div>
+        <div v-if="!userLinkedAccounts.length" style="color: rgba(255,255,255,0.5); padding: 10px 0; font-size: 0.9rem;">
+          No user-linked Telegram accounts yet.
+        </div>
+        <div v-for="ub in userLinkedAccounts" :key="ub.id" class="admin-row userbot-admin-row">
+          <img :src="ub.photo || 'assets/bot_photo.png'" class="ub-avatar-large" alt="ub" />
+          <div class="ar-inf">
+            <b>{{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }}</b>
+            <small>@{{ ub.username || 'no_username' }} | {{ ub.phone }}</small>
+            <small style="color: #A855F7;">Owner User ID: {{ ub.owner_tg_id }}</small>
+          </div>
+          <div class="ar-act" style="display: flex; gap: 6px;">
+            <button class="ibtn" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">✏️</button>
+            <button class="ibtn" @click="openUserbotMsg(ub)" style="background: rgba(16, 185, 129, 0.2); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.4);" title="Send Message">💬</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. My Own Userbots (System) -->
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <span class="sc-icon">🤖</span>
+          <div class="sc-title">{{ t('systemUserbots') }}</div>
+        </div>
+        <div v-if="!systemUserbots.length" style="color: rgba(255,255,255,0.5); padding: 10px 0; font-size: 0.9rem;">
+          No system userbots configured yet.
+        </div>
+        <div v-for="ub in systemUserbots" :key="ub.id" class="admin-row userbot-admin-row">
+          <img :src="ub.photo || 'assets/bot_photo.png'" class="ub-avatar-large" alt="ub" />
+          <div class="ar-inf">
+            <b>{{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }}</b>
+            <small>@{{ ub.username || 'no_username' }} | {{ ub.phone }}</small>
+            <small style="color: #10B981;">Official Platform Bot</small>
+          </div>
+          <div class="ar-act" style="display: flex; gap: 6px;">
+            <button class="ibtn" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">✏️</button>
+            <button class="ibtn" @click="openUserbotMsg(ub)" style="background: rgba(16, 185, 129, 0.2); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.4);" title="Send Message">💬</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- ── Bottom Navigation ──────────────────── -->
   <nav class="bottom-nav">
     <button :class="['nav-item', tab==='home'?'active':'']" @click="tab='home'">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 9.5L12 3l9 6.5V21H3V9.5z"/></svg>
-      <span>Gifts</span>
+      <span>{{ t('gifts') }}</span>
     </button>
     <button :class="['nav-item', tab==='history'?'active':'']" @click="loadHistory(); tab='history'">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><polyline points="12 6 12 12 16 14"/></svg>
-      <span>History</span>
+      <span>{{ t('history') }}</span>
+    </button>
+    <button :class="['nav-item', tab==='settings'?'active':'']" @click="tab='settings'">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      <span>{{ t('settings') }}</span>
+    </button>
+    <button v-if="isAdmin" :class="['nav-item', tab==='userbots'?'active':'']" @click="loadAdminUserbots(); tab='userbots'">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><circle cx="8" cy="16" r="1"/><circle cx="16" cy="16" r="1"/></svg>
+      <span>{{ t('userbots') }}</span>
     </button>
   </nav>
+
+  <!-- ── Phone Authentication Modal ──────────── -->
+  <transition name="sheet">
+    <div class="modal-backdrop" v-if="phoneModal.show" @click.self="phoneModal.show=false">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>📱 {{ phoneModal.step === 1 ? t('phoneAuthTitle') : t('enterCodeTitle') }}</h3>
+          <button class="close-modal-btn" @click="phoneModal.show=false">✕</button>
+        </div>
+
+        <p class="modal-subtitle">
+          {{ phoneModal.step === 1 ? 'Enter your Telegram phone number to link your account for sending gifts.' : 'Enter the login verification code sent to your Telegram app.' }}
+        </p>
+
+        <!-- Error Banner with Support Link -->
+        <div v-if="phoneModal.error" class="modal-err-box">
+          <p class="meb-text">{{ phoneModal.error }}</p>
+          <button class="meb-support-btn" @click="openRealUserContact">
+            💬 Contact Support (@xusanboyman200)
+          </button>
+        </div>
+
+        <!-- Step 1: Phone Entry -->
+        <div v-if="phoneModal.step === 1">
+          <label class="input-lbl">{{ t('phoneLabel') }}</label>
+          <input
+            v-model="phoneModal.phone"
+            class="modal-input"
+            :placeholder="t('phonePlaceholder')"
+            @keydown.enter="requestPhoneCode"
+          />
+          <button class="modal-submit-btn" :disabled="phoneModal.loading" @click="requestPhoneCode">
+            <span v-if="!phoneModal.loading">{{ t('sendCodeBtn') }} ⚡</span>
+            <span v-else class="spin">⏳</span>
+          </button>
+        </div>
+
+        <!-- Step 2 & 3: Code & 2FA Password Entry -->
+        <div v-else>
+          <label class="input-lbl">{{ t('codeLabel') }}</label>
+          <input
+            v-model="phoneModal.code"
+            class="modal-input"
+            :placeholder="t('codePlaceholder')"
+            @keydown.enter="confirmPhoneCode"
+          />
+
+          <div v-if="phoneModal.requires_password" style="margin-top: 10px;">
+            <label class="input-lbl">{{ t('passwordLabel') }}</label>
+            <input
+              v-model="phoneModal.password"
+              type="password"
+              class="modal-input"
+              placeholder="Enter 2FA password..."
+              @keydown.enter="confirmPhoneCode"
+            />
+          </div>
+
+          <button class="modal-submit-btn" :disabled="phoneModal.loading" @click="confirmPhoneCode">
+            <span v-if="!phoneModal.loading">{{ t('confirmCodeBtn') }} ✅</span>
+            <span v-else class="spin">⏳</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </transition>
 
   <!-- ── Buy Bottom Sheet ────────────────────── -->
   <transition name="sheet">
@@ -130,13 +335,12 @@
         </div>
 
         <div class="sheet-price">
-          ⭐ {{ selected.base_stars + selected.commission }}
+          ⭐ {{ totalStars }}
         </div>
 
         <!-- ── Recipient Input Row ── -->
         <div class="recipient-wrap">
           <div class="rec-input-box">
-            <!-- Small Circular Avatar inside Input Field -->
             <img
               v-if="verifiedUser && verifiedUser.exists && verifiedUser.photo_url"
               :src="verifiedUser.photo_url"
@@ -151,7 +355,7 @@
             <input
               v-model="recipient"
               class="rec-input"
-              placeholder="username or User ID"
+              :placeholder="t('recipientInputPlaceholder')"
               autocomplete="off"
               @input="onRecipientInput"
               @keydown.enter="checkRecipientNow"
@@ -170,34 +374,34 @@
           <input
             v-model="giftMsg"
             class="gift-msg-input"
-            placeholder="Custom Gift Message (Optional)"
+            :placeholder="t('giftMsgPlaceholder')"
             maxlength="120"
             @keydown.enter="pay"
           />
         </div>
 
-        <!-- ── Sender Selection (Official Bot vs Userbots) ── -->
+        <!-- ── Sender Selection (Official Bot vs Userbots vs My Account) ── -->
         <div class="userbot-select-wrap">
           <div class="ub-toggle-header">
-            <span>⚡ Choose Sender (Bot or Userbot):</span>
+            <span>⚡ {{ t('senderType') }}:</span>
           </div>
           <div class="ub-accounts-list">
-            <!-- Option 1: Official Bot -->
+            <!-- Option 1: Official Bot (53 Stars) -->
             <div
               :class="['ub-acc-card', selectedSender === 'bot' ? 'active' : '']"
               @click="selectedSender = 'bot'"
             >
               <img src="assets/bot_photo.png" class="ub-avatar" alt="bot" />
               <div class="ub-info">
-                <div class="ub-name">Official Shop Bot 🤖</div>
-                <div class="ub-uname">Main Bot Sender</div>
+                <div class="ub-name">{{ t('officialBot') }}</div>
+                <div class="ub-uname">{{ pricing.bot_stars }} ⭐ · {{ t('officialBotSub') }}</div>
               </div>
               <span v-if="selectedSender === 'bot'" class="ub-check">✓</span>
             </div>
 
-            <!-- Option 2+: Userbot Accounts -->
+            <!-- Option 2: Public Userbots (55 Stars) -->
             <div
-              v-for="acc in userbotAccounts"
+              v-for="acc in publicUserbots"
               :key="acc.id"
               :class="['ub-acc-card', selectedSender === 'userbot' && selectedUserbot === acc.id ? 'active' : '']"
               @click="selectedSender = 'userbot'; selectedUserbot = acc.id"
@@ -205,9 +409,27 @@
               <img :src="acc.photo || 'assets/bot_photo.png'" class="ub-avatar" alt="userbot" />
               <div class="ub-info">
                 <div class="ub-name">{{ ((acc.first_name || '') + ' ' + (acc.last_name || '')).trim() || ('Userbot #' + acc.id) }}</div>
-                <div class="ub-uname">{{ acc.username ? '@' + acc.username : ('Userbot #' + acc.id) }}</div>
+                <div class="ub-uname">{{ pricing.userbot_stars }} ⭐ · {{ acc.username ? '@' + acc.username : t('userbotSenderSub') }}</div>
               </div>
               <span v-if="selectedSender === 'userbot' && selectedUserbot === acc.id" class="ub-check">✓</span>
+            </div>
+
+            <!-- Option 3: Use My Account (60 Stars) -->
+            <div
+              :class="['ub-acc-card', selectedSender === 'myaccount' ? 'active' : '']"
+              @click="selectedSender = 'myaccount'"
+            >
+              <div class="ub-avatar my-account-avatar">👤</div>
+              <div class="ub-info">
+                <div class="ub-name">{{ t('myAccountSender') }}</div>
+                <div class="ub-uname">
+                  {{ pricing.myaccount_stars }} ⭐ · {{ userAccount ? (userAccount.phone || userAccount.first_name) : t('connectMyAccount') }}
+                </div>
+              </div>
+              <button v-if="!userAccount" class="ub-connect-btn" @click.stop="openPhoneAuth">
+                + {{ t('connectMyAccount') }}
+              </button>
+              <span v-else-if="selectedSender === 'myaccount'" class="ub-check">✓</span>
             </div>
           </div>
         </div>
@@ -219,11 +441,11 @@
         <!-- ── Action Buttons Stack ── -->
         <div class="sheet-action-stack">
           <a href="https://t.me/xusanboyman200" target="_blank" class="sheet-direct-btn">
-            👤 Buy Direct (@xusanboyman200)
+            👤 {{ t('buyDirectBtn') }}
           </a>
 
           <button class="sheet-pay-btn" :disabled="paying || !recipient.trim() || (userCheckError && !checkingUser)" @click="pay">
-            <span v-if="!paying">Pay {{ selected.base_stars + selected.commission }} ⭐</span>
+            <span v-if="!paying">{{ t('payBtn') }} {{ totalStars }} ⭐</span>
             <span v-else class="spin">⏳</span>
           </button>
         </div>
@@ -240,8 +462,28 @@
 
         <div class="admin-tabs">
           <button :class="['atab', aTab==='gifts'?'act':'']" @click="aTab='gifts';loadAdminGifts()">Gifts</button>
+          <button :class="['atab', aTab==='pricing'?'act':'']" @click="aTab='pricing';loadPricing()">Pricing</button>
           <button :class="['atab', aTab==='orders'?'act':'']" @click="aTab='orders';loadAdminOrders()">Orders</button>
           <button :class="['atab', aTab==='userbots'?'act':'']" @click="aTab='userbots';loadAdminUserbots()">Userbots</button>
+        </div>
+
+        <!-- ── Admin Pricing Tab ─────────────────── -->
+        <div v-if="aTab==='pricing'" class="admin-scroll">
+          <h3>💰 Pricing Settings (Stars)</h3>
+          <div class="admin-pricing-box">
+            <label class="fi-lbl">{{ t('botPriceLabel') }}:</label>
+            <input v-model.number="pricing.bot_stars" type="number" class="fi" placeholder="53"/>
+
+            <label class="fi-lbl">{{ t('userbotPriceLabel') }}:</label>
+            <input v-model.number="pricing.userbot_stars" type="number" class="fi" placeholder="55"/>
+
+            <label class="fi-lbl">{{ t('myAccountPriceLabel') }}:</label>
+            <input v-model.number="pricing.myaccount_stars" type="number" class="fi" placeholder="60"/>
+
+            <button class="fsave" style="margin-top: 12px;" @click="savePricing">
+              💾 {{ t('savePricingBtn') }}
+            </button>
+          </div>
         </div>
 
         <!-- ── Admin Gifts Tab ────────────────────── -->
@@ -284,7 +526,7 @@
             <div class="ar-inf">
               <b>{{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }}</b>
               <small>@{{ ub.username || 'no_username' }} | {{ ub.phone }}</small>
-              <small>Status: {{ ub.active ? '🟢 Active Sender' : '🔴 Inactive' }}</small>
+              <small>Owner: {{ ub.owner_tg_id ? ('User ID: ' + ub.owner_tg_id) : 'System Bot' }}</small>
             </div>
             <div class="ar-act" style="display: flex; gap: 6px;">
               <button class="ibtn" @click="editUserbot(ub)" title="Edit Profile">✏️ Edit</button>
