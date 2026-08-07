@@ -199,17 +199,19 @@
         <div v-if="!userLinkedAccounts.length" style="color: rgba(255,255,255,0.5); padding: 10px 0; font-size: 0.9rem;">
           No user-linked Telegram accounts yet.
         </div>
-        <div v-for="ub in userLinkedAccounts" :key="ub.id" class="admin-row userbot-admin-row">
+        <div v-for="ub in userLinkedAccounts" :key="ub.id" :class="['admin-row', 'userbot-admin-row', ub.active === false ? 'disabled-userbot-row' : '']">
           <div class="ub-avatar-wrap">
             <img v-if="ub.photo" :src="ub.photo" class="ub-avatar-large" alt="ub" />
             <span v-else class="ub-avatar-placeholder">👤</span>
           </div>
           <div class="ar-inf">
-            <b>{{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }}</b>
+            <b>{{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }} <span :class="['status-pill', ub.active !== false ? 'active' : 'inactive']">{{ ub.active !== false ? '🟢 Active' : '🔴 Disabled' }}</span></b>
             <small>@{{ ub.username || 'no_username' }} | {{ ub.phone }}</small>
             <small style="color: #A855F7;">Owner User ID: {{ ub.owner_tg_id }}</small>
           </div>
           <div class="ar-act" style="display: flex; gap: 6px;">
+            <button v-if="ub.active !== false" class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3);" title="Disable Userbot">🔴 Disable</button>
+            <button v-else class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(34, 197, 94, 0.15); color: #4ADE80; border: 1px solid rgba(34, 197, 94, 0.3);" title="Undo / Re-enable Userbot">↩️ Undo</button>
             <button class="ibtn" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">✏️</button>
             <button class="ibtn" @click="openUserbotMsg(ub)" style="background: rgba(16, 185, 129, 0.2); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.4);" title="Send Message">💬</button>
           </div>
@@ -225,17 +227,19 @@
         <div v-if="!systemUserbots.length" style="color: rgba(255,255,255,0.5); padding: 10px 0; font-size: 0.9rem;">
           No system userbots configured yet.
         </div>
-        <div v-for="ub in systemUserbots" :key="ub.id" class="admin-row userbot-admin-row">
+        <div v-for="ub in systemUserbots" :key="ub.id" :class="['admin-row', 'userbot-admin-row', ub.active === false ? 'disabled-userbot-row' : '']">
           <div class="ub-avatar-wrap">
             <img v-if="ub.photo" :src="ub.photo" class="ub-avatar-large" alt="ub" />
             <span v-else class="ub-avatar-placeholder">🤖</span>
           </div>
           <div class="ar-inf">
-            <b>{{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }}</b>
+            <b>{{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }} <span :class="['status-pill', ub.active !== false ? 'active' : 'inactive']">{{ ub.active !== false ? '🟢 Active' : '🔴 Disabled' }}</span></b>
             <small>@{{ ub.username || 'no_username' }} | {{ ub.phone }}</small>
             <small style="color: #10B981;">Official Platform Bot</small>
           </div>
           <div class="ar-act" style="display: flex; gap: 6px;">
+            <button v-if="ub.active !== false" class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3);" title="Disable Userbot">🔴 Disable</button>
+            <button v-else class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(34, 197, 94, 0.15); color: #4ADE80; border: 1px solid rgba(34, 197, 94, 0.3);" title="Undo / Re-enable Userbot">↩️ Undo</button>
             <button class="ibtn" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">✏️</button>
             <button class="ibtn" @click="openUserbotMsg(ub)" style="background: rgba(16, 185, 129, 0.2); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.4);" title="Send Message">💬</button>
           </div>
@@ -579,17 +583,19 @@
           <div style="margin-bottom: 12px; display: flex; justify-content: flex-end;">
             <button class="add-btn" @click="openAddUserbot">➕ Add Userbot Account</button>
           </div>
-          <div v-for="ub in adminUserbots" :key="ub.id" class="admin-row userbot-admin-row">
+          <div v-for="ub in adminUserbots" :key="ub.id" :class="['admin-row', 'userbot-admin-row', ub.active === false ? 'disabled-userbot-row' : '']">
             <div class="ub-avatar-wrap">
               <img v-if="ub.photo" :src="ub.photo" class="ub-avatar-large" alt="ub" />
               <span v-else class="ub-avatar-placeholder">🤖</span>
             </div>
             <div class="ar-inf">
-              <b>{{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }}</b>
+              <b>{{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }} <span :class="['status-pill', ub.active !== false ? 'active' : 'inactive']">{{ ub.active !== false ? '🟢 Active' : '🔴 Disabled' }}</span></b>
               <small>@{{ ub.username || 'no_username' }} | {{ ub.phone }}</small>
               <small>Owner: {{ ub.owner_tg_id ? ('User ID: ' + ub.owner_tg_id) : 'System Bot' }}</small>
             </div>
             <div class="ar-act" style="display: flex; gap: 6px;">
+              <button v-if="ub.active !== false" class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3);" title="Disable Userbot">🔴 Disable</button>
+              <button v-else class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(34, 197, 94, 0.15); color: #4ADE80; border: 1px solid rgba(34, 197, 94, 0.3);" title="Undo / Re-enable Userbot">↩️ Undo</button>
               <button class="ibtn" @click="editUserbot(ub)" title="Edit Profile">✏️ Edit</button>
               <button class="ibtn" @click="openUserbotMsg(ub)" style="background: rgba(16, 185, 129, 0.2); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.4);" title="Send Message via Userbot">💬 Message</button>
             </div>

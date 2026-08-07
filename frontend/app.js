@@ -1045,6 +1045,25 @@ createApp({
       }
     };
 
+    const toggleUserbotActive = async (ub) => {
+      try {
+        const newActive = ub.active === false ? true : false;
+        const r = await api(`/api/admin/userbots/${ub.id}/toggle-active`, {
+          method: 'POST',
+        });
+        const data = await r.json();
+        if (r.ok) {
+          showToast(newActive ? '🟢 Userbot Re-activated (Undone)' : '🔴 Userbot Disabled');
+          await loadAdminUserbots();
+          await loadUserbotAccounts();
+        } else {
+          showToast(`❌ ${data.detail || 'Failed to toggle userbot'}`);
+        }
+      } catch (e) {
+        showToast(`❌ ${e.message}`);
+      }
+    };
+
     // ── Boot ───────────────────────────────────
     onMounted(async () => {
       try {
@@ -1098,7 +1117,7 @@ createApp({
       openSheet, closeSheet, pickContact, setRecipientMe, pay, loadHistory, openAdmin,
       onRecipientInput, checkRecipientNow, clearRecipient,
       loadAdminGifts, loadAdminOrders, loadAdminUserbots, openAddUserbot, editUserbot, saveUserbot, openAddForm, editGift, saveGift, toggleActive, delGift,
-      openUserbotMsg, sendUserbotMsg,
+      openUserbotMsg, sendUserbotMsg, toggleUserbotActive,
     };
   },
 }).mount('#app');

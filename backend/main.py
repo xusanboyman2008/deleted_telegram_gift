@@ -280,6 +280,36 @@ async def callback_handler(update: Update, context):
         await edit_or_reply(query, text, reply_markup=kb)
         return
 
+    if data == "admin_view_userbots":
+        await userbots_command_handler(update, context)
+        return
+
+    if data.startswith("admin_toggle_ub_"):
+        if query.from_user.id != ADMIN_ID:
+            await query.answer("Forbidden: Admin only", show_alert=True)
+            return
+
+        ub_id = int(data.split("_")[-1])
+        try:
+            from userbot.userbot import get_userbot_by_id, update_userbot_account
+        except ImportError:
+            from userbot import get_userbot_by_id, update_userbot_account
+
+        acc = get_userbot_by_id(ub_id)
+        if not acc:
+            await query.answer("Userbot account not found", show_alert=True)
+            return
+
+        current_active = bool(acc.get("active", True))
+        new_active = not current_active
+        update_userbot_account(ub_id, active=new_active)
+        await db.set_userbot_active_status(ub_id, new_active)
+
+        action_word = "Re-enabled (Undone)" if new_active else "Disabled"
+        await query.answer(f"✅ Userbot #{ub_id} has been {action_word}!", show_alert=True)
+        await userbots_command_handler(update, context)
+        return
+
     if data.startswith("gift_"):
         gift_id = int(data.split("_")[1])
         gift = await db.get_gift(gift_id)
@@ -490,7 +520,54 @@ async def admin_command_handler(update: Update, context):
             buyer = f"@{o['buyer_username']}" if o.get('buyer_username') else f"ID:{o['buyer_tg_id']}"
             msg += f"• #{o['id']} {o.get('emoji','🎁')} → <b>{o['recipient_id']}</b> from {buyer} ({o['total_stars']}⭐) [{o['status']}]\n"
         
-    await update.message.reply_text(msg, parse_mode="HTML")
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🤖 Manage Userbots (Enable/Disable)", callback_data="admin_view_userbots")]
+    ])
+    if update.callback_query:
+        await edit_or_reply(update.callback_query, msg, reply_markup=kb)
+    else:
+        await update.message.reply_text(msg, parse_mode="HTML", reply_markup=kb)
+
+
+async def userbots_command_handler(update: Update, context):
+    user = update.effective_user
+    if user.id != ADMIN_ID:
+        return
+
+    try:
+        from userbot.userbot import get_all_userbot_accounts
+    except ImportError:
+        from userbot import get_all_userbot_accounts
+
+    accounts = get_all_userbot_accounts()
+    if not accounts:
+        msg = "🤖 <b>No userbot accounts found.</b>"
+        if update.callback_query:
+            await edit_or_reply(update.callback_query, msg)
+        else:
+            await update.message.reply_text(msg, parse_mode="HTML")
+        return
+
+    msg = "🤖 <b>Userbot Accounts & Status Management</b>\n\n<i>Tap a button below to Disable or Re-enable (Undo) a userbot account:</i>\n\n"
+    keyboard = []
+    for acc in accounts:
+        acc_id = acc.get("id")
+        name = acc.get("first_name") or f"Account #{acc_id}"
+        un = f" (@{acc['username']})" if acc.get("username") else ""
+        is_active = bool(acc.get("active", True))
+        status_icon = "🟢 ACTIVE" if is_active else "🔴 DISABLED"
+        
+        msg += f"• <b>#{acc_id} {name}</b>{un} — [{status_icon}]\n"
+        
+        btn_text = f"🔴 Disable #{acc_id} ({name})" if is_active else f"↩️ Undo / Enable #{acc_id} ({name})"
+        cb_data = f"admin_toggle_ub_{acc_id}"
+        keyboard.append([InlineKeyboardButton(btn_text, callback_data=cb_data)])
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    if update.callback_query:
+        await edit_or_reply(update.callback_query, msg, reply_markup=reply_markup)
+    else:
+        await update.message.reply_text(msg, parse_mode="HTML", reply_markup=reply_markup)
 
 
 import re
@@ -556,6 +633,7 @@ async def lifespan(app: FastAPI):
     ptb_app.add_handler(CommandHandler("menu", start_handler))
     ptb_app.add_handler(CommandHandler("admin", admin_command_handler))
     ptb_app.add_handler(CommandHandler("stats", admin_command_handler))
+    ptb_app.add_handler(CommandHandler("userbots", userbots_command_handler))
     ptb_app.add_handler(CallbackQueryHandler(callback_handler))
     ptb_app.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
     ptb_app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
@@ -956,10 +1034,38 @@ async def admin_update_userbot(account_id: int, body: UserbotUpdate, background_
     success = update_userbot_account(account_id, **fields)
     if not success:
         raise HTTPException(status_code=404, detail="Userbot account not found")
+    if "active" in fields:
+        await db.set_userbot_active_status(account_id, bool(fields["active"]))
     acc = get_userbot_by_id(account_id)
     if acc and acc.get("session_string"):
         background_tasks.add_task(sync_userbot_telegram_profile, acc)
     return {"ok": True}
+
+
+@app.post("/api/admin/userbots/{account_id}/toggle-active")
+@app.patch("/api/admin/userbots/{account_id}/toggle-active")
+async def admin_toggle_userbot_active(account_id: int, admin=Depends(get_admin)):
+    try:
+        from userbot.userbot import get_userbot_by_id, update_userbot_account
+    except ImportError:
+        from userbot import get_userbot_by_id, update_userbot_account
+
+    acc = get_userbot_by_id(account_id)
+    if not acc:
+        raise HTTPException(status_code=404, detail="Userbot account not found")
+
+    current_active = bool(acc.get("active", True))
+    new_active = not current_active
+    success = update_userbot_account(account_id, active=new_active)
+    await db.set_userbot_active_status(account_id, new_active)
+
+    status_str = "re-enabled (undone)" if new_active else "disabled"
+    return {
+        "ok": True,
+        "account_id": account_id,
+        "active": new_active,
+        "message": f"Userbot #{account_id} has been {status_str} by admin."
+    }
 
 
 class UserbotSendMessageRequest(BaseModel):

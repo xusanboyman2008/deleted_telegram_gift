@@ -565,7 +565,30 @@ def db_get_userbot_accounts() -> list:
 
 
 def db_save_userbot_accounts(accounts: list) -> bool:
-    """Synchronous fallback to save userbots directly into SQLite database."""
+    """Synchronous fallback to save userbots directly into PostgreSQL or SQLite database."""
+    if IS_POSTGRES and DATABASE_URL:
+        try:
+            import psycopg2
+            pg_url = DATABASE_URL.replace("postgres://", "postgresql://")
+            conn = psycopg2.connect(pg_url)
+            cur = conn.cursor()
+            cur.execute("CREATE TABLE IF NOT EXISTS userbot_accounts (id INTEGER PRIMARY KEY, session TEXT, phone TEXT, session_string TEXT, api_id INTEGER, api_hash TEXT, first_name TEXT, last_name TEXT, username TEXT, bio TEXT, photo TEXT, active INTEGER DEFAULT 1, owner_tg_id BIGINT)")
+            cur.execute("DELETE FROM userbot_accounts")
+            for a in accounts:
+                cur.execute(
+                    "INSERT INTO userbot_accounts (id, session, phone, session_string, api_id, api_hash, first_name, last_name, username, bio, photo, active, owner_tg_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (
+                        a.get("id"), a.get("session",""), a.get("phone",""), a.get("session_string",""),
+                        a.get("api_id", 0), a.get("api_hash",""), a.get("first_name",""), a.get("last_name",""),
+                        a.get("username",""), a.get("bio",""), a.get("photo",""), 1 if a.get("active", True) else 0,
+                        a.get("owner_tg_id")
+                    )
+                )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"PostgreSQL db_save_userbot_accounts failed: {e}")
+
     try:
         conn = sqlite3.connect(DB_PATH)
         cur = conn.cursor()
@@ -587,6 +610,26 @@ def db_save_userbot_accounts(accounts: list) -> bool:
     except Exception as e:
         logger.error(f"db_save_userbot_accounts failed: {e}")
         return False
+
+
+async def set_userbot_active_status(account_id: int, active: bool) -> bool:
+    """Updates active status (1 for active, 0 for disabled) in PostgreSQL and SQLite database."""
+    act_val = 1 if active else 0
+    if IS_POSTGRES and pool:
+        try:
+            async with pool.acquire() as conn:
+                await conn.execute("UPDATE userbot_accounts SET active=$1 WHERE id=$2", act_val, account_id)
+        except Exception as e:
+            logger.error(f"PostgreSQL set_userbot_active_status error: {e}")
+
+    try:
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("UPDATE userbot_accounts SET active=? WHERE id=?", (act_val, account_id))
+            await db.commit()
+    except Exception as e:
+        logger.error(f"SQLite set_userbot_active_status error: {e}")
+
+    return True
 
 
 async def get_pricing_settings() -> dict:
