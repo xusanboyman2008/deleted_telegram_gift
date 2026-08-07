@@ -798,7 +798,7 @@ async def admin_list_gifts(admin=Depends(get_admin)):
 
 
 class GiftPayload(BaseModel):
-    emoji: str
+    emoji: str = "🧸"
     date_label: str
     gift_tg_id: str
     base_stars: int = 50
@@ -809,8 +809,9 @@ class GiftPayload(BaseModel):
 
 @app.post("/api/admin/gifts")
 async def admin_add_gift(body: GiftPayload, admin=Depends(get_admin)):
+    emoji_val = body.emoji if body.emoji else "🧸"
     gid = await db.add_gift(
-        body.emoji, body.date_label, body.gift_tg_id,
+        emoji_val, body.date_label, body.gift_tg_id,
         body.base_stars, body.commission, body.animation or None
     )
     if body.display_name:
@@ -838,8 +839,22 @@ async def admin_update_gift(gift_id: int, body: GiftUpdate, admin=Depends(get_ad
 
 @app.delete("/api/admin/gifts/{gift_id}")
 async def admin_delete_gift(gift_id: int, admin=Depends(get_admin)):
-    await db.delete_gift(gift_id)
+    await db.hard_delete_gift(gift_id)
     return {"ok": True}
+
+
+@app.post("/api/admin/upload-animation")
+async def admin_upload_animation(file: UploadFile = File(...), admin=Depends(get_admin)):
+    if not file.filename.lower().endswith(".json"):
+        raise HTTPException(status_code=400, detail="Only .json files are allowed")
+    filename = os.path.basename(file.filename)
+    assets_dir = os.path.join(ROOT, "frontend", "assets")
+    os.makedirs(assets_dir, exist_ok=True)
+    file_path = os.path.join(assets_dir, filename)
+    content = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
+    return {"ok": True, "filename": filename}
 
 
 @app.get("/api/admin/orders")

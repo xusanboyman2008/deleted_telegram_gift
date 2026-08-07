@@ -57,7 +57,7 @@
             <lottie-anim v-else-if="g.animation" :filename="g.animation" :fallback-img="getFallbackPng(g.animation)"></lottie-anim>
             <span v-else class="card-emoji-fallback">{{ g.emoji }}</span>
           </div>
-          <div class="card-title">{{ g.display_name || g.emoji }}</div>
+          <div class="card-title">{{ giftName(g) }}</div>
           <div class="card-price-pill">
             <span class="star-icon">⭐</span> {{ pricing.bot_stars }}
           </div>
@@ -93,9 +93,13 @@
       <div v-else class="orders-list">
         <div v-for="o in myOrders" :key="o.id" class="order-item">
           <div class="oi-left">
-            <span class="oi-emoji">{{ o.emoji }}</span>
+            <div class="oi-media" style="width: 42px; height: 42px; flex-shrink: 0;">
+              <img v-if="getGiftImg(o.animation)" :src="getGiftImg(o.animation)" class="oi-img" style="width: 100%; height: 100%; object-fit: contain;" alt="gift"/>
+              <lottie-anim v-else-if="o.animation" :filename="o.animation" :fallback-img="getFallbackPng(o.animation)"></lottie-anim>
+              <span v-else class="oi-emoji">{{ o.emoji }}</span>
+            </div>
             <div class="oi-info">
-              <span class="oi-name">{{ o.display_name || o.emoji }}</span>
+              <span class="oi-name">{{ giftName(o) }}</span>
               <span class="oi-recipient">To: {{ o.recipient_id }}</span>
             </div>
           </div>
@@ -382,14 +386,43 @@
 
         <!-- ── Sender Selection (Official Bot vs Userbots vs My Account) ── -->
         <div class="userbot-select-wrap">
-          <div class="ub-toggle-header">
+          <div class="ub-toggle-header" @click="showSenderDropdown = !showSenderDropdown" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 4px 2px; margin-bottom: 6px;">
             <span>⚡ {{ t('senderType') }}:</span>
+            <span class="ub-dropdown-arrow" style="font-size: 0.8rem; color: rgba(168, 85, 247, 0.9);">{{ showSenderDropdown ? '▲ Hide' : '▼ Change Sender' }}</span>
           </div>
-          <div class="ub-accounts-list">
+
+          <!-- Active Selected Sender Card (Single Box) -->
+          <div class="ub-acc-card active" @click="showSenderDropdown = !showSenderDropdown" style="cursor: pointer;">
+            <template v-if="selectedSender === 'bot'">
+              <img src="assets/bot_photo.png" class="ub-avatar" alt="bot" />
+              <div class="ub-info">
+                <div class="ub-name">{{ t('officialBot') }}</div>
+                <div class="ub-uname">{{ pricing.bot_stars }} ⭐ · {{ t('officialBotSub') }}</div>
+              </div>
+            </template>
+            <template v-else-if="selectedSender === 'userbot'">
+              <img :src="getSelectedUserbotObj()?.photo || 'assets/bot_photo.png'" class="ub-avatar" alt="userbot" />
+              <div class="ub-info">
+                <div class="ub-name">{{ getSelectedUserbotName() }}</div>
+                <div class="ub-uname">{{ pricing.userbot_stars }} ⭐ · Userbot</div>
+              </div>
+            </template>
+            <template v-else-if="selectedSender === 'myaccount'">
+              <div class="ub-avatar my-account-avatar">👤</div>
+              <div class="ub-info">
+                <div class="ub-name">{{ t('myAccountSender') }}</div>
+                <div class="ub-uname">{{ pricing.myaccount_stars }} ⭐ · {{ userAccount ? (userAccount.phone || userAccount.first_name) : t('connectMyAccount') }}</div>
+              </div>
+            </template>
+            <span class="ub-check" style="font-size: 0.85rem;">▾</span>
+          </div>
+
+          <!-- Dropdown List of Userbots & Options -->
+          <div v-show="showSenderDropdown" class="ub-accounts-list" style="margin-top: 8px;">
             <!-- Option 1: Official Bot (53 Stars) -->
             <div
               :class="['ub-acc-card', selectedSender === 'bot' ? 'active' : '']"
-              @click="selectedSender = 'bot'"
+              @click="selectedSender = 'bot'; showSenderDropdown = false"
             >
               <img src="assets/bot_photo.png" class="ub-avatar" alt="bot" />
               <div class="ub-info">
@@ -404,7 +437,7 @@
               v-for="acc in publicUserbots"
               :key="acc.id"
               :class="['ub-acc-card', selectedSender === 'userbot' && selectedUserbot === acc.id ? 'active' : '']"
-              @click="selectedSender = 'userbot'; selectedUserbot = acc.id"
+              @click="selectedSender = 'userbot'; selectedUserbot = acc.id; showSenderDropdown = false"
             >
               <img :src="acc.photo || 'assets/bot_photo.png'" class="ub-avatar" alt="userbot" />
               <div class="ub-info">
@@ -417,7 +450,7 @@
             <!-- Option 3: Use My Account (60 Stars) -->
             <div
               :class="['ub-acc-card', selectedSender === 'myaccount' ? 'active' : '']"
-              @click="selectedSender = 'myaccount'"
+              @click="selectedSender = 'myaccount'; showSenderDropdown = false"
             >
               <div class="ub-avatar my-account-avatar">👤</div>
               <div class="ub-info">
@@ -490,9 +523,13 @@
         <div v-if="aTab==='gifts'" class="admin-scroll">
           <button class="add-btn" @click="openAddForm">+ Add Gift</button>
           <div v-for="g in adminGifts" :key="g.id" :class="['admin-row', g.active ? '' : 'deleted-gift-row']">
-            <span class="ar-em">{{ g.emoji }}</span>
+            <div class="ar-media" style="width: 36px; height: 36px; flex-shrink: 0;">
+              <img v-if="getGiftImg(g.animation)" :src="getGiftImg(g.animation)" class="ar-img" style="width: 100%; height: 100%; object-fit: contain;" alt="gift"/>
+              <lottie-anim v-else-if="g.animation" :filename="g.animation" :fallback-img="getFallbackPng(g.animation)"></lottie-anim>
+              <span v-else class="ar-em">{{ g.emoji }}</span>
+            </div>
             <div class="ar-inf">
-              <b>{{ g.display_name || g.emoji }}</b>
+              <b>{{ giftName(g) }}</b>
               <span :class="['status-pill', g.active ? 'active' : 'inactive']">
                 {{ g.active ? '🟢 Active' : '🔴 Deleted' }}
               </span>
@@ -511,8 +548,17 @@
         <div v-if="aTab==='orders'" class="admin-scroll">
           <div v-for="o in adminOrders" :key="o.id" class="admin-order">
             <div class="ao-top"><span>#{{ o.id }}</span><span :class="['ao-st','st-'+o.status]">{{ o.status }}</span></div>
-            <div>{{ o.display_name || o.emoji }} → <b>{{ o.recipient_id }}</b> · {{ o.total_stars }}⭐</div>
-            <small>{{ o.buyer_username ? '@'+o.buyer_username : o.buyer_tg_id }}</small>
+            <div class="ao-row-content" style="display: flex; align-items: center; gap: 10px; margin-top: 4px;">
+              <div class="ao-media" style="width: 36px; height: 36px; flex-shrink: 0;">
+                <img v-if="getGiftImg(o.animation)" :src="getGiftImg(o.animation)" class="ao-img" style="width: 100%; height: 100%; object-fit: contain;" alt="gift"/>
+                <lottie-anim v-else-if="o.animation" :filename="o.animation" :fallback-img="getFallbackPng(o.animation)"></lottie-anim>
+                <span v-else class="ao-em">{{ o.emoji }}</span>
+              </div>
+              <div class="ao-details">
+                <div>{{ giftName(o) }} → <b>{{ o.recipient_id }}</b> · {{ o.total_stars }}⭐</div>
+                <small>{{ o.buyer_username ? '@'+o.buyer_username : o.buyer_tg_id }}</small>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -569,13 +615,18 @@
 
         <div v-if="form.show" class="gift-form">
           <h3>{{ form.id ? 'Edit' : 'Add' }} Gift</h3>
-          <input v-model="form.emoji"        class="fi" placeholder="Emoji (e.g. 🧸)"/>
           <input v-model="form.display_name" class="fi" placeholder="Display name (e.g. Super Bear)"/>
-          <input v-model="form.date_label"   class="fi" placeholder="Date label (e.g. 08/06/26)"/>
+          <input v-model="form.date_label"   class="fi" placeholder="Date label (e.g. 08/07/26)"/>
           <input v-model="form.gift_tg_id"   class="fi" placeholder="TG Gift ID (e.g. 6012345678)"/>
           <input v-model.number="form.base_stars"  class="fi" type="number" placeholder="Base stars (e.g. 50)"/>
           <input v-model.number="form.commission"   class="fi" type="number" placeholder="Commission (e.g. 10)"/>
-          <input v-model="form.animation"   class="fi" placeholder="Animation File (e.g. pink_bear.json or hug_bear.json)"/>
+          
+          <div class="fi-file-wrapper" style="width: 100%; display: flex; flex-direction: column; gap: 4px;">
+            <label style="font-size: 0.8rem; color: rgba(255,255,255,0.7);">Choose Animation (.json file):</label>
+            <input type="file" accept=".json" class="fi" @change="onAnimationFileSelect" style="padding: 6px; font-size: 0.85rem;" />
+            <small v-if="form.animation" style="color: #10B981; font-weight: bold;">File selected: {{ form.animation }}</small>
+          </div>
+
           <div class="form-row">
             <button class="fsave" @click="saveGift">Save</button>
             <button class="fcancel" @click="form.show=false">Cancel</button>

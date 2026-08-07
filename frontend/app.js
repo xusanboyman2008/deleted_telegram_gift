@@ -68,6 +68,16 @@ const I18N = {
     userbots: "Userbots",
     userAccounts: "Users' Telegram Accounts",
     systemUserbots: "Official System Userbots",
+    gift_bunny_basket: "Bunny Basket",
+    gift_balloon_bear: "Balloon Bear",
+    gift_rose_bear: "Rose Bear",
+    gift_worker_bear: "Worker Bear",
+    gift_football_bear: "Football Bear",
+    gift_santa_teddy: "Santa Teddy",
+    gift_gnome_bear: "Gnome Bear",
+    gift_i_love_u: "I Love U",
+    gift_christmas_tree: "Christmas Tree",
+    gift_hug_bear: "Hug Bear",
   },
   uz: {
     gifts: "Sovg'alar",
@@ -110,6 +120,16 @@ const I18N = {
     userbots: "Userbotlar",
     userAccounts: "Foydalanuvchi akkauntlari",
     systemUserbots: "Rasmiy tizim userbotlari",
+    gift_bunny_basket: "Quyon savatchasi",
+    gift_balloon_bear: "Sharli ayiqcha",
+    gift_rose_bear: "Atirgul ayiqcha",
+    gift_worker_bear: "Ishchi ayiqcha",
+    gift_football_bear: "Futbolchi ayiqcha",
+    gift_santa_teddy: "Qorbobo ayiqcha",
+    gift_gnome_bear: "Gnom ayiqcha",
+    gift_i_love_u: "Sevaman ❤️",
+    gift_christmas_tree: "Rojdestvo daraxti",
+    gift_hug_bear: "Quchoq ayiqcha",
   },
   ru: {
     gifts: "Подарки",
@@ -152,7 +172,31 @@ const I18N = {
     userbots: "Юзерботы",
     userAccounts: "Telegram-аккаунты пользователей",
     systemUserbots: "Официальные юзерботы",
+    gift_bunny_basket: "Зайчик с корзинкой",
+    gift_balloon_bear: "Мишка с шариком",
+    gift_rose_bear: "Мишка с розами",
+    gift_worker_bear: "Мишка-строитель",
+    gift_football_bear: "Мишка-футболист",
+    gift_santa_teddy: "Мишка Санта",
+    gift_gnome_bear: "Мишка-гном",
+    gift_i_love_u: "Люблю тебя ❤️",
+    gift_christmas_tree: "Рождественская ёлка",
+    gift_hug_bear: "Мишка-обнимашка",
   }
+};
+
+// ── Gift Name i18n mapping ─────────────────────
+const GIFT_NAME_KEYS = {
+  'Bunny Basket': 'gift_bunny_basket',
+  'Balloon Bear': 'gift_balloon_bear',
+  'Rose Bear': 'gift_rose_bear',
+  'Worker Bear': 'gift_worker_bear',
+  'Football Bear': 'gift_football_bear',
+  'Santa Teddy': 'gift_santa_teddy',
+  'Gnome Bear': 'gift_gnome_bear',
+  'I Love U': 'gift_i_love_u',
+  'Christmas Tree': 'gift_christmas_tree',
+  'Hug Bear': 'gift_hug_bear',
 };
 
 // ── Image & Fallback mapping ───────────────────
@@ -211,6 +255,7 @@ const LottieAnim = {
     let inst = null;
     let isPlaying = false;
     let failTimer = null;
+    let hasPlayed = false;
 
     const destroy = () => {
       if (failTimer) { clearTimeout(failTimer); failTimer = null; }
@@ -220,9 +265,16 @@ const LottieAnim = {
       }
     };
 
+    const replay = () => {
+      if (inst && hasPlayed) {
+        inst.goToAndPlay(0, true);
+      }
+    };
+
     const init = async () => {
       destroy();
       failed.value = false;
+      hasPlayed = false;
       if (!props.filename) return;
 
       const data = await preloadAnim(props.filename);
@@ -243,7 +295,7 @@ const LottieAnim = {
         inst = lottie.loadAnimation({
           container: el.value,
           renderer: getRenderer(props.filename),
-          loop: true,
+          loop: false,
           autoplay: true,
           animationData: data,
         });
@@ -257,6 +309,9 @@ const LottieAnim = {
         inst.addEventListener('data_ready', onReady);
         inst.addEventListener('configReady', onReady);
         inst.addEventListener('drawnFrame', onReady);
+        inst.addEventListener('complete', () => {
+          hasPlayed = true;
+        });
         inst.addEventListener('error', (err) => {
           console.error('Lottie runtime error:', props.filename, err);
           isPlaying = false;
@@ -276,7 +331,12 @@ const LottieAnim = {
       if (failed.value && props.fallbackImg) {
         return Vue.h('img', { src: props.fallbackImg, class: 'gift-png-fallback' });
       }
-      return Vue.h('div', { ref: el, class: 'lottie-box' });
+      return Vue.h('div', {
+        ref: el,
+        class: 'lottie-box',
+        onMouseenter: replay,
+        onTouchstart: replay,
+      });
     };
   },
 };
@@ -502,16 +562,22 @@ createApp({
     const disconnectMyAccount = async () => {
       const myAcc = userAccount.value;
       if (!myAcc) return;
-      if (!confirm('Are you sure you want to disconnect your account?')) return;
-      try {
-        const r = await api(`/api/user/userbot/account/${myAcc.id}`, { method: 'DELETE' });
-        if (r.ok) {
-          showToast('🔌 Account disconnected');
-          await loadUserbotAccounts();
-          selectedSender.value = 'bot';
+      const doDisconnect = async () => {
+        try {
+          const r = await api(`/api/user/userbot/account/${myAcc.id}`, { method: 'DELETE' });
+          if (r.ok) {
+            showToast('🔌 Account disconnected');
+            await loadUserbotAccounts();
+            selectedSender.value = 'bot';
+          }
+        } catch (e) {
+          showToast('❌ Failed to disconnect account');
         }
-      } catch (e) {
-        showToast('❌ Failed to disconnect account');
+      };
+      if (window.Telegram?.WebApp?.showConfirm) {
+        window.Telegram.WebApp.showConfirm('Disconnect your Telegram account?', ok => { if (ok) doDisconnect(); });
+      } else {
+        doDisconnect();
       }
     };
 
@@ -530,6 +596,11 @@ createApp({
     };
 
     const getGiftImg = anim => IMG_MAP[anim] || null;
+    const giftName = (g) => {
+      const key = GIFT_NAME_KEYS[g.display_name];
+      if (key) return t(key);
+      return g.display_name || g.emoji;
+    };
 
     const sheetGlowStyle = computed(() => selected.value
       ? { filter: `drop-shadow(0 0 30px ${gc(selected.value.emoji).glow})` }
@@ -724,14 +795,51 @@ createApp({
       loadAdminUserbots();
     };
 
+    const showSenderDropdown = ref(false);
+    const getSelectedUserbotObj = () => {
+      if (!publicUserbots.value || !publicUserbots.value.length) return null;
+      return publicUserbots.value.find(u => u.id === selectedUserbot.value) || publicUserbots.value[0];
+    };
+    const getSelectedUserbotName = () => {
+      const u = getSelectedUserbotObj();
+      if (!u) return 'Userbot';
+      const name = ((u.first_name || '') + ' ' + (u.last_name || '')).trim();
+      return name || (u.username ? '@' + u.username : `Userbot #${u.id}`);
+    };
+
     const openAddForm = () => {
       Object.assign(form, { show: true, id: null, emoji: '🧸', display_name: '', date_label: '08/07/26', gift_tg_id: '', base_stars: 50, commission: 10, animation: '' });
     };
     const editGift = g => {
-      Object.assign(form, { show: true, id: g.id, emoji: g.emoji, display_name: g.display_name || '', date_label: g.date_label, gift_tg_id: g.gift_tg_id, base_stars: g.base_stars, commission: g.commission, animation: g.animation || '' });
+      Object.assign(form, { show: true, id: g.id, emoji: g.emoji || '🧸', display_name: g.display_name || '', date_label: g.date_label, gift_tg_id: g.gift_tg_id, base_stars: g.base_stars, commission: g.commission, animation: g.animation || '' });
+    };
+    const onAnimationFileSelect = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (!file.name.toLowerCase().endsWith('.json')) {
+        showToast('❌ Only .json files allowed!');
+        return;
+      }
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const r = await api('/api/admin/upload-animation', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await r.json();
+        if (r.ok && data.filename) {
+          form.animation = data.filename;
+          showToast(`✅ Uploaded: ${data.filename}`);
+        } else {
+          showToast(`❌ Upload failed: ${data.detail || 'Error'}`);
+        }
+      } catch (err) {
+        showToast('❌ Upload error!');
+      }
     };
     const saveGift = async () => {
-      const body = { emoji: form.emoji, display_name: form.display_name, date_label: form.date_label, gift_tg_id: form.gift_tg_id, base_stars: form.base_stars, commission: form.commission, animation: form.animation };
+      const body = { emoji: form.emoji || '🧸', display_name: form.display_name, date_label: form.date_label, gift_tg_id: form.gift_tg_id, base_stars: form.base_stars, commission: form.commission, animation: form.animation };
       const url = form.id ? `/api/admin/gifts/${form.id}` : '/api/admin/gifts';
       const method = form.id ? 'PATCH' : 'POST';
       const r = await api(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -942,6 +1050,7 @@ createApp({
       tab, gifts, selected, recipient, giftMsg, paying, errMsg, toast, totalStars,
       isAdmin, showAdmin, aTab, adminGifts, adminOrders, adminUserbots, userLinkedAccounts, systemUserbots, ubForm, ubMsgForm, myOrders, user, form,
       checkingUser, verifiedUser, userCheckError, userbotAccounts, publicUserbots, selectedSender, selectedUserbot, userAccount,
+      showSenderDropdown, getSelectedUserbotObj, getSelectedUserbotName, onAnimationFileSelect,
       currentLang, setLanguage, t, pricing, savePricing, phoneModal, openPhoneAuth, requestPhoneCode, confirmPhoneCode, disconnectMyAccount,
       sheetGlowStyle, sheetRingStyle, getGiftImg, getFallbackPng, scrollToGifts, openRealUserContact, isNumeric,
       openSheet, closeSheet, pickContact, setRecipientMe, pay, loadHistory, openAdmin,

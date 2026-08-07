@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 import aiosqlite
 import asyncpg
@@ -158,13 +159,38 @@ async def init_db():
         async with pool.acquire() as conn:
             await conn.execute(CREATE_GIFTS_POSTGRES)
             await conn.execute(CREATE_ORDERS_POSTGRES)
+            await conn.execute(CREATE_USERBOTS_POSTGRES)
+            await conn.execute(CREATE_SETTINGS_POSTGRES)
             try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS gift_text TEXT")
             except Exception: pass
             try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS sender_type TEXT DEFAULT 'bot'")
             except Exception: pass
             try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS userbot_id INTEGER")
             except Exception: pass
+            try: await conn.execute("ALTER TABLE userbot_accounts ADD COLUMN IF NOT EXISTS owner_tg_id BIGINT")
+            except Exception: pass
             
+            # Seed userbot accounts from account.json if table is empty
+            try:
+                cnt = await conn.fetchval("SELECT COUNT(*) FROM userbot_accounts")
+                if cnt == 0:
+                    acc_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "userbot", "account.json")
+                    if os.path.exists(acc_path):
+                        with open(acc_path, "r", encoding="utf-8") as f:
+                            acc_data = json.load(f).get("accounts", [])
+                            for a in acc_data:
+                                await conn.execute(
+                                    """INSERT INTO userbot_accounts (id, session, phone, session_string, api_id, api_hash, first_name, last_name, username, bio, photo, active, owner_tg_id)
+                                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                                       ON CONFLICT (id) DO NOTHING""",
+                                    a.get("id"), a.get("session",""), a.get("phone",""), a.get("session_string",""),
+                                    int(a.get("api_id") or 0), str(a.get("api_hash") or ""), a.get("first_name",""), a.get("last_name",""),
+                                    a.get("username",""), a.get("bio",""), a.get("photo",""), 1 if a.get("active", True) else 0,
+                                    a.get("owner_tg_id")
+                                )
+            except Exception as e:
+                logger.warning(f"Failed to seed userbots to PG: {e}")
+
             # Legacy cleanup: fix Worker Bear animation, Hug Bear gift_tg_id mapping, and remove duplicate rows
             try:
                 await conn.execute("UPDATE gifts SET animation='worker_bear.json' WHERE display_name='Worker Bear' OR animation='plumber_bear.json'")
