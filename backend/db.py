@@ -109,7 +109,8 @@ CREATE TABLE IF NOT EXISTS userbot_accounts (
     bio             TEXT,
     photo           TEXT,
     active          INTEGER DEFAULT 1,
-    owner_tg_id     INTEGER
+    owner_tg_id     INTEGER,
+    stars_balance   INTEGER DEFAULT 0
 )
 """
 
@@ -127,7 +128,8 @@ CREATE TABLE IF NOT EXISTS userbot_accounts (
     bio             TEXT,
     photo           TEXT,
     active          INTEGER DEFAULT 1,
-    owner_tg_id     BIGINT
+    owner_tg_id     BIGINT,
+    stars_balance   INTEGER DEFAULT 0
 )
 """
 
@@ -168,6 +170,8 @@ async def init_db():
             try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS userbot_id INTEGER")
             except Exception: pass
             try: await conn.execute("ALTER TABLE userbot_accounts ADD COLUMN IF NOT EXISTS owner_tg_id BIGINT")
+            except Exception: pass
+            try: await conn.execute("ALTER TABLE userbot_accounts ADD COLUMN IF NOT EXISTS stars_balance INTEGER DEFAULT 0")
             except Exception: pass
             
             # Seed userbot accounts from account.json if table is empty
@@ -219,6 +223,8 @@ async def init_db():
             try: await db.execute("ALTER TABLE orders ADD COLUMN userbot_id INTEGER")
             except Exception: pass
             try: await db.execute("ALTER TABLE userbot_accounts ADD COLUMN owner_tg_id INTEGER")
+            except Exception: pass
+            try: await db.execute("ALTER TABLE userbot_accounts ADD COLUMN stars_balance INTEGER DEFAULT 0")
             except Exception: pass
             
             # Legacy cleanup: fix Worker Bear animation, Hug Bear gift_tg_id mapping, and remove duplicate rows
@@ -572,16 +578,16 @@ def db_save_userbot_accounts(accounts: list) -> bool:
             pg_url = DATABASE_URL.replace("postgres://", "postgresql://")
             conn = psycopg2.connect(pg_url)
             cur = conn.cursor()
-            cur.execute("CREATE TABLE IF NOT EXISTS userbot_accounts (id INTEGER PRIMARY KEY, session TEXT, phone TEXT, session_string TEXT, api_id INTEGER, api_hash TEXT, first_name TEXT, last_name TEXT, username TEXT, bio TEXT, photo TEXT, active INTEGER DEFAULT 1, owner_tg_id BIGINT)")
+            cur.execute("CREATE TABLE IF NOT EXISTS userbot_accounts (id INTEGER PRIMARY KEY, session TEXT, phone TEXT, session_string TEXT, api_id INTEGER, api_hash TEXT, first_name TEXT, last_name TEXT, username TEXT, bio TEXT, photo TEXT, active INTEGER DEFAULT 1, owner_tg_id BIGINT, stars_balance INTEGER DEFAULT 0)")
             cur.execute("DELETE FROM userbot_accounts")
             for a in accounts:
                 cur.execute(
-                    "INSERT INTO userbot_accounts (id, session, phone, session_string, api_id, api_hash, first_name, last_name, username, bio, photo, active, owner_tg_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO userbot_accounts (id, session, phone, session_string, api_id, api_hash, first_name, last_name, username, bio, photo, active, owner_tg_id, stars_balance) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     (
                         a.get("id"), a.get("session",""), a.get("phone",""), a.get("session_string",""),
                         a.get("api_id", 0), a.get("api_hash",""), a.get("first_name",""), a.get("last_name",""),
                         a.get("username",""), a.get("bio",""), a.get("photo",""), 1 if a.get("active", True) else 0,
-                        a.get("owner_tg_id")
+                        a.get("owner_tg_id"), a.get("stars_balance", 0)
                     )
                 )
             conn.commit()
@@ -592,16 +598,16 @@ def db_save_userbot_accounts(accounts: list) -> bool:
     try:
         conn = sqlite3.connect(DB_PATH)
         cur = conn.cursor()
-        cur.execute("CREATE TABLE IF NOT EXISTS userbot_accounts (id INTEGER PRIMARY KEY, session TEXT, phone TEXT, session_string TEXT, api_id INTEGER, api_hash TEXT, first_name TEXT, last_name TEXT, username TEXT, bio TEXT, photo TEXT, active INTEGER DEFAULT 1, owner_tg_id INTEGER)")
+        cur.execute("CREATE TABLE IF NOT EXISTS userbot_accounts (id INTEGER PRIMARY KEY, session TEXT, phone TEXT, session_string TEXT, api_id INTEGER, api_hash TEXT, first_name TEXT, last_name TEXT, username TEXT, bio TEXT, photo TEXT, active INTEGER DEFAULT 1, owner_tg_id INTEGER, stars_balance INTEGER DEFAULT 0)")
         cur.execute("DELETE FROM userbot_accounts")
         for a in accounts:
             cur.execute(
-                "INSERT INTO userbot_accounts (id, session, phone, session_string, api_id, api_hash, first_name, last_name, username, bio, photo, active, owner_tg_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO userbot_accounts (id, session, phone, session_string, api_id, api_hash, first_name, last_name, username, bio, photo, active, owner_tg_id, stars_balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     a.get("id"), a.get("session",""), a.get("phone",""), a.get("session_string",""),
                     a.get("api_id", 0), a.get("api_hash",""), a.get("first_name",""), a.get("last_name",""),
                     a.get("username",""), a.get("bio",""), a.get("photo",""), 1 if a.get("active", True) else 0,
-                    a.get("owner_tg_id")
+                    a.get("owner_tg_id"), a.get("stars_balance", 0)
                 )
             )
         conn.commit()

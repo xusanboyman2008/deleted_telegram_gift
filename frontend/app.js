@@ -509,7 +509,8 @@ createApp({
     };
 
     const requestPhoneCode = async () => {
-      if (!phoneModal.phone.trim()) {
+      const cleanPhone = (phoneModal.phone || '').trim();
+      if (!cleanPhone) {
         phoneModal.error = 'Please enter phone number (+998...)';
         return;
       }
@@ -519,12 +520,13 @@ createApp({
         const r = await api('/api/user/userbot/request-code', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: phoneModal.phone.trim() }),
+          body: JSON.stringify({ phone: cleanPhone }),
         });
         const data = await r.json();
         phoneModal.loading = false;
         if (data.success) {
           phoneModal.step = 2;
+          phoneModal.error = '';
           showToast('📩 Verification code sent to Telegram!');
         } else {
           phoneModal.error = data.support_message || data.error || 'Failed to send verification code.';
@@ -536,7 +538,10 @@ createApp({
     };
 
     const confirmPhoneCode = async () => {
-      if (!phoneModal.code.trim()) {
+      const cleanPhone = (phoneModal.phone || '').trim();
+      const cleanCode = (phoneModal.code || '').trim();
+      const cleanPass = (phoneModal.password || '').trim() || null;
+      if (!cleanCode) {
         phoneModal.error = 'Please enter verification code';
         return;
       }
@@ -547,9 +552,9 @@ createApp({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            phone: phoneModal.phone.trim(),
-            code: phoneModal.code.trim(),
-            password: phoneModal.password.trim() || null,
+            phone: cleanPhone,
+            code: cleanCode,
+            password: cleanPass,
           }),
         });
         const data = await r.json();
@@ -562,7 +567,7 @@ createApp({
         } else if (data.requires_password) {
           phoneModal.requires_password = true;
           phoneModal.step = 3;
-          phoneModal.error = '2FA Password is required for this account.';
+          phoneModal.error = data.error || '2FA Password is required for this account.';
         } else {
           phoneModal.error = data.support_message || data.error || 'Failed to confirm code.';
         }

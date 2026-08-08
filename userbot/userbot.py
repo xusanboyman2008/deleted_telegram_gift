@@ -210,6 +210,16 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
         api_hash = account.get("api_hash")
 
         async with Client(f"userbot_{account.get('id', 1)}", api_id=api_id, api_hash=api_hash, session_string=session_string, in_memory=True) as client:
+            stars = await get_userbot_stars_balance(client)
+            update_userbot_account(account.get("id"), stars_balance=stars)
+            if stars < 55:
+                return {
+                    "success": False,
+                    "error_type": "INSUFFICIENT_STARS",
+                    "error": f"Userbot {ub_name} has only {stars} ⭐ Stars (minimum 55 ⭐ required).",
+                    "warning": f"⚠️ Payment received! Userbot {ub_name} has only {stars} ⭐ Stars. Do not worry — your gift will be sent automatically via Main Bot or manually by our team shortly!"
+                }
+
             user = await client.get_users(recipient_id)
             if not user:
                 return {
@@ -415,10 +425,28 @@ async def userbot_send_message(account_id: int, recipient: str, message_text: st
 _PENDING_CLIENTS = {}
 
 
+def normalize_phone(phone: str) -> str:
+    clean = re.sub(r'[^\d+]', '', phone.strip())
+    if clean and not clean.startswith('+'):
+        clean = '+' + clean
+    return clean
+
+
+async def get_userbot_stars_balance(client) -> int:
+    try:
+        from hydrogram.raw.functions.payments import GetStarsStatus
+        from hydrogram.raw.types import InputPeerSelf
+        status = await client.invoke(GetStarsStatus(peer=InputPeerSelf()))
+        return getattr(status, "balance", 0)
+    except Exception as e:
+        logger.warning(f"Could not fetch stars balance: {e}")
+        return 0
+
+
 async def request_userbot_phone_code(phone: str, api_id: int = None, api_hash: str = None) -> dict:
-    clean_phone = phone.strip()
-    if not clean_phone:
-        return {"success": False, "error": "Phone number is required"}
+    clean_phone = normalize_phone(phone)
+    if not clean_phone or len(clean_phone) < 7:
+        return {"success": False, "error": "Valid phone number with country code is required (e.g. +998901234567)"}
 
     data = load_userbot_file_data()
     accounts = data.get("accounts", [])
@@ -427,9 +455,17 @@ async def request_userbot_phone_code(phone: str, api_id: int = None, api_hash: s
     use_api_id = api_id or first_acc.get("api_id") or 35251724
     use_api_hash = api_hash or first_acc.get("api_hash") or "b11e753959873b1df047454a8d816604"
 
+    old_pending = _PENDING_CLIENTS.pop(clean_phone, None)
+    if old_pending:
+        try:
+            await old_pending["client"].disconnect()
+        except Exception:
+            pass
+
     from hydrogram import Client
 
-    client = Client(f"web_login_{clean_phone}", api_id=use_api_id, api_hash=use_api_hash, in_memory=True)
+    client_id = clean_phone.replace('+', '')
+    client = Client(f"web_login_{client_id}", api_id=use_api_id, api_hash=use_api_hash, in_memory=True)
     try:
         await client.connect()
         code_info = await client.send_code(clean_phone)
@@ -444,13 +480,13 @@ async def request_userbot_phone_code(phone: str, api_id: int = None, api_hash: s
         logger.error(f"request_userbot_phone_code error: {e}")
         try:
             await client.disconnect()
-        except:
+        except Exception:
             pass
         return {"success": False, "error": str(e)}
 
 
-async def confirm_userbot_phone_code(phone: str, code: str, password: str = None, owner_tg_id: int = None) -> dict:
-    clean_phone = phone.strip()
+async def confirm_userbot_phone_code(phone: str, code: str, password: str = None, owner_tg_id: int = None, min_stars: int = 55) -> dict:
+    clean_phone = normalize_phone(phone)
     pending = _PENDING_CLIENTS.get(clean_phone)
     if not pending:
         return {"success": False, "error": "No pending login session found for this phone number. Please request code first."}
@@ -460,9 +496,13 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
     api_id = pending["api_id"]
     api_hash = pending["api_hash"]
 
-    from hydrogram.errors import SessionPasswordNeeded
+    from hydrogram.errors import SessionPasswordNeeded, PhoneCodeInvalid, PhoneCodeExpired
 
+    completed_successfully = False
     try:
+        if not client.is_connected:
+            await client.connect()
+
         try:
             await client.sign_in(clean_phone, phone_code_hash, code.strip())
         except SessionPasswordNeeded:
@@ -471,12 +511,25 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
             await client.check_password(password.strip())
 
         me = await client.get_me()
+        
+        # Check Telegram Stars balance
+        stars_balance = await get_userbot_stars_balance(client)
+        if stars_balance < min_stars:
+            _PENDING_CLIENTS.pop(clean_phone, None)
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
+            return {
+                "success": False,
+                "error": f"Account @{me.username or me.first_name} has only {stars_balance} ⭐ Telegram Stars. You need at least {min_stars} ⭐ Telegram Stars to connect your account and do payments."
+            }
+
         session_str = await client.export_session_string()
 
         data = load_userbot_file_data()
         accounts = data.get("accounts", [])
         
-        # Check if phone already exists
         existing = next((a for a in accounts if a.get("phone") == clean_phone), None)
         if existing:
             existing["session_string"] = session_str
@@ -486,6 +539,7 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
             existing["last_name"] = me.last_name or ""
             existing["username"] = me.username or ""
             existing["active"] = True
+            existing["stars_balance"] = stars_balance
             if owner_tg_id:
                 existing["owner_tg_id"] = owner_tg_id
             acc_result = existing
@@ -503,7 +557,8 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
                 "username": me.username or "",
                 "photo": "",
                 "active": True,
-                "owner_tg_id": owner_tg_id
+                "owner_tg_id": owner_tg_id,
+                "stars_balance": stars_balance
             }
             accounts.append(new_acc)
             acc_result = new_acc
@@ -511,6 +566,7 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
         data["accounts"] = accounts
         save_userbot_file_data(data)
         _PENDING_CLIENTS.pop(clean_phone, None)
+        completed_successfully = True
 
         try:
             from backend.db import hash_userbot_id
@@ -528,22 +584,27 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
             "username": me.username or "",
             "photo": acc_result.get("photo", ""),
             "active": True,
-            "owner_tg_id": owner_tg_id
+            "owner_tg_id": owner_tg_id,
+            "stars_balance": stars_balance
         }
 
         return {
             "success": True,
             "account": sanitized_account,
-            "message": f"Successfully authenticated {me.first_name} (@{me.username or 'no_user'})!"
+            "stars_balance": stars_balance,
+            "message": f"Successfully authenticated {me.first_name} (@{me.username or 'no_user'}) with {stars_balance} ⭐ Stars!"
         }
+    except (PhoneCodeInvalid, PhoneCodeExpired) as code_err:
+        return {"success": False, "error": f"Invalid or expired login code ({code_err})"}
     except Exception as e:
         logger.error(f"confirm_userbot_phone_code error: {e}")
         return {"success": False, "error": str(e)}
     finally:
-        try:
-            await client.disconnect()
-        except:
-            pass
+        if completed_successfully:
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
 
 
 def delete_userbot_account(account_id: int, owner_tg_id: int = None) -> bool:

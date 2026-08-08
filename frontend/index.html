@@ -143,11 +143,12 @@
         <p class="sc-desc">{{ t('myAccountSenderSub') }}</p>
 
         <div v-if="userAccount" class="account-connected-box">
-          <div class="acb-status">
+          <div class="acb-status" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
             <span class="status-dot green"></span>
-            <b>{{ t('myAccountConnected') }}:</b> {{ userAccount.phone || userAccount.first_name }}
+            <b>{{ t('myAccountConnected') }}:</b> {{ userAccount.first_name }} <span v-if="userAccount.username">(@{{ userAccount.username }})</span>
+            <span class="stars-badge" style="background: rgba(234, 179, 8, 0.2); color: #FACC15; padding: 2px 8px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; border: 1px solid rgba(234, 179, 8, 0.4);">⭐ {{ userAccount.stars_balance || 0 }} Stars</span>
           </div>
-          <button class="disconnect-btn" @click="disconnectMyAccount">
+          <button class="disconnect-btn" @click="disconnectMyAccount" style="margin-top: 6px;">
             🔌 {{ t('disconnectAccount') }}
           </button>
         </div>
@@ -301,7 +302,7 @@
           />
           <button class="modal-submit-btn" :disabled="phoneModal.loading" @click="requestPhoneCode">
             <span v-if="!phoneModal.loading">{{ t('sendCodeBtn') }} ⚡</span>
-            <span v-else class="spin">⏳</span>
+            <span v-else class="spin-loader"></span>
           </button>
         </div>
 
@@ -328,7 +329,7 @@
 
           <button class="modal-submit-btn" :disabled="phoneModal.loading" @click="confirmPhoneCode">
             <span v-if="!phoneModal.loading">{{ t('confirmCodeBtn') }} ✅</span>
-            <span v-else class="spin">⏳</span>
+            <span v-else class="spin-loader"></span>
           </button>
         </div>
       </div>
@@ -470,7 +471,7 @@
               <div class="ub-info">
                 <div class="ub-name">{{ getUserFirstName() }}</div>
                 <div class="ub-uname">
-                  {{ pricing.myaccount_stars }} ⭐ · {{ userAccount ? getUserFirstName() : t('connectMyAccount') }}
+                  {{ pricing.myaccount_stars }} ⭐ · {{ userAccount ? getUserFirstName() + ' (' + (userAccount.stars_balance || 0) + '⭐)' : t('connectMyAccount') }}
                 </div>
               </div>
               <button v-if="!userAccount" class="ub-connect-btn" @click.stop="openPhoneAuth">

@@ -771,7 +771,8 @@ async def get_userbot_accounts(user: dict = Depends(get_optional_user)):
             "username": acc.get("username", ""),
             "photo": acc.get("photo", ""),
             "active": bool(acc.get("active", True)),
-            "owner_tg_id": acc.get("owner_tg_id")
+            "owner_tg_id": acc.get("owner_tg_id"),
+            "stars_balance": acc.get("stars_balance", 0)
         })
     return sanitized
 
@@ -781,7 +782,7 @@ class UserRequestCodePayload(BaseModel):
 
 
 @app.post("/api/user/userbot/request-code")
-async def user_request_phone_code(body: UserRequestCodePayload, user: dict = Depends(get_user)):
+async def user_request_phone_code(body: UserRequestCodePayload, user: dict = Depends(get_optional_user)):
     try:
         from userbot.userbot import request_userbot_phone_code
     except ImportError:
@@ -792,7 +793,7 @@ async def user_request_phone_code(body: UserRequestCodePayload, user: dict = Dep
             "success": False,
             "error": res.get("error", "Failed to send verification code"),
             "support_contact": "@xusanboyman200",
-            "support_message": "Something went wrong! Please contact support: @xusanboyman200"
+            "support_message": res.get("error") or "Something went wrong! Please contact support: @xusanboyman200"
         }
     return res
 
@@ -804,31 +805,33 @@ class UserConfirmCodePayload(BaseModel):
 
 
 @app.post("/api/user/userbot/confirm-code")
-async def user_confirm_phone_code(body: UserConfirmCodePayload, user: dict = Depends(get_user)):
+async def user_confirm_phone_code(body: UserConfirmCodePayload, user: dict = Depends(get_optional_user)):
     try:
         from userbot.userbot import confirm_userbot_phone_code
     except ImportError:
         from userbot import confirm_userbot_phone_code
-    res = await confirm_userbot_phone_code(body.phone, body.code, body.password, owner_tg_id=user["id"])
+    owner_id = user.get("id") if user else None
+    res = await confirm_userbot_phone_code(body.phone, body.code, body.password, owner_tg_id=owner_id)
     if not res.get("success"):
         return {
             "success": False,
             "requires_password": res.get("requires_password", False),
             "error": res.get("error", "Failed to confirm code"),
             "support_contact": "@xusanboyman200",
-            "support_message": "Something went wrong! Please contact support: @xusanboyman200"
+            "support_message": res.get("error") or "Something went wrong! Please contact support: @xusanboyman200"
         }
     return res
 
 
 @app.delete("/api/user/userbot/account/{account_id}")
-async def user_delete_account(account_id: int, user: dict = Depends(get_user)):
+async def user_delete_account(account_id: int, user: dict = Depends(get_optional_user)):
     try:
         from userbot.userbot import delete_userbot_account
     except ImportError:
         from userbot import delete_userbot_account
-    is_admin = user.get("id") == ADMIN_ID
-    success = delete_userbot_account(account_id, owner_tg_id=None if is_admin else user["id"])
+    user_id = user.get("id") if user else None
+    is_admin = user_id == ADMIN_ID
+    success = delete_userbot_account(account_id, owner_tg_id=None if is_admin else user_id)
     if not success:
         raise HTTPException(status_code=400, detail="Account not found or access denied")
     return {"ok": True}
@@ -859,6 +862,14 @@ async def create_invoice(body: CreateInvoiceRequest, user: dict = Depends(get_us
     pricing = await db.get_pricing_settings()
     if body.sender_type == "myaccount":
         total = pricing.get("myaccount_stars", 60)
+        # Verify user has connected account with at least 55 stars
+        raw_accs = await db.async_get_userbot_accounts(active_only=True, user_tg_id=user_id, is_admin=False)
+        user_acc = next((a for a in raw_accs if a.get("owner_tg_id") == user_id), None)
+        if not user_acc:
+            raise HTTPException(status_code=400, detail="Please connect your Telegram account first to use 'My Account' sender option.")
+        stars = user_acc.get("stars_balance", 0)
+        if stars > 0 and stars < 55:
+            raise HTTPException(status_code=400, detail=f"Your connected account has only {stars} ⭐ Telegram Stars. Minimum 55 ⭐ Stars required for payment.")
     elif body.sender_type == "userbot":
         total = pricing.get("userbot_stars", 55)
     else:
