@@ -509,6 +509,7 @@ createApp({
     };
 
     const requestPhoneCode = async () => {
+      if (phoneModal.loading) return;
       const cleanPhone = (phoneModal.phone || '').trim();
       if (!cleanPhone) {
         phoneModal.error = 'Please enter phone number (+998...)';
@@ -529,7 +530,7 @@ createApp({
           phoneModal.error = '';
           showToast('📩 Verification code sent to Telegram!');
         } else {
-          phoneModal.error = data.support_message || data.error || 'Failed to send verification code.';
+          phoneModal.error = data.error || data.support_message || 'Failed to send verification code.';
         }
       } catch (e) {
         phoneModal.loading = false;
@@ -538,6 +539,7 @@ createApp({
     };
 
     const confirmPhoneCode = async () => {
+      if (phoneModal.loading) return;
       const cleanPhone = (phoneModal.phone || '').trim();
       const cleanCode = (phoneModal.code || '').trim();
       const cleanPass = (phoneModal.password || '').trim() || null;
@@ -569,7 +571,7 @@ createApp({
           phoneModal.step = 3;
           phoneModal.error = data.error || '2FA Password is required for this account.';
         } else {
-          phoneModal.error = data.support_message || data.error || 'Failed to confirm code.';
+          phoneModal.error = data.error || data.support_message || 'Failed to confirm code.';
         }
       } catch (e) {
         phoneModal.loading = false;

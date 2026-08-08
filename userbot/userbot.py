@@ -443,7 +443,9 @@ async def get_userbot_stars_balance(client) -> int:
         return 0
 
 
-async def request_userbot_phone_code(phone: str, api_id: int = None, api_hash: str = None) -> dict:
+import time
+
+async def request_userbot_phone_code(phone: str, api_id: int = None, api_hash: str = None, force: bool = False) -> dict:
     clean_phone = normalize_phone(phone)
     if not clean_phone or len(clean_phone) < 7:
         return {"success": False, "error": "Valid phone number with country code is required (e.g. +998901234567)"}
@@ -458,6 +460,15 @@ async def request_userbot_phone_code(phone: str, api_id: int = None, api_hash: s
     use_api_hash = api_hash or first_acc.get("api_hash") or "b11e753959873b1df047454a8d816604"
 
     old_pending = _PENDING_CLIENTS.get(clean_phone)
+    now = time.time()
+    
+    # If a code was already sent less than 45 seconds ago and force is not set, reuse the session without re-requesting from Telegram
+    if not force and old_pending and old_pending.get("client") and old_pending.get("phone_code_hash"):
+        time_diff = now - old_pending.get("created_at", 0)
+        if time_diff < 45:
+            logger.info(f"Reusing active OTP session for {clean_phone} (sent {int(time_diff)}s ago)")
+            return {"success": True, "message": f"Verification code already sent to {clean_phone}. Check your Telegram app."}
+
     if old_pending and old_pending.get("client") and old_pending["client"].is_connected:
         client = old_pending["client"]
     else:
@@ -478,6 +489,7 @@ async def request_userbot_phone_code(phone: str, api_id: int = None, api_hash: s
             "phone_code_hash": code_info.phone_code_hash,
             "api_id": use_api_id,
             "api_hash": use_api_hash,
+            "created_at": now,
         }
         return {"success": True, "message": f"Verification code sent to {clean_phone}"}
     except Exception as e:
@@ -601,7 +613,8 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
             "message": f"Successfully authenticated {me.first_name} (@{me.username or 'no_user'}) with {stars_balance} ⭐ Stars!"
         }
     except (PhoneCodeInvalid, PhoneCodeExpired) as code_err:
-        return {"success": False, "error": f"Invalid or expired login code ({code_err})"}
+        logger.warning(f"Invalid or expired login code for {clean_phone}: {code_err}")
+        return {"success": False, "error": f"Invalid or expired verification code ({code_err}). Please enter the latest code sent to Telegram."}
     except Exception as e:
         logger.error(f"confirm_userbot_phone_code error: {e}")
         return {"success": False, "error": str(e)}
