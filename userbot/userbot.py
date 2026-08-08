@@ -448,6 +448,8 @@ async def request_userbot_phone_code(phone: str, api_id: int = None, api_hash: s
     if not clean_phone or len(clean_phone) < 7:
         return {"success": False, "error": "Valid phone number with country code is required (e.g. +998901234567)"}
 
+    from hydrogram import Client
+
     data = load_userbot_file_data()
     accounts = data.get("accounts", [])
     first_acc = accounts[0] if accounts else {}
@@ -455,19 +457,21 @@ async def request_userbot_phone_code(phone: str, api_id: int = None, api_hash: s
     use_api_id = api_id or first_acc.get("api_id") or 35251724
     use_api_hash = api_hash or first_acc.get("api_hash") or "b11e753959873b1df047454a8d816604"
 
-    old_pending = _PENDING_CLIENTS.pop(clean_phone, None)
-    if old_pending:
-        try:
-            await old_pending["client"].disconnect()
-        except Exception:
-            pass
-
-    from hydrogram import Client
-
-    client_id = clean_phone.replace('+', '')
-    client = Client(f"web_login_{client_id}", api_id=use_api_id, api_hash=use_api_hash, in_memory=True)
-    try:
+    old_pending = _PENDING_CLIENTS.get(clean_phone)
+    if old_pending and old_pending.get("client") and old_pending["client"].is_connected:
+        client = old_pending["client"]
+    else:
+        if old_pending:
+            _PENDING_CLIENTS.pop(clean_phone, None)
+            try:
+                await old_pending["client"].disconnect()
+            except Exception:
+                pass
+        client_id = clean_phone.replace('+', '')
+        client = Client(f"web_login_{client_id}", api_id=use_api_id, api_hash=use_api_hash, in_memory=True)
         await client.connect()
+
+    try:
         code_info = await client.send_code(clean_phone)
         _PENDING_CLIENTS[clean_phone] = {
             "client": client,
@@ -478,6 +482,7 @@ async def request_userbot_phone_code(phone: str, api_id: int = None, api_hash: s
         return {"success": True, "message": f"Verification code sent to {clean_phone}"}
     except Exception as e:
         logger.error(f"request_userbot_phone_code error: {e}")
+        _PENDING_CLIENTS.pop(clean_phone, None)
         try:
             await client.disconnect()
         except Exception:
@@ -510,10 +515,13 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
                 return {"success": False, "requires_password": True, "error": "2FA Password is required for this account"}
             await client.check_password(password.strip())
 
-        me = await client.get_me()
+        # Parallel MTProto requests for maximum speed
+        me_task = client.get_me()
+        stars_task = get_userbot_stars_balance(client)
+        session_task = client.export_session_string()
+
+        me, stars_balance, session_str = await asyncio.gather(me_task, stars_task, session_task)
         
-        # Check Telegram Stars balance
-        stars_balance = await get_userbot_stars_balance(client)
         if stars_balance < min_stars:
             _PENDING_CLIENTS.pop(clean_phone, None)
             try:
@@ -524,8 +532,6 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
                 "success": False,
                 "error": f"Account @{me.username or me.first_name} has only {stars_balance} ⭐ Telegram Stars. You need at least {min_stars} ⭐ Telegram Stars to connect your account and do payments."
             }
-
-        session_str = await client.export_session_string()
 
         data = load_userbot_file_data()
         accounts = data.get("accounts", [])
