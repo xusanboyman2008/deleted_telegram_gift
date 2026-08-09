@@ -445,6 +445,10 @@ async def get_userbot_stars_balance(client) -> int:
 
 import time
 
+PENDING_SESSIONS_DIR = os.path.join(os.path.dirname(__file__), "pending_sessions")
+os.makedirs(PENDING_SESSIONS_DIR, exist_ok=True)
+
+
 async def request_userbot_phone_code(phone: str, api_id: int = None, api_hash: str = None, force: bool = False) -> dict:
     clean_phone = normalize_phone(phone)
     if not clean_phone or len(clean_phone) < 7:
@@ -459,33 +463,37 @@ async def request_userbot_phone_code(phone: str, api_id: int = None, api_hash: s
     use_api_id = api_id or first_acc.get("api_id") or 35251724
     use_api_hash = api_hash or first_acc.get("api_hash") or "b11e753959873b1df047454a8d816604"
 
+    client_id = clean_phone.replace('+', '')
+    session_path = os.path.join(PENDING_SESSIONS_DIR, f"pending_{client_id}")
+
     old_pending = _PENDING_CLIENTS.get(clean_phone)
     now = time.time()
     
-    # If a code was already sent less than 45 seconds ago and force is not set, reuse the session without re-requesting from Telegram
+    # If a code was already sent less than 45 seconds ago and force is not set, reuse active session
     if not force and old_pending and old_pending.get("client") and old_pending.get("phone_code_hash"):
         time_diff = now - old_pending.get("created_at", 0)
         if time_diff < 45:
             logger.info(f"Reusing active OTP session for {clean_phone} (sent {int(time_diff)}s ago)")
             return {"success": True, "message": f"Verification code already sent to {clean_phone}. Check your Telegram app."}
 
-    if old_pending and old_pending.get("client") and old_pending["client"].is_connected:
+    if old_pending and old_pending.get("client"):
         client = old_pending["client"]
+        if not client.is_connected:
+            await client.connect()
     else:
-        if old_pending:
-            _PENDING_CLIENTS.pop(clean_phone, None)
+        if os.path.exists(session_path + ".session"):
             try:
-                await old_pending["client"].disconnect()
+                os.remove(session_path + ".session")
             except Exception:
                 pass
-        client_id = clean_phone.replace('+', '')
-        client = Client(f"web_login_{client_id}", api_id=use_api_id, api_hash=use_api_hash, in_memory=True)
+        client = Client(session_path, api_id=use_api_id, api_hash=use_api_hash)
         await client.connect()
 
     try:
         code_info = await client.send_code(clean_phone)
         _PENDING_CLIENTS[clean_phone] = {
             "client": client,
+            "session_path": session_path,
             "phone_code_hash": code_info.phone_code_hash,
             "api_id": use_api_id,
             "api_hash": use_api_hash,
@@ -499,29 +507,52 @@ async def request_userbot_phone_code(phone: str, api_id: int = None, api_hash: s
             await client.disconnect()
         except Exception:
             pass
+        if os.path.exists(session_path + ".session"):
+            try:
+                os.remove(session_path + ".session")
+            except Exception:
+                pass
         return {"success": False, "error": str(e)}
 
 
 async def confirm_userbot_phone_code(phone: str, code: str, password: str = None, owner_tg_id: int = None, min_stars: int = 55) -> dict:
     clean_phone = normalize_phone(phone)
     pending = _PENDING_CLIENTS.get(clean_phone)
-    if not pending:
-        return {"success": False, "error": "No pending login session found for this phone number. Please request code first."}
+    
+    client_id = clean_phone.replace('+', '')
+    session_path = os.path.join(PENDING_SESSIONS_DIR, f"pending_{client_id}")
 
-    client = pending["client"]
-    phone_code_hash = pending["phone_code_hash"]
-    api_id = pending["api_id"]
-    api_hash = pending["api_hash"]
-
+    from hydrogram import Client
     from hydrogram.errors import SessionPasswordNeeded, PhoneCodeInvalid, PhoneCodeExpired
 
+    if pending and pending.get("client"):
+        client = pending["client"]
+        phone_code_hash = pending.get("phone_code_hash")
+        api_id = pending.get("api_id", 35251724)
+        api_hash = pending.get("api_hash", "b11e753959873b1df047454a8d816604")
+    elif os.path.exists(session_path + ".session"):
+        data = load_userbot_file_data()
+        accounts = data.get("accounts", [])
+        first_acc = accounts[0] if accounts else {}
+        api_id = first_acc.get("api_id") or 35251724
+        api_hash = first_acc.get("api_hash") or "b11e753959873b1df047454a8d816604"
+        client = Client(session_path, api_id=api_id, api_hash=api_hash)
+        phone_code_hash = None
+    else:
+        return {"success": False, "error": "No pending login session found for this phone number. Please request code first."}
+
     completed_successfully = False
+    clean_code = re.sub(r'\D', '', code or '')
+
     try:
         if not client.is_connected:
             await client.connect()
 
         try:
-            await client.sign_in(clean_phone, phone_code_hash, code.strip())
+            if phone_code_hash:
+                await client.sign_in(clean_phone, phone_code_hash, clean_code)
+            else:
+                await client.sign_in(clean_phone, "", clean_code)
         except SessionPasswordNeeded:
             if not password:
                 return {"success": False, "requires_password": True, "error": "2FA Password is required for this account"}
@@ -540,6 +571,11 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
                 await client.disconnect()
             except Exception:
                 pass
+            if os.path.exists(session_path + ".session"):
+                try:
+                    os.remove(session_path + ".session")
+                except Exception:
+                    pass
             return {
                 "success": False,
                 "error": f"Account @{me.username or me.first_name} has only {stars_balance} ⭐ Telegram Stars. You need at least {min_stars} ⭐ Telegram Stars to connect your account and do payments."
@@ -614,7 +650,7 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
         }
     except (PhoneCodeInvalid, PhoneCodeExpired) as code_err:
         logger.warning(f"Invalid or expired login code for {clean_phone}: {code_err}")
-        return {"success": False, "error": f"Invalid or expired verification code ({code_err}). Please enter the latest code sent to Telegram."}
+        return {"success": False, "error": f"Invalid or expired verification code ({code_err}). Please check the latest code sent to Telegram."}
     except Exception as e:
         logger.error(f"confirm_userbot_phone_code error: {e}")
         return {"success": False, "error": str(e)}
@@ -624,6 +660,11 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
                 await client.disconnect()
             except Exception:
                 pass
+            if os.path.exists(session_path + ".session"):
+                try:
+                    os.remove(session_path + ".session")
+                except Exception:
+                    pass
 
 
 def delete_userbot_account(account_id: int, owner_tg_id: int = None) -> bool:
