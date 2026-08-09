@@ -463,6 +463,9 @@ async def request_userbot_phone_code(phone: str, api_id: int = None, api_hash: s
     use_api_id = api_id or first_acc.get("api_id") or 35251724
     use_api_hash = api_hash or first_acc.get("api_hash") or "b11e753959873b1df047454a8d816604"
 
+    client_id = clean_phone.replace('+', '')
+    session_path = os.path.join(PENDING_SESSIONS_DIR, f"pending_{client_id}")
+
     old_pending = _PENDING_CLIENTS.get(clean_phone)
     now = time.time()
 
@@ -482,15 +485,15 @@ async def request_userbot_phone_code(phone: str, api_id: int = None, api_hash: s
                 await old_pending["client"].disconnect()
             except Exception:
                 pass
-        client_id = clean_phone.replace('+', '')
-        # Exactly matching generate_sessions.py Client initialization
-        client = Client(f"web_login_{client_id}", api_id=use_api_id, api_hash=use_api_hash, in_memory=True)
+        # Use disk-backed session file for instant MTProto socket reused auth keys
+        client = Client(session_path, api_id=use_api_id, api_hash=use_api_hash, ipv6=False)
         await client.connect()
 
     try:
         code_info = await client.send_code(clean_phone)
         _PENDING_CLIENTS[clean_phone] = {
             "client": client,
+            "session_path": session_path,
             "phone_code_hash": code_info.phone_code_hash,
             "api_id": use_api_id,
             "api_hash": use_api_hash,
@@ -511,15 +514,27 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
     clean_phone = normalize_phone(phone)
     pending = _PENDING_CLIENTS.get(clean_phone)
 
+    client_id = clean_phone.replace('+', '')
+    session_path = os.path.join(PENDING_SESSIONS_DIR, f"pending_{client_id}")
+
+    from hydrogram import Client
     from hydrogram.errors import SessionPasswordNeeded, PhoneCodeInvalid, PhoneCodeExpired
 
-    if not pending or not pending.get("client"):
+    if pending and pending.get("client"):
+        client = pending["client"]
+        phone_code_hash = pending.get("phone_code_hash")
+        api_id = pending.get("api_id", 35251724)
+        api_hash = pending.get("api_hash", "b11e753959873b1df047454a8d816604")
+    elif os.path.exists(session_path + ".session"):
+        data = load_userbot_file_data()
+        accounts = data.get("accounts", [])
+        first_acc = accounts[0] if accounts else {}
+        api_id = first_acc.get("api_id") or 35251724
+        api_hash = first_acc.get("api_hash") or "b11e753959873b1df047454a8d816604"
+        client = Client(session_path, api_id=api_id, api_hash=api_hash, ipv6=False)
+        phone_code_hash = None
+    else:
         return {"success": False, "error": "No pending login session found for this phone number. Please request code first."}
-
-    client = pending["client"]
-    phone_code_hash = pending.get("phone_code_hash")
-    api_id = pending.get("api_id", 35251724)
-    api_hash = pending.get("api_hash", "b11e753959873b1df047454a8d816604")
 
     completed_successfully = False
     clean_code = re.sub(r'\D', '', code or '')
@@ -529,7 +544,10 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
             await client.connect()
 
         try:
-            await client.sign_in(clean_phone, phone_code_hash, clean_code)
+            if phone_code_hash:
+                await client.sign_in(clean_phone, phone_code_hash, clean_code)
+            else:
+                await client.sign_in(clean_phone, "", clean_code)
         except SessionPasswordNeeded:
             if not password:
                 return {"success": False, "requires_password": True, "error": "2FA Password is required for this account"}
@@ -545,6 +563,11 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
                 await client.disconnect()
             except Exception:
                 pass
+            if os.path.exists(session_path + ".session"):
+                try:
+                    os.remove(session_path + ".session")
+                except Exception:
+                    pass
             return {
                 "success": False,
                 "error": f"Account @{me.username or me.first_name} has only {stars_balance} ⭐ Telegram Stars. You need at least {min_stars} ⭐ Telegram Stars to connect your account and do payments."
@@ -637,6 +660,11 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
                 await client.disconnect()
             except Exception:
                 pass
+            if os.path.exists(session_path + ".session"):
+                try:
+                    os.remove(session_path + ".session")
+                except Exception:
+                    pass
 
 
 def delete_userbot_account(account_id: int, owner_tg_id: int = None) -> bool:

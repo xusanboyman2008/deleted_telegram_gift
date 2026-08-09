@@ -535,8 +535,9 @@ createApp({
           phoneModal.error = data.error || data.support_message || 'Failed to send verification code.';
         }
       } catch (e) {
+        console.error('requestPhoneCode catch error:', e);
         phoneModal.loading = false;
-        phoneModal.error = 'Something went wrong! Please contact support: @xusanboyman200';
+        phoneModal.error = e.message || 'Something went wrong! Please contact support: @xusanboyman200';
       }
     };
 
@@ -555,6 +556,7 @@ createApp({
         const data = await r.json();
         phoneModal.loading = false;
         if (data.success) {
+          phoneModal.step = 2;
           phoneModal.code = '';
           phoneModal.error = '';
           showToast('📩 Fresh verification code sent to Telegram!');
@@ -562,8 +564,9 @@ createApp({
           phoneModal.error = data.error || data.support_message || 'Failed to resend code.';
         }
       } catch (e) {
+        console.error('resendPhoneCode catch error:', e);
         phoneModal.loading = false;
-        phoneModal.error = 'Something went wrong! Please contact support: @xusanboyman200';
+        phoneModal.error = e.message || 'Something went wrong! Please contact support: @xusanboyman200';
       }
     };
 
