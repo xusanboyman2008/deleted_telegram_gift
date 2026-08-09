@@ -1219,6 +1219,7 @@ createApp({
       } catch (e) {
         showToast('❌ Broadcast failed to send');
       }
+    };
     const loadBotCommands = async () => {
       try {
         const res = await fetch('/api/admin/bot/commands', { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
