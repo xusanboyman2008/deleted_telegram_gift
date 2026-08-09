@@ -420,6 +420,14 @@ createApp({
     const paying = ref(false);
     const errMsg = ref('');
     const toast = ref('');
+
+    let toastTimer = null;
+    const showToast = msg => {
+      toast.value = msg;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { toast.value = ''; }, 3200);
+    };
+
     const isAdmin = ref(false);
     const showAdmin = ref(false);
     const aTab = ref('gifts');
@@ -668,13 +676,6 @@ createApp({
     const verifiedUser = ref(null);
     const userCheckError = ref('');
     let checkTimeout = null;
-
-    let toastTimer = null;
-    const showToast = msg => {
-      toast.value = msg;
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => { toast.value = ''; }, 3200);
-    };
 
     const getGiftImg = anim => IMG_MAP[anim] || null;
     const giftName = (g) => {

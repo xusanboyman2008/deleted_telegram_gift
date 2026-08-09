@@ -704,8 +704,8 @@ async def get_userbot_chat_history(account_id: int, recipient: str, limit: int =
                 messages_out.append({
                     "id": m.id,
                     "text": m.text or m.caption or "",
-                    "out": m.out,
-                    "sender_name": m.from_user.first_name if m.from_user else ("Me" if m.out else "User"),
+                    "out": getattr(m, "outgoing", False),
+                    "sender_name": m.from_user.first_name if m.from_user else ("Me" if getattr(m, "outgoing", False) else "User"),
                     "date": m.date.strftime("%H:%M") if m.date else "",
                 })
         return list(reversed(messages_out))
@@ -753,7 +753,7 @@ async def get_userbot_contacts(account_id: int, limit: int = 30) -> list:
                         last_msg = last_msg[:60] + "..."
                     if dialog.top_message.date:
                         last_time = dialog.top_message.date.strftime("%H:%M")
-                    last_out = dialog.top_message.out
+                    last_out = getattr(dialog.top_message, "outgoing", False)
 
                 contacts.append({
                     "peer": peer,
