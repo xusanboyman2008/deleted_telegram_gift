@@ -614,11 +614,19 @@ createApp({
           phoneModal.step = 3;
           phoneModal.error = data.error || '2FA Password is required for this account.';
         } else {
-          phoneModal.error = data.error || data.support_message || 'Failed to confirm code.';
+          // Close modal on insufficient stars and show a helpful toast instead
+          const errMsg = data.error || data.support_message || 'Failed to confirm code.';
+          if (errMsg.includes('Stars') || errMsg.includes('stars') || errMsg.includes('⭐')) {
+            phoneModal.show = false;
+            showToast('⚠️ ' + errMsg);
+          } else {
+            phoneModal.error = errMsg;
+          }
         }
       } catch (e) {
+        console.error('confirmPhoneCode catch error:', e);
         phoneModal.loading = false;
-        phoneModal.error = 'Something went wrong! Please contact support: @xusanboyman200';
+        phoneModal.error = e.message || 'Something went wrong! Please contact support: @xusanboyman200';
       }
     };
 
@@ -1157,8 +1165,16 @@ createApp({
       return pricing.bot_stars || (selected.value.base_stars + selected.value.commission);
     });
 
+    const priceBreakdown = computed(() => {
+      if (!selected.value) return { base: 0, fee: 0, total: 0 };
+      const base = selected.value.base_stars || 50;
+      const total = totalStars.value;
+      const fee = Math.max(0, total - base);
+      return { base, fee, total };
+    });
+
     return {
-      tab, gifts, selected, recipient, giftMsg, paying, errMsg, toast, totalStars,
+      tab, gifts, selected, recipient, giftMsg, paying, errMsg, toast, totalStars, priceBreakdown,
       isAdmin, showAdmin, aTab, adminGifts, sortedAdminGifts, adminOrders, adminUserbots, userLinkedAccounts, systemUserbots, ubForm, ubMsgForm, myOrders, user, form,
       checkingUser, verifiedUser, userCheckError, userbotAccounts, publicUserbots, selectedSender, selectedUserbot, userAccount,
       showSenderDropdown, getSelectedUserbotObj, getSelectedUserbotName, getUserFirstName, getUserPhoto, onAnimationFileSelect,

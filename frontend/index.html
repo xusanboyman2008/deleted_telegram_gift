@@ -369,8 +369,11 @@
           <div v-else class="sheet-emoji">{{ selected.emoji }}</div>
         </div>
 
-        <div class="sheet-price">
-          ⭐ {{ totalStars }}
+        <div class="sheet-price-wrap">
+          <div class="sheet-price-total">⭐ {{ totalStars }}</div>
+          <div class="sheet-price-breakdown" v-if="priceBreakdown.fee > 0">
+            {{ priceBreakdown.base }} <span class="price-dim">base</span> + {{ priceBreakdown.fee }} <span class="price-dim">fee</span>
+          </div>
         </div>
 
         <!-- ── Recipient Input Row ── -->
