@@ -238,7 +238,10 @@
             <small style="color: #A855F7;">Owner User ID: {{ ub.owner_tg_id }}</small>
           </div>
           <div class="ar-act" style="display: flex; gap: 6px;">
-            <button v-if="ub.active !== false" class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3);" title="Disable Userbot">🔴 Disable</button>
+            <button v-if="ub.toggling" class="ibtn" disabled style="opacity: 0.6; cursor: wait;">
+              <span class="spin">⏳</span> Updating...
+            </button>
+            <button v-else-if="ub.active !== false" class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3);" title="Disable Userbot">🔴 Disable</button>
             <button v-else class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(34, 197, 94, 0.15); color: #4ADE80; border: 1px solid rgba(34, 197, 94, 0.3);" title="Undo / Re-enable Userbot">↩️ Undo</button>
             <button class="ibtn" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">✏️ Edit</button>
           </div>
@@ -265,7 +268,10 @@
             <small style="color: #10B981;">Official Platform Bot</small>
           </div>
           <div class="ar-act" style="display: flex; gap: 6px;">
-            <button v-if="ub.active !== false" class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3);" title="Disable Userbot">🔴 Disable</button>
+            <button v-if="ub.toggling" class="ibtn" disabled style="opacity: 0.6; cursor: wait;">
+              <span class="spin">⏳</span> Updating...
+            </button>
+            <button v-else-if="ub.active !== false" class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3);" title="Disable Userbot">🔴 Disable</button>
             <button v-else class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(34, 197, 94, 0.15); color: #4ADE80; border: 1px solid rgba(34, 197, 94, 0.3);" title="Undo / Re-enable Userbot">↩️ Undo</button>
             <button class="ibtn" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">✏️ Edit</button>
           </div>
@@ -633,13 +639,13 @@
             <!-- Chat header -->
             <div class="tg-chat-header">
               <button class="tg-back-mobile-btn" @click="mobileShowChat = false">‹ Back</button>
-              <div class="tg-ch-avatar-wrap">
+              <div class="tg-ch-avatar-wrap" @click="openProfileModal(activeChat.peer)" style="cursor: pointer;" title="View Profile Info">
                 <img v-if="activeChat.photo" :src="activeChat.photo" class="tg-ch-avatar" alt="chat"/>
                 <div v-else class="tg-ch-avatar-placeholder" :style="{ background: activeChat.color || '#3390ec' }">
                   {{ activeChat.icon || (activeChat.title || 'C')[0] }}
                 </div>
               </div>
-              <div class="tg-ch-info">
+              <div class="tg-ch-info" @click="openProfileModal(activeChat.peer)" style="cursor: pointer;" title="View Profile Info">
                 <div class="tg-ch-title">
                   {{ activeChat.title }}
                   <span v-if="activeChat.is_bot" class="tg-bot-badge">BOT</span>
@@ -785,6 +791,60 @@
     </button>
   </nav>
 
+
+  <!-- ── Telegram 1-to-1 User Profile Info Modal ──────────── -->
+  <transition name="sheet">
+    <div class="modal-backdrop" v-if="profileModal.show" @click.self="profileModal.show=false">
+      <div class="modal-card" style="max-width: 420px; text-align: center;">
+        <div class="modal-header">
+          <h3>👤 Profile Info</h3>
+          <button class="close-modal-btn" @click="profileModal.show=false">✕</button>
+        </div>
+
+        <div v-if="profileModal.loading" style="padding: 30px; text-align: center;">
+          <span class="spin" style="font-size: 2rem; display: block; margin-bottom: 10px;">⏳</span>
+          <p style="color: rgba(255,255,255,0.6);">Fetching Telegram profile details...</p>
+        </div>
+
+        <div v-else-if="profileModal.data" style="padding: 10px 0;">
+          <!-- Avatar Picture -->
+          <div style="position: relative; display: inline-block; margin-bottom: 14px;">
+            <img v-if="profileModal.data.photo" :src="profileModal.data.photo" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid rgba(168, 85, 247, 0.5);" alt="profile"/>
+            <div v-else style="width: 100px; height: 100px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #8b5cf6); display: flex; align-items: center; justify-content: center; font-size: 2.5rem; margin: 0 auto; border: 3px solid rgba(255,255,255,0.1);">
+              {{ (profileModal.data.first_name || profileModal.data.title || 'U')[0] }}
+            </div>
+            <span style="position: absolute; bottom: 4px; right: 4px; width: 16px; height: 16px; background: #10B981; border: 3px solid #181920; border-radius: 50%;"></span>
+          </div>
+
+          <!-- Name & Username -->
+          <h2 style="margin: 0 0 4px 0; color: #fff; font-size: 1.3rem;">{{ profileModal.data.title }}</h2>
+          <p style="color: #a855f7; margin: 0 0 16px 0; font-weight: 500;">
+            {{ profileModal.data.username ? '@' + profileModal.data.username : 'User ID: ' + profileModal.data.id }}
+          </p>
+
+          <!-- Bio / Description Box -->
+          <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px; text-align: left; margin-bottom: 20px;">
+            <div style="font-size: 0.75rem; text-transform: uppercase; color: rgba(255,255,255,0.4); letter-spacing: 0.8px; margin-bottom: 6px;">
+              About / Bio
+            </div>
+            <div style="color: #e2e8f0; font-size: 0.95rem; line-height: 1.4; word-break: break-word;">
+              {{ profileModal.data.bio || 'No bio specified.' }}
+            </div>
+          </div>
+
+          <!-- Quick Action Buttons -->
+          <div style="display: flex; gap: 10px;">
+            <button class="fsave" style="flex: 1; padding: 10px;" @click="profileModal.show=false; openChatWindow(activeChat);">
+              💬 Send Message
+            </button>
+            <button class="fcancel" style="flex: 1; padding: 10px; background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4);" @click="openTelegramLink(profileModal.data.username || profileModal.data.id)">
+              ↗️ Telegram App
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </transition>
 
   <!-- Broadcast Modal -->
   <transition name="sheet">

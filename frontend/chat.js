@@ -121,8 +121,34 @@ function setupChatState(Vue, api, showToast, tg) {
   const activeChat = ref(null);     // current chat object
   const currentChatPeer = ref('');  // current peer identifier
   const currentMessages = ref([]);  // messages for current chat
-  const chatLoading = ref(false);
   const messagesStreamEl = ref(null);
+
+  // Profile Drawer / Modal State
+  const profileModal = reactive({
+    show: false,
+    loading: false,
+    data: null,
+  });
+
+  const openProfileModal = async (peer) => {
+    const targetPeer = peer || currentChatPeer.value;
+    if (!targetPeer) return;
+    profileModal.show = true;
+    profileModal.loading = true;
+    profileModal.data = null;
+    try {
+      const accountId = activeChatAccount.value?.raw_id || activeChatAccount.value?.id || 1;
+      const res = await api(`/api/userbot/chat/profile?account_id=${encodeURIComponent(accountId)}&recipient=${encodeURIComponent(targetPeer)}`);
+      const data = await res.json();
+      if (data.success) {
+        profileModal.data = data;
+      }
+    } catch (e) {
+      console.error('Failed to load profile modal:', e);
+    } finally {
+      profileModal.loading = false;
+    }
+  };
 
   const scrollToBottom = async () => {
     await nextTick();
@@ -206,8 +232,18 @@ function setupChatState(Vue, api, showToast, tg) {
     chatSearchQuery.value = '';
     currentMessages.value = [];
 
-    // Load real messages if account available
+    // Clear unread badge
+    chat.unread = 0;
+
+    // Load real messages & read chat history if account available
     if (activeChatAccount.value?.id) {
+      const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
+      api('/api/userbot/chat/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: accountId, recipient: chat.peer })
+      }).catch(() => {});
+
       await loadChatHistory(chat.peer);
       connectChatSocket(chat.peer);
     }
@@ -441,5 +477,7 @@ function setupChatState(Vue, api, showToast, tg) {
     startChatWithQuery,
     sendStartCommand,
     handleMessageStreamClick,
+    profileModal,
+    openProfileModal,
   };
 }

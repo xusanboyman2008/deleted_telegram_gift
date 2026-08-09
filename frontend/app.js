@@ -1084,6 +1084,9 @@ createApp({
     };
 
     const toggleUserbotActive = async (ub) => {
+      if (ub.toggling) return;
+      ub.toggling = true;
+      showToast('⏳ Updating Userbot status...');
       try {
         const newActive = ub.active === false ? true : false;
         const r = await api(`/api/admin/userbots/${ub.id}/toggle-active`, {
@@ -1091,7 +1094,8 @@ createApp({
         });
         const data = await r.json();
         if (r.ok) {
-          showToast(newActive ? '🟢 Userbot Re-activated (Undone)' : '🔴 Userbot Disabled');
+          ub.active = newActive;
+          showToast(newActive ? '🟢 Userbot Re-activated' : '🔴 Userbot Disabled');
           await loadAdminUserbots();
           await loadUserbotAccounts();
         } else {
@@ -1099,6 +1103,8 @@ createApp({
         }
       } catch (e) {
         showToast(`❌ ${e.message}`);
+      } finally {
+        ub.toggling = false;
       }
     };
 

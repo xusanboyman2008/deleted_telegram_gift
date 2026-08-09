@@ -811,6 +811,78 @@ async def websocket_chat_endpoint(
         ws_manager.disconnect(websocket, account_id, recipient)
 
 
+@app.get("/api/userbot/chat/profile")
+async def get_user_profile_endpoint(account_id: str, recipient: str):
+    try:
+        from userbot.userbot import get_running_client
+        real_id = account_id
+        ub_obj = await db.get_userbot_by_id_or_hash(account_id)
+        if ub_obj:
+            real_id = ub_obj["id"]
+        else:
+            try:
+                real_id = int(account_id)
+            except ValueError:
+                real_id = 1
+
+        client = await get_running_client(real_id)
+        chat = await client.get_chat(recipient)
+        
+        bio = getattr(chat, "bio", "") or getattr(chat, "description", "") or "No bio available."
+        photo_url = None
+        if chat.photo:
+            try:
+                photo_path = await client.download_media(chat.photo.small_file_id)
+                if photo_path and os.path.exists(photo_path):
+                    with open(photo_path, "rb") as f:
+                        b64 = base64.b64encode(f.read()).decode("utf-8")
+                        photo_url = f"data:image/jpeg;base64,{b64}"
+            except Exception:
+                pass
+                
+        return {
+            "success": True,
+            "id": chat.id,
+            "title": f"{chat.first_name or ''} {chat.last_name or ''}".strip() or chat.title or str(chat.id),
+            "first_name": chat.first_name or "",
+            "last_name": chat.last_name or "",
+            "username": chat.username or "",
+            "bio": bio,
+            "photo": photo_url,
+            "type": str(chat.type)
+        }
+    except Exception as e:
+        logger.error(f"get_user_profile error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/userbot/chat/read")
+async def read_chat_history_endpoint(request: Request):
+    try:
+        data = await request.json()
+        account_id = data.get("account_id")
+        recipient = data.get("recipient")
+        if not account_id or not recipient:
+            return {"success": False, "error": "Missing params"}
+            
+        from userbot.userbot import get_running_client
+        real_id = account_id
+        ub_obj = await db.get_userbot_by_id_or_hash(account_id)
+        if ub_obj:
+            real_id = ub_obj["id"]
+        else:
+            try:
+                real_id = int(account_id)
+            except ValueError:
+                real_id = 1
+
+        client = await get_running_client(real_id)
+        await client.read_chat_history(recipient)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 # ── Webhook ────────────────────────────────────────────────────────────────────
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
