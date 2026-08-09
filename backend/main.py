@@ -17,7 +17,7 @@ from urllib.parse import parse_qsl
 
 user_last_invoice_time = {}
 
-from fastapi import FastAPI, Request, HTTPException, Depends, Header, BackgroundTasks, File, UploadFile
+from fastapi import FastAPI, Request, HTTPException, Depends, Header, BackgroundTasks, File, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -622,6 +622,57 @@ async def user_message_or_admin_reply_handler(update: Update, context):
             logger.error(f"Support forward error: {e}")
 
 
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections = {}
+
+    async def connect(self, websocket: WebSocket, account_id: str, recipient: str):
+        await websocket.accept()
+        key = (str(account_id), str(recipient).lower().replace("@", ""))
+        if key not in self.active_connections:
+            self.active_connections[key] = []
+        self.active_connections[key].append(websocket)
+
+    def disconnect(self, websocket: WebSocket, account_id: str, recipient: str):
+        key = (str(account_id), str(recipient).lower().replace("@", ""))
+        if key in self.active_connections:
+            if websocket in self.active_connections[key]:
+                self.active_connections[key].remove(websocket)
+            if not self.active_connections[key]:
+                del self.active_connections[key]
+
+    async def broadcast_to_chat(self, account_id: str, recipient: str, payload: dict):
+        clean_recipient = str(recipient).lower().replace("@", "")
+        key = (str(account_id), clean_recipient)
+        sockets = self.active_connections.get(key, [])
+        for ws in sockets:
+            try:
+                await ws.send_json(payload)
+            except Exception:
+                pass
+
+ws_manager = ConnectionManager()
+
+async def ws_new_message_callback(account_id: int, message):
+    chat_id = str(message.chat.id)
+    username = str(message.chat.username or "").lower()
+    
+    payload = {
+        "event": "message",
+        "message": {
+            "id": message.id,
+            "text": message.text or message.caption or "",
+            "out": getattr(message, "outgoing", False),
+            "sender_name": message.from_user.first_name if message.from_user else ("Me" if getattr(message, "outgoing", False) else "User"),
+            "date": message.date.strftime("%H:%M") if message.date else "",
+        }
+    }
+    
+    await ws_manager.broadcast_to_chat(str(account_id), chat_id, payload)
+    if username:
+        await ws_manager.broadcast_to_chat(str(account_id), username, payload)
+
+
 # ── Lifespan ───────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -662,7 +713,21 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Commands: {e}")
 
+    # Set message callback for WebSockets
+    try:
+        from userbot.userbot import set_message_callback
+        set_message_callback(ws_new_message_callback)
+    except Exception as e:
+        logger.warning(f"Could not set message callback: {e}")
+
     yield
+    # Shutdown all active running userbots
+    try:
+        from userbot.userbot import stop_all_running_userbots
+        await stop_all_running_userbots()
+    except Exception as e:
+        logger.warning(f"Error stopping userbots: {e}")
+
     await ptb_app.stop()
     await ptb_app.shutdown()
 
@@ -678,6 +743,49 @@ class NgrokMiddleware(BaseHTTPMiddleware):
         return response
 
 app.add_middleware(NgrokMiddleware)
+
+
+@app.websocket("/api/ws/chat")
+async def websocket_chat_endpoint(
+    websocket: WebSocket,
+    account_id: str,
+    recipient: str,
+    init_data: str = None
+):
+    if not init_data:
+        await websocket.close(code=4001)
+        return
+        
+    user = verify_init_data(init_data)
+    if not user:
+        await websocket.close(code=4001)
+        return
+
+    try:
+        from userbot.userbot import get_running_client
+        real_id = account_id
+        ub_obj = await db.get_userbot_by_id_or_hash(account_id)
+        if ub_obj:
+            real_id = ub_obj["id"]
+        else:
+            try:
+                real_id = int(account_id)
+            except ValueError:
+                real_id = 1
+        
+        await get_running_client(real_id)
+    except Exception as e:
+        logger.error(f"WS failed to start userbot client {account_id}: {e}")
+
+    await ws_manager.connect(websocket, account_id, recipient)
+    try:
+        while True:
+            # Keep connection alive, listen for disconnects
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket, account_id, recipient)
+    except Exception:
+        ws_manager.disconnect(websocket, account_id, recipient)
 
 
 # ── Webhook ────────────────────────────────────────────────────────────────────

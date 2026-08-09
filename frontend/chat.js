@@ -70,9 +70,19 @@ function setupChatState(Vue, api, showToast, tg) {
   const activeChatAccount = ref(null);  // currently selected account
   const showAccountDropdown = ref(false);
 
+  let chatSocket = null;
+
   const selectChatAccount = (acc) => {
     activeChatAccount.value = acc;
     showAccountDropdown.value = false;
+    activeChat.value = null;
+    currentChatPeer.value = null;
+    if (chatSocket) {
+      try {
+        chatSocket.close();
+      } catch (e) {}
+      chatSocket = null;
+    }
     // Reload contacts for new account
     loadChatContacts();
   };
@@ -120,6 +130,67 @@ function setupChatState(Vue, api, showToast, tg) {
     if (el) el.scrollTop = el.scrollHeight;
   };
 
+  const connectChatSocket = (peer) => {
+    if (chatSocket) {
+      try {
+        chatSocket.close();
+      } catch (e) {}
+      chatSocket = null;
+    }
+
+    if (!activeChatAccount.value?.id) return;
+
+    const initData = tg?.initData || '';
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
+    const wsUrl = `${protocol}//${host}/api/ws/chat?account_id=${encodeURIComponent(accountId)}&recipient=${encodeURIComponent(peer)}&init_data=${encodeURIComponent(initData)}`;
+
+    const ws = new WebSocket(wsUrl);
+    chatSocket = ws;
+
+    ws.onmessage = async (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.event === 'message' && data.message) {
+          // Check if matches an optimistic/sending message
+          const optIdx = currentMessages.value.findIndex(m => m.sending && m.text === data.message.text);
+          if (optIdx >= 0) {
+            currentMessages.value[optIdx].id = data.message.id;
+            currentMessages.value[optIdx].sending = false;
+          } else {
+            const exists = currentMessages.value.some(m => m.id === data.message.id);
+            if (!exists) {
+              currentMessages.value.push(data.message);
+              await scrollToBottom();
+            }
+          }
+
+          // Also update contact's preview in the sidebar list!
+          const chat = chatList.value.find(c => c.peer.toLowerCase() === peer.toLowerCase());
+          if (chat) {
+            chat.last_msg = data.message.text || '';
+            chat.last_time = data.message.date || '';
+            chat.last_out = data.message.out;
+          }
+        }
+      } catch (err) {
+        console.error('WS message processing failed:', err);
+      }
+    };
+
+    ws.onclose = () => {
+      // Reconnect after 3s if still on this chat
+      if (chatSocket === ws && activeChat.value && activeChat.value.peer === peer) {
+        setTimeout(() => {
+          if (activeChat.value && activeChat.value.peer === peer) {
+            connectChatSocket(peer);
+          }
+        }, 3000);
+      }
+    };
+  };
+
   const openChatWindow = async (chat) => {
     activeChat.value = chat;
     currentChatPeer.value = chat.peer;
@@ -131,6 +202,7 @@ function setupChatState(Vue, api, showToast, tg) {
     // Load real messages if account available
     if (activeChatAccount.value?.id) {
       await loadChatHistory(chat.peer);
+      connectChatSocket(chat.peer);
     }
   };
 
