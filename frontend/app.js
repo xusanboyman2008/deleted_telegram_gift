@@ -491,6 +491,7 @@ createApp({
       code: '',
       password: '',
       requires_password: false,
+      show_password: false,
       loading: false,
       error: '',
     });
@@ -503,6 +504,7 @@ createApp({
         code: '',
         password: '',
         requires_password: false,
+        show_password: false,
         loading: false,
         error: '',
       });
@@ -531,6 +533,33 @@ createApp({
           showToast('📩 Verification code sent to Telegram!');
         } else {
           phoneModal.error = data.error || data.support_message || 'Failed to send verification code.';
+        }
+      } catch (e) {
+        phoneModal.loading = false;
+        phoneModal.error = 'Something went wrong! Please contact support: @xusanboyman200';
+      }
+    };
+
+    const resendPhoneCode = async () => {
+      if (phoneModal.loading) return;
+      const cleanPhone = (phoneModal.phone || '').trim();
+      if (!cleanPhone) return;
+      phoneModal.loading = true;
+      phoneModal.error = '';
+      try {
+        const r = await api('/api/user/userbot/request-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: cleanPhone, force: true }),
+        });
+        const data = await r.json();
+        phoneModal.loading = false;
+        if (data.success) {
+          phoneModal.code = '';
+          phoneModal.error = '';
+          showToast('📩 Fresh verification code sent to Telegram!');
+        } else {
+          phoneModal.error = data.error || data.support_message || 'Failed to resend code.';
         }
       } catch (e) {
         phoneModal.loading = false;
@@ -568,6 +597,7 @@ createApp({
           selectedSender.value = 'myaccount';
         } else if (data.requires_password) {
           phoneModal.requires_password = true;
+          phoneModal.show_password = true;
           phoneModal.step = 3;
           phoneModal.error = data.error || '2FA Password is required for this account.';
         } else {
@@ -1119,7 +1149,7 @@ createApp({
       isAdmin, showAdmin, aTab, adminGifts, sortedAdminGifts, adminOrders, adminUserbots, userLinkedAccounts, systemUserbots, ubForm, ubMsgForm, myOrders, user, form,
       checkingUser, verifiedUser, userCheckError, userbotAccounts, publicUserbots, selectedSender, selectedUserbot, userAccount,
       showSenderDropdown, getSelectedUserbotObj, getSelectedUserbotName, getUserFirstName, getUserPhoto, onAnimationFileSelect,
-      currentLang, setLanguage, t, pricing, savePricing, phoneModal, openPhoneAuth, requestPhoneCode, confirmPhoneCode, disconnectMyAccount,
+      currentLang, setLanguage, t, pricing, savePricing, phoneModal, openPhoneAuth, requestPhoneCode, resendPhoneCode, confirmPhoneCode, disconnectMyAccount,
       sheetGlowStyle, sheetRingStyle, giftName, getGiftImg, getFallbackPng, scrollToGifts, openRealUserContact, isNumeric,
       openSheet, closeSheet, pickContact, setRecipientMe, pay, loadHistory, openAdmin,
       onRecipientInput, checkRecipientNow, clearRecipient,

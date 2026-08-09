@@ -779,6 +779,7 @@ async def get_userbot_accounts(user: dict = Depends(get_optional_user)):
 
 class UserRequestCodePayload(BaseModel):
     phone: str
+    force: bool = False
 
 
 @app.post("/api/user/userbot/request-code")
@@ -787,7 +788,7 @@ async def user_request_phone_code(body: UserRequestCodePayload, user: dict = Dep
         from userbot.userbot import request_userbot_phone_code
     except ImportError:
         from userbot import request_userbot_phone_code
-    res = await request_userbot_phone_code(body.phone)
+    res = await request_userbot_phone_code(body.phone, force=body.force)
     if not res.get("success"):
         return {
             "success": False,

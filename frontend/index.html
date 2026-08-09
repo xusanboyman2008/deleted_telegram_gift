@@ -316,20 +316,29 @@
             @keydown.enter="confirmPhoneCode"
           />
 
-          <div v-if="phoneModal.requires_password" style="margin-top: 10px;">
-            <label class="input-lbl">{{ t('passwordLabel') }}</label>
+          <div v-if="phoneModal.requires_password || phoneModal.show_password" style="margin-top: 10px;">
+            <label class="input-lbl" style="color: #60a5fa;">🔑 {{ t('passwordLabel') }} (2FA Password)</label>
             <input
               v-model="phoneModal.password"
               type="password"
               class="modal-input"
-              placeholder="Enter 2FA password..."
+              placeholder="Enter 2FA cloud password..."
               @keydown.enter="confirmPhoneCode"
             />
+          </div>
+          <div v-else style="margin-top: 6px; text-align: right;">
+            <button type="button" @click="phoneModal.show_password = true" style="background: none; border: none; color: #94a3b8; font-size: 11px; cursor: pointer; text-decoration: underline;">
+              🔑 Add 2FA Password if enabled
+            </button>
           </div>
 
           <button class="modal-submit-btn" :disabled="phoneModal.loading" @click="confirmPhoneCode">
             <span v-if="!phoneModal.loading">{{ t('confirmCodeBtn') }} ✅</span>
             <span v-else class="spin-loader"></span>
+          </button>
+
+          <button type="button" @click="resendPhoneCode" :disabled="phoneModal.loading" style="margin-top: 10px; width: 100%; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: #cbd5e1; padding: 10px; border-radius: 12px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
+            🔄 Resend New Code
           </button>
         </div>
       </div>
