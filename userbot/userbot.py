@@ -683,3 +683,90 @@ def delete_userbot_account(account_id: int, owner_tg_id: int = None) -> bool:
     save_userbot_file_data(data)
     return True
 
+
+async def get_userbot_chat_history(account_id: int, recipient: str, limit: int = 20) -> list:
+    """Fetches recent chat messages for recipient using Hydrogram client session if available."""
+    account = get_userbot_by_id(account_id)
+    if not account or not account.get("session_string"):
+        return []
+
+    session_string = account.get("session_string")
+    api_id = account.get("api_id", 35251724)
+    api_hash = account.get("api_hash", "b11e753959873b1df047454a8d816604")
+    clean_target = recipient.strip()
+    target = int(clean_target) if clean_target.isdigit() else ("@" + clean_target.lstrip("@"))
+
+    try:
+        from hydrogram import Client
+        messages_out = []
+        async with Client(f"chat_hist_{account_id}", api_id=api_id, api_hash=api_hash, session_string=session_string, in_memory=True) as client:
+            async for m in client.get_chat_history(target, limit=limit):
+                messages_out.append({
+                    "id": m.id,
+                    "text": m.text or m.caption or "",
+                    "out": m.out,
+                    "sender_name": m.from_user.first_name if m.from_user else ("Me" if m.out else "User"),
+                    "date": m.date.strftime("%H:%M") if m.date else "",
+                })
+        return list(reversed(messages_out))
+    except Exception as e:
+        logger.warning(f"get_userbot_chat_history failed for account {account_id}: {e}")
+        return []
+
+
+async def get_userbot_contacts(account_id: int, limit: int = 30) -> list:
+    """Fetches recent dialogs (chat contacts) for account using Hydrogram client session."""
+    account = get_userbot_by_id(account_id)
+    if not account or not account.get("session_string"):
+        return []
+
+    session_string = account.get("session_string")
+    api_id = account.get("api_id", 35251724)
+    api_hash = account.get("api_hash", "b11e753959873b1df047454a8d816604")
+
+    try:
+        from hydrogram import Client
+        contacts = []
+        async with Client(f"contacts_{account_id}", api_id=api_id, api_hash=api_hash, session_string=session_string, in_memory=True) as client:
+            async for dialog in client.get_dialogs(limit=limit):
+                chat = dialog.chat
+                is_bot = getattr(chat, 'is_bot', False)
+                title = ""
+                peer = ""
+
+                if hasattr(chat, 'first_name'):
+                    title = f"{chat.first_name or ''} {chat.last_name or ''}".strip()
+                elif hasattr(chat, 'title'):
+                    title = chat.title or ""
+
+                if chat.username:
+                    peer = f"@{chat.username}"
+                else:
+                    peer = str(chat.id)
+
+                last_msg = ""
+                last_time = ""
+                last_out = False
+                if dialog.top_message:
+                    last_msg = dialog.top_message.text or dialog.top_message.caption or ""
+                    if len(last_msg) > 60:
+                        last_msg = last_msg[:60] + "..."
+                    if dialog.top_message.date:
+                        last_time = dialog.top_message.date.strftime("%H:%M")
+                    last_out = dialog.top_message.out
+
+                contacts.append({
+                    "peer": peer,
+                    "title": title or peer,
+                    "is_bot": is_bot,
+                    "photo": None,
+                    "last_msg": last_msg,
+                    "last_time": last_time,
+                    "last_out": last_out,
+                    "unread": dialog.unread_messages_count or 0,
+                    "online": False,
+                })
+        return contacts
+    except Exception as e:
+        logger.warning(f"get_userbot_contacts failed for account {account_id}: {e}")
+        return []

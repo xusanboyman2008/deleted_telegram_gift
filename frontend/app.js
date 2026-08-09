@@ -493,6 +493,16 @@ createApp({
       }
     };
 
+    // ── Chat State Module ───────────────────────
+    const chatState = setupChatState(Vue, api, showToast, tg);
+    watch(userbotAccounts, (accs) => {
+      chatState.allAvailableAccounts.value = accs;
+      if (!chatState.activeChatAccount.value && accs.length > 0) {
+        const myAcc = accs.find(a => a.owner_tg_id === ME?.id);
+        chatState.selectChatAccount(myAcc || accs[0]);
+      }
+    }, { immediate: true });
+
     // ── Phone Auth Modal State for "Use My Account" ─
     const phoneModal = reactive({
       show: false,
@@ -1173,6 +1183,26 @@ createApp({
       return { base, fee, total };
     });
 
+    // ── Telegram link helpers ─────────────────────
+    const openTelegramLink = (peer) => {
+      const clean = (peer || '').replace(/^@/, '');
+      if (!clean) return;
+      const url = `https://t.me/${clean}`;
+      if (tg?.openTelegramLink) {
+        tg.openTelegramLink(url);
+      } else {
+        window.open(url, '_blank');
+      }
+    };
+
+    const openTelegramChatWithUserbot = (ub) => {
+      if (ub.username) {
+        openTelegramLink('@' + ub.username);
+      } else {
+        showToast('No username set for this userbot');
+      }
+    };
+
     return {
       tab, gifts, selected, recipient, giftMsg, paying, errMsg, toast, totalStars, priceBreakdown,
       isAdmin, showAdmin, aTab, adminGifts, sortedAdminGifts, adminOrders, adminUserbots, userLinkedAccounts, systemUserbots, ubForm, ubMsgForm, myOrders, user, form,
@@ -1184,6 +1214,9 @@ createApp({
       onRecipientInput, checkRecipientNow, clearRecipient,
       loadAdminGifts, loadAdminOrders, loadAdminUserbots, openAddUserbot, editUserbot, saveUserbot, openAddForm, editGift, saveGift, toggleActive, delGift,
       openUserbotMsg, sendUserbotMsg, toggleUserbotActive,
+      openTelegramLink, openTelegramChatWithUserbot,
+      // ── Chat Module ──
+      ...chatState,
     };
   },
 }).mount('#app');

@@ -1081,21 +1081,103 @@ async def admin_toggle_userbot_active(account_id: int, admin=Depends(get_admin))
 
 
 class UserbotSendMessageRequest(BaseModel):
-    account_id: int
+    account_id: int | str
     recipient: str
     message: str
 
 
+@app.post("/api/userbot/chat/send")
 @app.post("/api/admin/userbot/send-message")
-async def admin_send_userbot_message(body: UserbotSendMessageRequest, admin=Depends(get_admin)):
+async def userbot_send_message_endpoint(body: UserbotSendMessageRequest):
     try:
         from userbot.userbot import userbot_send_message
     except ImportError:
         from userbot import userbot_send_message
-    res = await userbot_send_message(body.account_id, body.recipient, body.message)
+    
+    # Resolve account_id if hashed string or int
+    account_id = body.account_id
+    if isinstance(account_id, str):
+        ub_obj = await db.get_userbot_by_id_or_hash(account_id)
+        if ub_obj:
+            account_id = ub_obj["id"]
+        else:
+            try:
+                account_id = int(account_id)
+            except ValueError:
+                account_id = 1
+
+    res = await userbot_send_message(account_id, body.recipient, body.message)
     if not res.get("success"):
-        raise HTTPException(status_code=400, detail=res.get("error", "Failed to send message via userbot"))
+        return {"success": False, "error": res.get("error", "Failed to send message via userbot")}
     return res
+
+
+@app.get("/api/userbot/chat/history")
+async def userbot_chat_history_endpoint(account_id: str, recipient: str):
+    try:
+        from userbot.userbot import get_userbot_chat_history
+    except ImportError:
+        from userbot import get_userbot_chat_history
+
+    real_id = account_id
+    ub_obj = await db.get_userbot_by_id_or_hash(account_id)
+    if ub_obj:
+        real_id = ub_obj["id"]
+    else:
+        try:
+            real_id = int(account_id)
+        except ValueError:
+            real_id = 1
+
+    history = await get_userbot_chat_history(real_id, recipient)
+    return {"success": True, "messages": history}
+
+
+@app.get("/api/userbot/chat/contacts")
+async def userbot_chat_contacts_endpoint(account_id: str, limit: int = 30):
+    try:
+        from userbot.userbot import get_userbot_contacts
+    except ImportError:
+        from userbot import get_userbot_contacts
+
+    real_id = account_id
+    ub_obj = await db.get_userbot_by_id_or_hash(account_id)
+    if ub_obj:
+        real_id = ub_obj["id"]
+    else:
+        try:
+            real_id = int(account_id)
+        except ValueError:
+            real_id = 1
+
+    contacts = await get_userbot_contacts(real_id, limit=limit)
+    return {"success": True, "contacts": contacts}
+
+
+class ChatSendRequest(BaseModel):
+    account_id: str
+    recipient: str
+    message: str
+
+@app.post("/api/userbot/chat/send")
+async def userbot_chat_send_endpoint(req: ChatSendRequest):
+    try:
+        from userbot.userbot import userbot_send_message
+    except ImportError:
+        from userbot import userbot_send_message
+
+    real_id = req.account_id
+    ub_obj = await db.get_userbot_by_id_or_hash(req.account_id)
+    if ub_obj:
+        real_id = ub_obj["id"]
+    else:
+        try:
+            real_id = int(req.account_id)
+        except ValueError:
+            real_id = 1
+
+    result = await userbot_send_message(real_id, req.recipient, req.message)
+    return result
 
 
 class RequestPhoneCodeRequest(BaseModel):

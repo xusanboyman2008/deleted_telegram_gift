@@ -224,8 +224,8 @@
           <div class="ar-act" style="display: flex; gap: 6px;">
             <button v-if="ub.active !== false" class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3);" title="Disable Userbot">🔴 Disable</button>
             <button v-else class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(34, 197, 94, 0.15); color: #4ADE80; border: 1px solid rgba(34, 197, 94, 0.3);" title="Undo / Re-enable Userbot">↩️ Undo</button>
-            <button class="ibtn" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">✏️</button>
-            <button class="ibtn" @click="openUserbotMsg(ub)" style="background: rgba(16, 185, 129, 0.2); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.4);" title="Send Message">💬</button>
+            <button class="ibtn" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">✏️ Edit</button>
+            <button class="ibtn" @click="openTelegramChatWithUserbot(ub)" style="background: rgba(59, 130, 246, 0.2); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.4);" title="Open in Telegram Chat">💬 Chat</button>
           </div>
         </div>
       </div>
@@ -252,11 +252,246 @@
           <div class="ar-act" style="display: flex; gap: 6px;">
             <button v-if="ub.active !== false" class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3);" title="Disable Userbot">🔴 Disable</button>
             <button v-else class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(34, 197, 94, 0.15); color: #4ADE80; border: 1px solid rgba(34, 197, 94, 0.3);" title="Undo / Re-enable Userbot">↩️ Undo</button>
-            <button class="ibtn" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">✏️</button>
-            <button class="ibtn" @click="openUserbotMsg(ub)" style="background: rgba(16, 185, 129, 0.2); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.4);" title="Send Message">💬</button>
+            <button class="ibtn" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">✏️ Edit</button>
+            <button class="ibtn" @click="openTelegramChatWithUserbot(ub)" style="background: rgba(59, 130, 246, 0.2); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.4);" title="Open in Telegram Chat">💬 Chat</button>
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- ── 1-TO-1 TELEGRAM CHAT TAB ────────────────── -->
+    <div v-show="tab==='chat'" class="tg-app-container">
+
+      <!-- ① Account Switcher Header -->
+      <div class="tg-account-header">
+        <div class="tg-account-active" @click="showAccountDropdown = !showAccountDropdown">
+          <div class="tg-acc-avatar-wrap">
+            <img v-if="activeChatAccount?.photo" :src="activeChatAccount.photo" class="tg-acc-avatar" alt="av"/>
+            <div v-else class="tg-acc-avatar-placeholder">
+              {{ (activeChatAccount?.first_name || '?')[0] }}
+            </div>
+            <span v-if="activeChatAccount" class="tg-online-indicator"></span>
+          </div>
+          <div class="tg-acc-info">
+            <div class="tg-acc-title">
+              <span v-if="activeChatAccount">
+                {{ activeChatAccount.first_name }} {{ activeChatAccount.last_name || '' }}
+              </span>
+              <span v-else style="color:rgba(255,255,255,0.5)">Select Account to Chat As</span>
+              <span v-if="activeChatAccount" class="tg-acc-badge">
+                {{ activeChatAccount.owner_tg_id ? 'My Account' : 'Userbot' }}
+              </span>
+            </div>
+            <div v-if="activeChatAccount" class="tg-acc-sub">
+              {{ activeChatAccount.phone || (activeChatAccount.username ? '@'+activeChatAccount.username : 'Active Session') }}
+              <span v-if="activeChatAccount.stars_balance" class="tg-acc-stars">⭐ {{ activeChatAccount.stars_balance }}</span>
+            </div>
+          </div>
+          <button class="tg-acc-switch-btn">
+            {{ showAccountDropdown ? '▲ Hide' : '▼ Switch' }}
+          </button>
+        </div>
+
+        <!-- Account Dropdown -->
+        <transition name="fade">
+          <div v-show="showAccountDropdown" class="tg-account-dropdown">
+            <div class="tg-dropdown-title">Chat as:</div>
+            <div
+              v-for="acc in allAvailableAccounts" :key="acc.id"
+              :class="['tg-dropdown-item', activeChatAccount?.id === acc.id ? 'active' : '']"
+              @click="selectChatAccount(acc)"
+            >
+              <img v-if="acc.photo" :src="acc.photo" class="tg-dd-avatar" alt="av"/>
+              <div v-else class="tg-dd-avatar-placeholder">{{ (acc.first_name || 'A')[0] }}</div>
+              <div class="tg-dd-info">
+                <div class="tg-dd-name">{{ acc.first_name }} {{ acc.last_name || '' }}</div>
+                <div class="tg-dd-sub">{{ acc.phone || (acc.username ? '@'+acc.username : 'Session') }}</div>
+              </div>
+              <span v-if="activeChatAccount?.id === acc.id" class="tg-dd-check">✓</span>
+            </div>
+            <div v-if="!allAvailableAccounts.length" style="padding:14px;color:rgba(255,255,255,0.4);font-size:0.82rem;text-align:center;">
+              No accounts connected.<br>Go to Settings → Connect Account.
+            </div>
+          </div>
+        </transition>
+      </div>
+
+      <!-- ② Two-column Telegram Body -->
+      <div class="tg-body-split">
+
+        <!-- LEFT: Contact list + search -->
+        <div :class="['tg-sidebar', mobileShowChat ? 'mobile-hidden' : '']">
+
+          <!-- Search bar -->
+          <div class="tg-search-wrap">
+            <div class="tg-search-input-box">
+              <span class="tg-search-icon">🔍</span>
+              <input
+                v-model="chatSearchQuery"
+                class="tg-search-input"
+                placeholder="Search chats, bots, users..."
+                @focus="showSearchMenu = true"
+                @blur="setTimeout(() => { if (!chatSearchQuery) showSearchMenu = false; }, 200)"
+              />
+              <button v-if="chatSearchQuery" class="tg-search-clear" @click="chatSearchQuery=''">✕</button>
+            </div>
+          </div>
+
+          <!-- Filter chips -->
+          <div v-show="showSearchMenu || chatSearchQuery" class="tg-search-filter-bar">
+            <button :class="['tg-filter-chip', searchTab==='all'?'active':'']" @click="searchTab='all'">All</button>
+            <button :class="['tg-filter-chip', searchTab==='bots'?'active':'']" @click="searchTab='bots'">🤖 Bots</button>
+            <button :class="['tg-filter-chip', searchTab==='users'?'active':'']" @click="searchTab='users'">👤 Users</button>
+            <button :class="['tg-filter-chip', searchTab==='chats'?'active':'']" @click="searchTab='chats'">💬 Chats</button>
+          </div>
+
+          <!-- Chat items list -->
+          <div class="tg-chats-list">
+            <div
+              v-for="chat in filteredChatList" :key="chat.peer"
+              :class="['tg-chat-item', currentChatPeer === chat.peer ? 'active' : '']"
+              @click="openChatWindow(chat)"
+            >
+              <div class="tg-ci-avatar-wrap">
+                <img v-if="chat.photo" :src="chat.photo" class="tg-ci-avatar" alt="chat"/>
+                <div v-else class="tg-ci-avatar-placeholder" :style="{ background: chat.color || '#3390ec' }">
+                  {{ chat.icon || (chat.title || 'C')[0] }}
+                </div>
+                <span v-if="chat.online" class="tg-ci-online-dot"></span>
+              </div>
+              <div class="tg-ci-content">
+                <div class="tg-ci-top">
+                  <span class="tg-ci-title">
+                    {{ chat.title }}
+                    <span v-if="chat.is_bot" class="tg-bot-badge">BOT</span>
+                  </span>
+                  <span class="tg-ci-time">{{ chat.last_time }}</span>
+                </div>
+                <div class="tg-ci-bottom">
+                  <span class="tg-ci-preview">
+                    <span v-if="chat.last_out" class="tg-msg-status-ticks">✓✓ </span>
+                    {{ chat.last_msg || 'Tap to start conversation...' }}
+                  </span>
+                  <span v-if="chat.unread" class="tg-unread-badge">{{ chat.unread }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Empty state -->
+            <div v-if="!filteredChatList.length" style="padding:24px;text-align:center;color:rgba(255,255,255,0.35);font-size:0.85rem;">
+              <div style="font-size:2rem;margin-bottom:8px;">💬</div>
+              No chats found
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: Active chat window -->
+        <div :class="['tg-chat-main', !mobileShowChat ? 'mobile-hidden' : '']">
+
+          <template v-if="activeChat">
+            <!-- Chat header -->
+            <div class="tg-chat-header">
+              <button class="tg-back-mobile-btn" @click="mobileShowChat = false">‹ Back</button>
+              <div class="tg-ch-avatar-wrap">
+                <img v-if="activeChat.photo" :src="activeChat.photo" class="tg-ch-avatar" alt="chat"/>
+                <div v-else class="tg-ch-avatar-placeholder" :style="{ background: activeChat.color || '#3390ec' }">
+                  {{ activeChat.icon || (activeChat.title || 'C')[0] }}
+                </div>
+              </div>
+              <div class="tg-ch-info">
+                <div class="tg-ch-title">
+                  {{ activeChat.title }}
+                  <span v-if="activeChat.is_bot" class="tg-bot-badge">BOT</span>
+                </div>
+                <div class="tg-ch-status">{{ activeChat.is_bot ? 'bot' : 'online' }}</div>
+              </div>
+              <div class="tg-ch-actions">
+                <button class="tg-ch-act-btn" @click="loadChatHistory(currentChatPeer)" title="Refresh">🔄</button>
+                <button class="tg-ch-act-btn" @click="openTelegramLink(activeChat.peer)" title="Open in Telegram">📞</button>
+              </div>
+            </div>
+
+            <!-- Message stream -->
+            <div class="tg-messages-stream" ref="messagesStreamEl">
+              <div v-if="chatLoading" class="tg-chat-loading">
+                <span class="spin">⏳</span> Loading messages...
+              </div>
+
+              <div v-if="!chatLoading && currentMessages.length === 0" style="text-align:center;padding:30px 20px;color:rgba(255,255,255,0.3);font-size:0.85rem;">
+                <div style="font-size:2.5rem;margin-bottom:10px;">💬</div>
+                No messages yet. Say hi!
+              </div>
+
+              <div class="tg-date-divider"><span>Today</span></div>
+
+              <div
+                v-for="msg in currentMessages" :key="msg.id"
+                :class="['tg-msg-bubble', msg.out ? 'outgoing' : 'incoming', msg.sending ? 'sending' : '', msg.failed ? 'failed' : '']"
+              >
+                <div v-if="!msg.out && activeChat.is_bot" class="tg-msg-author">{{ activeChat.title }}</div>
+                <div class="tg-msg-text" v-html="formatTelegramMessageText(msg.text)"></div>
+
+                <!-- Inline keyboard buttons -->
+                <div v-if="msg.buttons && msg.buttons.length" class="tg-inline-keyboard">
+                  <div v-for="(row, ri) in msg.buttons" :key="ri" class="tg-ik-row">
+                    <button
+                      v-for="(btn, bi) in row" :key="bi"
+                      class="tg-ik-btn"
+                      @click="handleBotButtonClick(btn)"
+                    >{{ btn.text }}</button>
+                  </div>
+                </div>
+
+                <div class="tg-msg-meta">
+                  <span class="tg-msg-time">{{ msg.date }}</span>
+                  <span v-if="msg.sending" class="tg-msg-sending-tick">🕐</span>
+                  <span v-else-if="msg.failed" class="tg-msg-fail-icon">❌</span>
+                  <span v-else-if="msg.out" class="tg-msg-read-ticks">✓✓</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Input bar -->
+            <div class="tg-chat-input-bar">
+              <div v-show="showEmojiPicker" class="tg-quick-emoji-bar">
+                <span v-for="em in ['😊','❤️','👍','🔥','🚀','🎁','⭐','✨','😂','🙏','💯','🎉']" :key="em" class="tg-em-item" @click="chatInputText += em">{{ em }}</span>
+              </div>
+              <div class="tg-input-wrapper">
+                <button class="tg-input-icon-btn" @click="triggerAttachment" title="Attach">📎</button>
+                <textarea
+                  v-model="chatInputText"
+                  class="tg-chat-textarea"
+                  placeholder="Write a message..."
+                  rows="1"
+                  @keydown.enter.exact.prevent="sendChatMessage"
+                ></textarea>
+                <button class="tg-input-icon-btn" @click="showEmojiPicker = !showEmojiPicker">😊</button>
+                <button class="tg-send-plane-btn" :disabled="!chatInputText.trim() || chatSending" @click="sendChatMessage">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <template v-else>
+            <!-- No chat selected -->
+            <div class="tg-no-chat-selected">
+              <div class="tg-ncs-icon">💬</div>
+              <h3>Select a conversation</h3>
+              <p>Choose a bot or contact from the left sidebar to start chatting.</p>
+              <div v-if="!activeChatAccount" style="margin-top:16px;">
+                <button class="tg-connect-acc-btn" @click="tab='settings'; openPhoneAuth()">
+                  📱 Connect Account
+                </button>
+              </div>
+            </div>
+          </template>
+
+        </div>
+      </div>
+
     </div>
 
   </div>
@@ -266,6 +501,10 @@
     <button :class="['nav-item', tab==='home'?'active':'']" @click="tab='home'">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 9.5L12 3l9 6.5V21H3V9.5z"/></svg>
       <span>{{ t('gifts') }}</span>
+    </button>
+    <button :class="['nav-item', tab==='chat'?'active':'']" @click="tab='chat'">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span>Chats</span>
     </button>
     <button :class="['nav-item', tab==='history'?'active':'']" @click="loadHistory(); tab='history'">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -741,6 +980,7 @@
   <canvas id="confettiCanvas" style="position:fixed;inset:0;z-index:999;pointer-events:none"></canvas>
 </div>
 
+<script src="chat.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
