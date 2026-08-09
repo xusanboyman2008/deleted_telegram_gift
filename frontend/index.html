@@ -19,11 +19,27 @@
   <script src="lottie.min.js"></script>
   <script src="vue.min.js"></script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="style.css?v=1.0.3"/>
 </head>
 <body>
 <div id="app" v-cloak>
+
+  <!-- Global Lottie Page Loader -->
+  <div v-if="pageLoading" class="global-page-loader">
+    <div class="loader-card">
+      <dotlottie-player
+        src="assets/loader_animations/k9RQw0lAUa.lottie"
+        background="transparent"
+        speed="1.2"
+        style="width: 130px; height: 130px;"
+        loop
+        autoplay
+      ></dotlottie-player>
+      <div class="loader-text">Loading Premium Gifts...</div>
+    </div>
+  </div>
 
   <!-- ── Header ─────────────────────────────── -->
   <header class="app-header">
@@ -332,6 +348,21 @@
                 </div>
               </div>
 
+              <!-- Dynamic Bot Commands Settings -->
+              <div class="admin-pricing-box" style="margin-bottom: 24px; padding: 20px; border-radius:12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05);">
+                <h3 style="margin-top:0; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+                  <span>📋 Bot Menu Commands</span>
+                  <button class="add-btn" @click="addBotCommand" style="font-size:0.8rem; padding: 4px 10px; border-radius: 6px;">+ Add</button>
+                </h3>
+                <p style="color: rgba(255,255,255,0.5); font-size:0.9rem; margin-bottom: 16px;">Configure the commands list displayed in the Telegram bot's menu button.</p>
+                <div v-for="(cmd, index) in botCommands" :key="index" style="display:flex; gap:10px; margin-bottom: 10px; align-items:center;">
+                  <input v-model="cmd.command" placeholder="command (e.g. start)" style="flex:1; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 0.9rem;" />
+                  <input v-model="cmd.description" placeholder="description" style="flex:2; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 0.9rem;" />
+                  <button @click="removeBotCommand(index)" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); padding: 8px 12px; border-radius: 8px; cursor:pointer;">✕</button>
+                </div>
+                <button class="add-btn" @click="saveBotCommands" style="margin-top: 10px; background: #a855f7; border-color: #a855f7; color:#fff; width:100%; padding: 10px; border-radius:8px;">💾 Save & Deploy Commands</button>
+              </div>
+
               <div class="admin-pricing-box" style="padding: 20px; border-radius:12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05);">
                 <h3 style="margin-top:0; margin-bottom:12px;">📈 Bot Status & Info</h3>
                 <div style="display:grid; grid-template-columns: 140px 1fr; gap:12px; font-size:0.95rem;">
@@ -623,8 +654,16 @@
 
             <!-- Message stream -->
             <div class="tg-messages-stream" ref="messagesStreamEl" @click="handleMessageStreamClick">
-              <div v-if="chatLoading" class="tg-chat-loading">
-                <span class="spin">⏳</span> Loading messages...
+              <div v-if="chatLoading" class="tg-chat-loading" style="flex-direction: column; gap: 4px;">
+                <dotlottie-player
+                  src="assets/loader_animations/k9RQw0lAUa.lottie"
+                  background="transparent"
+                  speed="1.2"
+                  style="width: 60px; height: 60px;"
+                  loop
+                  autoplay
+                ></dotlottie-player>
+                <div style="font-size: 0.8rem; color: rgba(255,255,255,0.4);">Loading messages...</div>
               </div>
 
               <div v-if="!chatLoading && currentMessages.length === 0" style="text-align:center;padding:30px 20px;color:rgba(255,255,255,0.3);font-size:0.85rem;">
@@ -896,6 +935,15 @@
           </button>
         </div>
 
+        <!-- Searching Lottie Loader -->
+        <div v-if="checkingUser" class="recipient-checking-animation">
+          <lottie-anim
+            filename="loader_animations/animations/2214336a-a701-426f-8669-5183625891f8.json"
+            style="width: 50px; height: 50px; margin: 0 auto;"
+          ></lottie-anim>
+          <div style="font-size: 0.8rem; color: rgba(255,255,255,0.4); text-align: center;">Verifying recipient username/ID...</div>
+        </div>
+
         <!-- ── Custom Gift Message Field ── -->
         <div class="gift-msg-field">
           <span class="msg-icon">💬</span>
@@ -942,6 +990,14 @@
               </div>
             </template>
             <span class="ub-check" style="font-size: 0.85rem;">▾</span>
+          </div>
+
+          <!-- Note explaining fee costs for connected account -->
+          <div v-if="selectedSender === 'myaccount'" class="sender-info-card" style="margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.15); font-size: 0.8rem; color: #93c5fd; display: flex; gap: 8px; align-items: flex-start; line-height: 1.3;">
+            <span style="font-size: 1rem;">ℹ️</span>
+            <div>
+              Using your own connected account takes <strong>50 Stars</strong> from that account, plus a <strong>5 Stars</strong> service fee.
+            </div>
           </div>
 
           <!-- Dropdown List of Userbots & Options -->

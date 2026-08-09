@@ -412,6 +412,7 @@ createApp({
   components: { 'lottie-anim': LottieAnim },
 
   setup() {
+    const pageLoading = ref(true);
     const tab = ref('home');
     const gifts = ref(DEFAULT_GIFTS_SEED);
     const selected = ref(null);
@@ -441,6 +442,7 @@ createApp({
     const botPanelUsers = ref([]);
     const broadcastShow = ref(false);
     const broadcastText = ref('');
+    const botCommands = ref([]);
 
 
     // ── Language i18n State ─────────────────────
@@ -1144,13 +1146,20 @@ createApp({
     onMounted(async () => {
       try {
         const cfg = await fetch('/api/config', { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
-        if (ME && ME.id === cfg.admin_id) isAdmin.value = true;
+        if (ME && ME.id === cfg.admin_id) {
+          isAdmin.value = true;
+        }
       } catch {}
 
       await loadPricing();
       await loadGifts();
       await loadUserbotAccounts();
       if (ME) loadHistory();
+      if (isAdmin.value) {
+        await loadBotCommands();
+      }
+
+      pageLoading.value = false;
 
       if (tg) {
         tg.BackButton.onClick(() => {
@@ -1273,9 +1282,47 @@ createApp({
       } catch (e) {
         showToast('❌ Broadcast failed to send');
       }
+    const loadBotCommands = async () => {
+      try {
+        const res = await fetch('/api/admin/bot/commands', { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
+        if (res.success) {
+          botCommands.value = res.commands || [];
+        }
+      } catch (e) {
+        console.error('loadBotCommands failed:', e);
+      }
+    };
+
+    const saveBotCommands = async () => {
+      try {
+        const res = await fetch('/api/admin/bot/commands', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': '69420'
+          },
+          body: JSON.stringify({ commands: botCommands.value })
+        }).then(r => r.json());
+        if (res.success) {
+          showToast('✅ Bot commands updated successfully!');
+        } else {
+          showToast('❌ Failed to update bot commands: ' + (res.error || 'Unknown error'));
+        }
+      } catch (e) {
+        showToast('❌ Failed to update bot commands');
+      }
+    };
+
+    const addBotCommand = () => {
+      botCommands.value.push({ command: '', description: '' });
+    };
+
+    const removeBotCommand = (idx) => {
+      botCommands.value.splice(idx, 1);
     };
 
     return {
+      pageLoading, botCommands, loadBotCommands, saveBotCommands, addBotCommand, removeBotCommand,
       botMenuTab, botPanelUsers, broadcastShow, broadcastText, loadBotPanelUsers, restartTelegramBot, refreshWebhook, openBroadcastModal, sendBroadcast,
 
       tab, gifts, selected, recipient, giftMsg, paying, errMsg, toast, totalStars, priceBreakdown,

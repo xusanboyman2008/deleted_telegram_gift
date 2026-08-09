@@ -673,10 +673,31 @@ async def ws_new_message_callback(account_id: int, message):
         await ws_manager.broadcast_to_chat(str(account_id), username, payload)
 
 
+async def uptime_pinger():
+    import asyncio
+    import httpx
+    # Wait initially for startup to settle
+    await asyncio.sleep(15)
+    logger.info("Starting background Uptime Pinger...")
+    url = f"{BASE_URL.rstrip('/')}/"
+    async with httpx.AsyncClient(verify=False) as client:
+        while True:
+            try:
+                # Ping itself to keep server awake
+                r = await client.get(url, timeout=15.0)
+                logger.info(f"Uptime Pinger: pinged {url}, status code: {r.status_code}")
+            except Exception as e:
+                logger.warning(f"Uptime Pinger failed to ping {url}: {e}")
+            # sleep between 30 and 50 seconds (average 40s)
+            await asyncio.sleep(40)
+
+
 # ── Lifespan ───────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global ptb_app
+    import asyncio
+    asyncio.create_task(uptime_pinger())
     await db.init_db()
     ptb_app = Application.builder().token(BOT_TOKEN).updater(None).build()
     ptb_app.add_handler(CommandHandler("start", start_handler))
@@ -1150,6 +1171,37 @@ async def broadcast_endpoint(body: BroadcastRequest, admin=Depends(get_admin)):
             logger.warning(f"Failed to send broadcast to {buyer_id}: {e}")
             failed_count += 1
     return {"success": True, "sent": sent_count, "failed": failed_count}
+
+
+class SetCommandsRequest(BaseModel):
+    commands: list
+
+
+@app.get("/api/admin/bot/commands")
+async def get_bot_commands(admin=Depends(get_admin)):
+    global ptb_app
+    try:
+        cmds = await ptb_app.bot.get_my_commands()
+        return {"success": True, "commands": [{"command": c.command, "description": c.description} for c in cmds]}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/admin/bot/commands")
+async def set_bot_commands_endpoint(body: SetCommandsRequest, admin=Depends(get_admin)):
+    global ptb_app
+    try:
+        from telegram import BotCommand
+        t_cmds = []
+        for c in body.commands:
+            cmd = c.get("command", "").strip().lower().lstrip("/")
+            desc = c.get("description", "").strip()
+            if cmd and desc:
+                t_cmds.append(BotCommand(cmd, desc))
+        await ptb_app.bot.set_my_commands(t_cmds)
+        return {"success": True, "message": "Bot commands updated successfully on Telegram!"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 

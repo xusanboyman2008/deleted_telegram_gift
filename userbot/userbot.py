@@ -615,6 +615,23 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
         except Exception:
             pass
 
+        # Transfer active, connected client into global RUNNING cache for instant availability!
+        try:
+            from hydrogram.handlers import MessageHandler
+            client.account_id = acc_result["id"]
+
+            async def local_msg_handler(c, m):
+                if _MESSAGE_CALLBACK:
+                    try:
+                        await _MESSAGE_CALLBACK(client.account_id, m)
+                    except Exception as cb_err:
+                        logger.error(f"Error in message callback for account {client.account_id}: {cb_err}")
+
+            client.add_handler(MessageHandler(local_msg_handler))
+            _RUNNING_USERBOTS[acc_result["id"]] = client
+        except Exception as pre_err:
+            logger.warning(f"Could not transition connected client to running cache: {pre_err}")
+
         _PENDING_CLIENTS.pop(clean_phone, None)
         completed_successfully = True
 
