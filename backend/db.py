@@ -531,11 +531,11 @@ async def async_get_userbot_accounts(active_only: bool = True, user_tg_id: int =
     for acc in accounts:
         acc["active"] = bool(acc.get("active", 1))
 
-    if active_only:
-        accounts = [acc for acc in accounts if acc.get("active", True)]
-
     if is_admin:
         return accounts
+
+    if active_only:
+        accounts = [acc for acc in accounts if acc.get("active", True)]
 
     if user_tg_id:
         return [acc for acc in accounts if not acc.get("owner_tg_id") or acc.get("owner_tg_id") == user_tg_id]

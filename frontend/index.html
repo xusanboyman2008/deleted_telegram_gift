@@ -529,7 +529,10 @@
               <img v-if="acc.photo" :src="acc.photo" class="tg-dd-avatar" alt="av"/>
               <div v-else class="tg-dd-avatar-placeholder">{{ (acc.first_name || 'A')[0] }}</div>
               <div class="tg-dd-info">
-                <div class="tg-dd-name">{{ acc.first_name }} {{ acc.last_name || '' }}</div>
+                <div class="tg-dd-name">
+                  {{ acc.first_name }} {{ acc.last_name || '' }}
+                  <span v-if="!acc.active" style="font-size:0.68rem; color:#f87171; background:rgba(248,113,113,0.15); border:1px solid rgba(248,113,113,0.3); padding:1px 5px; border-radius:4px; margin-left:4px; font-weight:500;">Disabled</span>
+                </div>
                 <div class="tg-dd-sub">{{ acc.phone || (acc.username ? '@'+acc.username : 'Session') }}</div>
               </div>
               <span v-if="activeChatAccount?.id === acc.id" class="tg-dd-check">✓</span>

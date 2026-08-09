@@ -657,6 +657,19 @@ async def ws_new_message_callback(account_id: int, message):
     chat_id = str(message.chat.id)
     username = str(message.chat.username or "").lower()
     
+    buttons = []
+    if message.reply_markup and hasattr(message.reply_markup, "inline_keyboard"):
+        for row in message.reply_markup.inline_keyboard:
+            row_btns = []
+            for b in row:
+                row_btns.append({
+                    "text": getattr(b, "text", ""),
+                    "url": getattr(b, "url", None),
+                    "callback_data": getattr(b, "callback_data", None)
+                })
+            if row_btns:
+                buttons.append(row_btns)
+
     payload = {
         "event": "message",
         "message": {
@@ -665,6 +678,7 @@ async def ws_new_message_callback(account_id: int, message):
             "out": getattr(message, "outgoing", False),
             "sender_name": message.from_user.first_name if message.from_user else ("Me" if getattr(message, "outgoing", False) else "User"),
             "date": message.date.strftime("%H:%M") if message.date else "",
+            "buttons": buttons if buttons else None
         }
     }
     

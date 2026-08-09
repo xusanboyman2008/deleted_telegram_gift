@@ -67,11 +67,10 @@ def get_all_userbot_accounts():
 
 def load_userbot_accounts(active_only: bool = True, user_tg_id: int = None, is_admin: bool = False):
     accounts = get_all_userbot_accounts()
-    if active_only:
-        accounts = [acc for acc in accounts if acc.get("active", True)]
-    
     if is_admin:
         return accounts
+    if active_only:
+        accounts = [acc for acc in accounts if acc.get("active", True)]
     
     if user_tg_id:
         # System userbots (no owner) + user's own account
@@ -746,6 +745,23 @@ async def get_running_client(account_id: int):
         await client.start()
         client.last_used_time = time.time()
         _RUNNING_USERBOTS[account_id] = client
+
+        # Auto-fetch profile photo if missing
+        if account and not account.get("photo"):
+            try:
+                me = await client.get_me()
+                if me and me.photo:
+                    p_file = await client.download_media(me.photo.small_file_id)
+                    if p_file and os.path.exists(p_file):
+                        with open(p_file, "rb") as f:
+                            import base64
+                            b64 = base64.b64encode(f.read()).decode("utf-8")
+                            photo_data = f"data:image/jpeg;base64,{b64}"
+                            account["photo"] = photo_data
+                            update_userbot_account(account_id, photo=photo_data)
+            except Exception as pe:
+                logger.warning(f"Could not fetch profile photo for account {account_id}: {pe}")
+
         return client
     except Exception as e:
         logger.error(f"Failed to start running client for account {account_id}: {e}")
@@ -806,12 +822,26 @@ async def get_userbot_chat_history(account_id: int, recipient: str, limit: int =
             return []
         messages_out = []
         async for m in client.get_chat_history(target, limit=limit):
+            buttons = []
+            if m.reply_markup and hasattr(m.reply_markup, "inline_keyboard"):
+                for row in m.reply_markup.inline_keyboard:
+                    row_btns = []
+                    for b in row:
+                        row_btns.append({
+                            "text": getattr(b, "text", ""),
+                            "url": getattr(b, "url", None),
+                            "callback_data": getattr(b, "callback_data", None)
+                        })
+                    if row_btns:
+                        buttons.append(row_btns)
+
             messages_out.append({
                 "id": m.id,
                 "text": m.text or m.caption or "",
                 "out": getattr(m, "outgoing", False),
                 "sender_name": m.from_user.first_name if m.from_user else ("Me" if getattr(m, "outgoing", False) else "User"),
                 "date": m.date.strftime("%H:%M") if m.date else "",
+                "buttons": buttons if buttons else None
             })
         return list(reversed(messages_out))
     except Exception as e:
@@ -856,11 +886,23 @@ async def get_userbot_contacts(account_id: int, limit: int = 30) -> list:
                     last_time = dialog.top_message.date.strftime("%H:%M")
                 last_out = getattr(dialog.top_message, "outgoing", False)
 
+            photo_url = None
+            if chat.photo:
+                try:
+                    p_file = await client.download_media(chat.photo.small_file_id)
+                    if p_file and os.path.exists(p_file):
+                        with open(p_file, "rb") as f:
+                            import base64
+                            b64 = base64.b64encode(f.read()).decode("utf-8")
+                            photo_url = f"data:image/jpeg;base64,{b64}"
+                except Exception:
+                    pass
+
             contacts.append({
                 "peer": peer,
                 "title": title or peer,
                 "is_bot": is_bot,
-                "photo": None,
+                "photo": photo_url,
                 "last_msg": last_msg,
                 "last_time": last_time,
                 "last_out": last_out,
