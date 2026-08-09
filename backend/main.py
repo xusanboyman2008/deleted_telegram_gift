@@ -698,6 +698,11 @@ async def lifespan(app: FastAPI):
     global ptb_app
     import asyncio
     asyncio.create_task(uptime_pinger())
+    try:
+        from userbot.userbot import idle_userbots_cleanup_loop
+        asyncio.create_task(idle_userbots_cleanup_loop())
+    except Exception as e:
+        logger.warning(f"Could not start idle_userbots_cleanup_loop: {e}")
     await db.init_db()
     ptb_app = Application.builder().token(BOT_TOKEN).updater(None).build()
     ptb_app.add_handler(CommandHandler("start", start_handler))

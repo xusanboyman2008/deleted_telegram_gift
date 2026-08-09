@@ -708,6 +708,7 @@ async def get_running_client(account_id: int):
     account_id = int(account_id)
     client = _RUNNING_USERBOTS.get(account_id)
     if client and client.is_connected:
+        client.last_used_time = time.time()
         return client
 
     account = get_userbot_by_id(account_id)
@@ -731,6 +732,8 @@ async def get_running_client(account_id: int):
     client.account_id = account_id
 
     async def local_msg_handler(c, m):
+        # Update last used time on incoming activity
+        client.last_used_time = time.time()
         if _MESSAGE_CALLBACK:
             try:
                 await _MESSAGE_CALLBACK(account_id, m)
@@ -741,6 +744,7 @@ async def get_running_client(account_id: int):
 
     try:
         await client.start()
+        client.last_used_time = time.time()
         _RUNNING_USERBOTS[account_id] = client
         return client
     except Exception as e:
@@ -754,6 +758,38 @@ async def stop_all_running_userbots():
         except Exception:
             pass
     _RUNNING_USERBOTS.clear()
+
+async def idle_userbots_cleanup_loop():
+    import asyncio
+    import gc
+    import time
+    # Wait initially for startup to settle
+    await asyncio.sleep(60)
+    logger.info("Starting background Idle Userbots RAM Cleanup Loop...")
+    while True:
+        try:
+            now = time.time()
+            to_stop = []
+            for account_id, client in list(_RUNNING_USERBOTS.items()):
+                # Auto-stop and unload userbots idle for more than 10 minutes (600s)
+                last_used = getattr(client, "last_used_time", 0)
+                if now - last_used > 600:
+                    to_stop.append((account_id, client))
+
+            for account_id, client in to_stop:
+                logger.info(f"Reclaiming RAM: Stopping idle userbot {account_id}")
+                _RUNNING_USERBOTS.pop(account_id, None)
+                try:
+                    await client.stop()
+                except Exception as stop_err:
+                    logger.warning(f"Error stopping userbot {account_id} during cleanup: {stop_err}")
+
+            if to_stop:
+                gc.collect()
+        except Exception as loop_err:
+            logger.warning(f"Error in idle_userbots_cleanup_loop: {loop_err}")
+        # Check every 2 minutes
+        await asyncio.sleep(120)
 
 async def get_userbot_chat_history(account_id: int, recipient: str, limit: int = 20) -> list:
     """Fetches recent chat messages for recipient using Hydrogram client session if available."""
