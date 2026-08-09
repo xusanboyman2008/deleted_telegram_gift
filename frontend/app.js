@@ -2,6 +2,16 @@
    TgGifts — Vue 3 App Logic with i18n & Phone Auth
    ═══════════════════════════════════════════════ */
 
+if (typeof window !== 'undefined' && (!window.crypto || !window.crypto.randomUUID)) {
+  if (!window.crypto) window.crypto = {};
+  window.crypto.randomUUID = function() {
+    return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, function(c) {
+      var r = (window.crypto && window.crypto.getRandomValues ? window.crypto.getRandomValues(new Uint8Array(1))[0] : Math.floor(Math.random() * 256));
+      return (c ^ (r & (15 >> (c / 4)))).toString(16);
+    });
+  };
+}
+
 const { createApp, ref, reactive, computed, onMounted, watch, nextTick } = Vue;
 
 // ── Telegram WebApp SDK ────────────────────────
