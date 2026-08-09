@@ -276,11 +276,15 @@ function setupChatState(Vue, api, showToast, tg) {
     }
   };
 
+  const chatContactsLoading = ref(false);
+
   const loadChatContacts = async () => {
     if (!activeChatAccount.value?.id) {
       chatList.value = [...DEFAULT_CHAT_CONTACTS];
+      chatContactsLoading.value = false;
       return;
     }
+    chatContactsLoading.value = true;
     try {
       const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
       const res = await api(`/api/userbot/chat/contacts?account_id=${encodeURIComponent(accountId)}&limit=30`);
@@ -293,6 +297,8 @@ function setupChatState(Vue, api, showToast, tg) {
     } catch (e) {
       console.error('loadChatContacts error:', e);
       chatList.value = [...DEFAULT_CHAT_CONTACTS];
+    } finally {
+      chatContactsLoading.value = false;
     }
   };
 
@@ -463,6 +469,7 @@ function setupChatState(Vue, api, showToast, tg) {
     currentChatPeer,
     currentMessages,
     chatLoading,
+    chatContactsLoading,
     messagesStreamEl,
     chatInputText,
     chatSending,

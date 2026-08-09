@@ -586,6 +586,11 @@
 
           <!-- Chat items list -->
           <div class="tg-chats-list">
+            <!-- Chat List Loader -->
+            <div v-if="chatContactsLoading" style="padding: 24px; text-align: center; color: rgba(255,255,255,0.5); font-size: 0.85rem; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+              <span class="tg-spinner" style="width: 22px; height: 22px; border-width: 2px;"></span>
+              <span>Loading chat contacts...</span>
+            </div>
             <!-- Resolve username/ID search target -->
             <div
               v-if="chatSearchQuery.trim()"
@@ -674,16 +679,9 @@
 
             <!-- Message stream -->
             <div class="tg-messages-stream" ref="messagesStreamEl" @click="handleMessageStreamClick">
-              <div v-if="chatLoading" class="tg-chat-loading" style="flex-direction: column; gap: 4px;">
-                <dotlottie-player
-                  src="assets/loader_animations/k9RQw0lAUa.lottie"
-                  background="transparent"
-                  speed="1.2"
-                  style="width: 60px; height: 60px;"
-                  loop
-                  autoplay
-                ></dotlottie-player>
-                <div style="font-size: 0.8rem; color: rgba(255,255,255,0.4);">Loading messages...</div>
+              <div v-if="chatLoading" class="tg-chat-loading" style="flex-direction: column; gap: 8px; align-items: center; justify-content: center; padding: 30px;">
+                <span class="tg-spinner" style="width: 24px; height: 24px; border-width: 2px; display: inline-block;"></span>
+                <div style="font-size: 0.8rem; color: rgba(255,255,255,0.5);">Loading messages...</div>
               </div>
 
               <div v-if="!chatLoading && currentMessages.length === 0" style="text-align:center;padding:30px 20px;color:rgba(255,255,255,0.3);font-size:0.85rem;">
