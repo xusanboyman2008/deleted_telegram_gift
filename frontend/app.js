@@ -271,6 +271,14 @@ const LottieAnim = {
       }
     };
 
+    const playOnce = () => {
+      if (inst) {
+        try {
+          inst.goToAndPlay(0, true);
+        } catch {}
+      }
+    };
+
     const init = async () => {
       destroy();
       failed.value = false;
@@ -286,7 +294,7 @@ const LottieAnim = {
         inst = lottie.loadAnimation({
           container: el.value,
           renderer: 'svg',
-          loop: true,
+          loop: false,
           autoplay: true,
           animationData: data,
         });
@@ -299,6 +307,10 @@ const LottieAnim = {
     onMounted(init);
     watch(() => props.filename, init);
 
+    const onHover = () => {
+      playOnce();
+    };
+
     return () => {
       if (failed.value && props.fallbackImg) {
         return Vue.h('img', { src: props.fallbackImg, class: 'gift-png-fallback' });
@@ -306,6 +318,8 @@ const LottieAnim = {
       return Vue.h('div', {
         ref: el,
         class: 'lottie-box',
+        onMouseenter: onHover,
+        onTouchstart: onHover,
       });
     };
   },
