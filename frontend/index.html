@@ -499,15 +499,18 @@
           </div>
           <div class="tg-acc-info">
             <div class="tg-acc-title">
-              <span v-if="activeChatAccount">
+              <span v-if="accountsLoading" style="color:rgba(255,255,255,0.6); font-size:0.85rem; display:inline-flex; align-items:center; gap:6px;">
+                <span class="tg-spinner" style="width:12px; height:12px; border-width:2px; display:inline-block;"></span> Loading accounts...
+              </span>
+              <span v-else-if="activeChatAccount">
                 {{ activeChatAccount.first_name }} {{ activeChatAccount.last_name || '' }}
               </span>
               <span v-else style="color:rgba(255,255,255,0.5)">Select Account to Chat As</span>
-              <span v-if="activeChatAccount" class="tg-acc-badge">
+              <span v-if="activeChatAccount && !accountsLoading" class="tg-acc-badge">
                 {{ activeChatAccount.owner_tg_id ? 'My Account' : 'Userbot' }}
               </span>
             </div>
-            <div v-if="activeChatAccount" class="tg-acc-sub">
+            <div v-if="activeChatAccount && !accountsLoading" class="tg-acc-sub">
               {{ activeChatAccount.phone || (activeChatAccount.username ? '@'+activeChatAccount.username : 'Active Session') }}
               <span v-if="activeChatAccount.stars_balance" class="tg-acc-stars">⭐ {{ activeChatAccount.stars_balance }}</span>
             </div>
@@ -521,25 +524,33 @@
         <transition name="fade">
           <div v-show="showAccountDropdown" class="tg-account-dropdown">
             <div class="tg-dropdown-title">Chat as:</div>
-            <div
-              v-for="acc in allAvailableAccounts" :key="acc.id"
-              :class="['tg-dropdown-item', activeChatAccount?.id === acc.id ? 'active' : '']"
-              @click="selectChatAccount(acc)"
-            >
-              <img v-if="acc.photo" :src="acc.photo" class="tg-dd-avatar" alt="av"/>
-              <div v-else class="tg-dd-avatar-placeholder">{{ (acc.first_name || 'A')[0] }}</div>
-              <div class="tg-dd-info">
-                <div class="tg-dd-name">
-                  {{ acc.first_name }} {{ acc.last_name || '' }}
-                  <span v-if="!acc.active" style="font-size:0.68rem; color:#f87171; background:rgba(248,113,113,0.15); border:1px solid rgba(248,113,113,0.3); padding:1px 5px; border-radius:4px; margin-left:4px; font-weight:500;">Disabled</span>
+
+            <div v-if="accountsLoading" style="padding:16px; text-align:center; color:rgba(255,255,255,0.6); font-size:0.83rem; display:flex; align-items:center; justify-content:center; gap:8px;">
+              <span class="tg-spinner" style="width:16px; height:16px; border-width:2px; display:inline-block;"></span>
+              Loading connected accounts...
+            </div>
+
+            <template v-else>
+              <div
+                v-for="acc in allAvailableAccounts" :key="acc.id"
+                :class="['tg-dropdown-item', activeChatAccount?.id === acc.id ? 'active' : '']"
+                @click="selectChatAccount(acc)"
+              >
+                <img v-if="acc.photo" :src="acc.photo" class="tg-dd-avatar" alt="av"/>
+                <div v-else class="tg-dd-avatar-placeholder">{{ (acc.first_name || 'A')[0] }}</div>
+                <div class="tg-dd-info">
+                  <div class="tg-dd-name">
+                    {{ acc.first_name }} {{ acc.last_name || '' }}
+                    <span v-if="!acc.active" style="font-size:0.68rem; color:#f87171; background:rgba(248,113,113,0.15); border:1px solid rgba(248,113,113,0.3); padding:1px 5px; border-radius:4px; margin-left:4px; font-weight:500;">Disabled</span>
+                  </div>
+                  <div class="tg-dd-sub">{{ acc.phone || (acc.username ? '@'+acc.username : 'Session') }}</div>
                 </div>
-                <div class="tg-dd-sub">{{ acc.phone || (acc.username ? '@'+acc.username : 'Session') }}</div>
+                <span v-if="activeChatAccount?.id === acc.id" class="tg-dd-check">✓</span>
               </div>
-              <span v-if="activeChatAccount?.id === acc.id" class="tg-dd-check">✓</span>
-            </div>
-            <div v-if="!allAvailableAccounts.length" style="padding:14px;color:rgba(255,255,255,0.4);font-size:0.82rem;text-align:center;">
-              No accounts connected.<br>Go to Settings → Connect Account.
-            </div>
+              <div v-if="!allAvailableAccounts.length" style="padding:14px;color:rgba(255,255,255,0.4);font-size:0.82rem;text-align:center;">
+                No accounts connected.<br>Go to Settings → Connect Account.
+              </div>
+            </template>
           </div>
         </transition>
       </div>
@@ -1076,6 +1087,11 @@
                 <div class="ub-uname">{{ pricing.bot_stars }} ⭐ · {{ t('officialBotSub') }}</div>
               </div>
               <span v-if="selectedSender === 'bot'" class="ub-check">✓</span>
+            </div>
+
+            <!-- Loading indicator for userbots -->
+            <div v-if="accountsLoading" style="padding: 10px; text-align: center; color: rgba(255,255,255,0.6); font-size: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 8px; background: rgba(255,255,255,0.03); border-radius: 8px; margin: 4px 0;">
+              <span class="tg-spinner" style="width:14px; height:14px; border-width:2px; display:inline-block;"></span> Loading senders...
             </div>
 
             <!-- Option 2: Public Userbots (55 Stars) -->

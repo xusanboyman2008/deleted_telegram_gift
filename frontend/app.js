@@ -472,7 +472,10 @@ createApp({
       return userbotAccounts.value.filter(acc => !acc.owner_tg_id);
     });
 
+    const accountsLoading = ref(true);
+
     const loadUserbotAccounts = async () => {
+      accountsLoading.value = true;
       try {
         const d = await api('/api/userbot-accounts').then(r => r.json());
         userbotAccounts.value = Array.isArray(d) ? d : [];
@@ -481,6 +484,8 @@ createApp({
         }
       } catch (e) {
         console.error('loadUserbotAccounts error:', e);
+      } finally {
+        accountsLoading.value = false;
       }
     };
 
@@ -1308,7 +1313,7 @@ createApp({
 
       tab, gifts, selected, recipient, giftMsg, paying, errMsg, toast, totalStars, priceBreakdown,
       isAdmin, showAdmin, aTab, adminGifts, sortedAdminGifts, adminOrders, adminUserbots, userLinkedAccounts, systemUserbots, ubForm, ubMsgForm, myOrders, user, form,
-      checkingUser, verifiedUser, userCheckError, userbotAccounts, publicUserbots, selectedSender, selectedUserbot, userAccount,
+      checkingUser, verifiedUser, userCheckError, userbotAccounts, publicUserbots, selectedSender, selectedUserbot, userAccount, accountsLoading,
       showSenderDropdown, getSelectedUserbotObj, getSelectedUserbotName, getUserFirstName, getUserPhoto, onAnimationFileSelect,
       currentLang, setLanguage, t, pricing, savePricing, phoneModal, openPhoneAuth, requestPhoneCode, resendPhoneCode, confirmPhoneCode, disconnectMyAccount,
       sheetGlowStyle, sheetRingStyle, giftName, getGiftImg, getFallbackPng, scrollToGifts, openRealUserContact, isNumeric,
