@@ -802,7 +802,7 @@ async def user_request_phone_code(body: UserRequestCodePayload, user: dict = Dep
 class UserConfirmCodePayload(BaseModel):
     phone: str
     code: str
-    password: str = None
+    password: str | None = None
 
 
 @app.post("/api/user/userbot/confirm-code")
