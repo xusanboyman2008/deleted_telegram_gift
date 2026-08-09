@@ -122,6 +122,7 @@ function setupChatState(Vue, api, showToast, tg) {
   const currentChatPeer = ref('');  // current peer identifier
   const currentMessages = ref([]);  // messages for current chat
   const messagesStreamEl = ref(null);
+  const chatLoading = ref(false);
 
   // Profile Drawer / Modal State
   const profileModal = reactive({
