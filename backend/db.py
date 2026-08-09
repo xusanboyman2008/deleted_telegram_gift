@@ -446,6 +446,27 @@ async def get_all_orders():
             return [dict(r) for r in rows]
 
 
+async def get_all_users() -> list:
+    """Returns a list of distinct users who have interacted/ordered, with their order counts."""
+    query = """
+        SELECT buyer_tg_id, MAX(buyer_username) as buyer_username, COUNT(*) as orders_count
+        FROM orders
+        GROUP BY buyer_tg_id
+        ORDER BY orders_count DESC
+    """
+    if IS_POSTGRES:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(query)
+            return [dict(r) for r in rows]
+    else:
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(query)
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]
+
+
+
 async def get_orders_by_user(buyer_tg_id: int):
     if IS_POSTGRES:
         async with pool.acquire() as conn:

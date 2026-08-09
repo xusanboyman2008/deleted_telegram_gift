@@ -50,8 +50,12 @@ function formatTelegramMessageText(text) {
   s = s.replace(/_(.+?)_/g, '<i>$1</i>');
   // Code
   s = s.replace(/`(.+?)`/g, '<code>$1</code>');
-  // URLs
-  s = s.replace(/(https?:\/\/[^\s<>"]+)/g, '<a href="$1" target="_blank">$1</a>');
+  // Telegram links (t.me/username)
+  s = s.replace(/(https?:\/\/)?(?:t\.me|telegram\.me)\/([a-zA-Z0-9_]{4,32})/gi, '<a href="#" class="tg-username-link" data-peer="$2">t.me/$2</a>');
+  // Usernames: @username
+  s = s.replace(/(^|[^a-zA-Z0-9_="/])@([a-zA-Z0-9_]{4,32})/g, '$1<a href="#" class="tg-username-link" data-peer="$2">@$2</a>');
+  // General HTTP/HTTPS URLs
+  s = s.replace(/(?<!href=")(https?:\/\/[^\s<>"]+)/g, '<a href="$1" target="_blank">$1</a>');
   // Newlines
   s = s.replace(/\n/g, '<br>');
   return s;
@@ -274,6 +278,60 @@ function setupChatState(Vue, api, showToast, tg) {
     showToast('📎 File sharing coming soon!');
   };
 
+  // ── Start Chat With Query (Usernames or numeric Telegram IDs) ──────────
+  const startChatWithQuery = (query) => {
+    let clean = query.trim();
+    if (!clean) return;
+
+    // Check if it's a numeric ID or a username
+    let peer = clean;
+    if (!clean.startsWith('@') && isNaN(clean)) {
+      peer = '@' + clean;
+    }
+
+    // Check if already in list
+    let existing = chatList.value.find(c => c.peer.toLowerCase() === peer.toLowerCase());
+    if (existing) {
+      openChatWindow(existing);
+      return;
+    }
+
+    // Otherwise, create a temporary chat contact
+    const isBot = peer.toLowerCase().endsWith('bot');
+    const newChat = {
+      peer: peer,
+      title: peer,
+      is_bot: isBot,
+      icon: isBot ? '🤖' : '👤',
+      color: isBot ? '#7B61FF' : '#10B981',
+      last_msg: isBot ? 'Bot started. Press START to interact.' : 'Tap to start conversation...',
+      last_time: '',
+      unread: 0
+    };
+
+    // Add to chatList and open it!
+    chatList.value.unshift(newChat);
+    openChatWindow(newChat);
+  };
+
+  // ── Send Bot START Command ─────────────────────
+  const sendStartCommand = async () => {
+    chatInputText.value = '/start';
+    await sendChatMessage();
+  };
+
+  // ── Message Stream Click Handler (Username Click Link Delegation) ─────
+  const handleMessageStreamClick = (e) => {
+    const link = e.target.closest('.tg-username-link');
+    if (link) {
+      e.preventDefault();
+      const peer = link.getAttribute('data-peer');
+      if (peer) {
+        startChatWithQuery(peer);
+      }
+    }
+  };
+
   return {
     allAvailableAccounts,
     activeChatAccount,
@@ -301,5 +359,8 @@ function setupChatState(Vue, api, showToast, tg) {
     triggerAttachment,
     formatTelegramMessageText,
     DEFAULT_CHAT_CONTACTS,
+    startChatWithQuery,
+    sendStartCommand,
+    handleMessageStreamClick,
   };
 }

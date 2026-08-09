@@ -436,6 +436,13 @@ createApp({
     const myOrders = ref([]);
     const user = ref(ME);
 
+    // ── Bot Panel State ──
+    const botMenuTab = ref('main');
+    const botPanelUsers = ref([]);
+    const broadcastShow = ref(false);
+    const broadcastText = ref('');
+
+
     // ── Language i18n State ─────────────────────
     const currentLang = ref(localStorage.getItem('user_lang') || 'en');
     const setLanguage = (lang) => {
@@ -1204,7 +1211,73 @@ createApp({
       }
     };
 
+    // ── Bot Panel Admin Actions ───────────────────
+    const loadBotPanelUsers = async () => {
+      try {
+        const users = await fetch('/api/admin/users', { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
+        botPanelUsers.value = Array.isArray(users) ? users : [];
+      } catch (e) {
+        console.error('loadBotPanelUsers error:', e);
+        showToast('Failed to load bot users');
+      }
+    };
+
+    const restartTelegramBot = async () => {
+      try {
+        const res = await fetch('/api/admin/bot/restart', { method: 'POST', headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
+        if (res.success) {
+          showToast('🤖 Bot restarted successfully!');
+        } else {
+          showToast('❌ Restart failed: ' + (res.error || 'Unknown error'));
+        }
+      } catch (e) {
+        showToast('❌ Failed to restart bot');
+      }
+    };
+
+    const refreshWebhook = async () => {
+      try {
+        const res = await fetch('/api/admin/bot/sync-webhook', { method: 'POST', headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
+        if (res.success) {
+          showToast('⚡ Webhook synchronized successfully!');
+        } else {
+          showToast('❌ Sync failed: ' + (res.error || 'Unknown error'));
+        }
+      } catch (e) {
+        showToast('❌ Webhook synchronization failed');
+      }
+    };
+
+    const openBroadcastModal = () => {
+      broadcastText.value = '';
+      broadcastShow.value = true;
+    };
+
+    const sendBroadcast = async () => {
+      if (!broadcastText.value.trim()) return;
+      try {
+        const res = await fetch('/api/admin/bot/broadcast', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': '69420'
+          },
+          body: JSON.stringify({ message: broadcastText.value })
+        }).then(r => r.json());
+        if (res.success) {
+          showToast(`📢 Broadcast sent! Sent: ${res.sent}, Failed: ${res.failed}`);
+          broadcastShow.value = false;
+        } else {
+          showToast('❌ Broadcast failed: ' + (res.error || 'Unknown error'));
+        }
+      } catch (e) {
+        showToast('❌ Broadcast failed to send');
+      }
+    };
+
     return {
+      botMenuTab, botPanelUsers, broadcastShow, broadcastText, loadBotPanelUsers, restartTelegramBot, refreshWebhook, openBroadcastModal, sendBroadcast,
+
       tab, gifts, selected, recipient, giftMsg, paying, errMsg, toast, totalStars, priceBreakdown,
       isAdmin, showAdmin, aTab, adminGifts, sortedAdminGifts, adminOrders, adminUserbots, userLinkedAccounts, systemUserbots, ubForm, ubMsgForm, myOrders, user, form,
       checkingUser, verifiedUser, userCheckError, userbotAccounts, publicUserbots, selectedSender, selectedUserbot, userAccount,

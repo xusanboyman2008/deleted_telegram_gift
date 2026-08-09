@@ -988,6 +988,64 @@ async def admin_orders(admin=Depends(get_admin)):
     return await db.get_all_orders()
 
 
+@app.get("/api/admin/users")
+async def admin_users(admin=Depends(get_admin)):
+    return await db.get_all_users()
+
+
+class BroadcastRequest(BaseModel):
+    message: str
+
+
+@app.post("/api/admin/bot/restart")
+async def restart_bot_endpoint(admin=Depends(get_admin)):
+    global ptb_app
+    try:
+        await ptb_app.stop()
+        await ptb_app.shutdown()
+        await ptb_app.initialize()
+        await ptb_app.start()
+        return {"success": True, "message": "Bot restarted successfully"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/admin/bot/sync-webhook")
+async def sync_webhook_endpoint(admin=Depends(get_admin)):
+    global ptb_app
+    try:
+        from config import BASE_URL
+    except ImportError:
+        from backend.config import BASE_URL
+    if not BASE_URL:
+        return {"success": False, "error": "BASE_URL is not set"}
+    webhook_url = f"{BASE_URL}/webhook"
+    try:
+        await ptb_app.bot.set_webhook(webhook_url, drop_pending_updates=True)
+        return {"success": True, "message": f"Webhook updated to {webhook_url}"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/admin/bot/broadcast")
+async def broadcast_endpoint(body: BroadcastRequest, admin=Depends(get_admin)):
+    global ptb_app
+    users = await db.get_all_users()
+    sent_count = 0
+    failed_count = 0
+    for u in users:
+        buyer_id = u["buyer_tg_id"]
+        try:
+            await ptb_app.bot.send_message(chat_id=buyer_id, text=body.message)
+            sent_count += 1
+        except Exception as e:
+            logger.warning(f"Failed to send broadcast to {buyer_id}: {e}")
+            failed_count += 1
+    return {"success": True, "sent": sent_count, "failed": failed_count}
+
+
+
+
 # ── Admin Userbot Management ──────────────────────────────────────────────────
 @app.get("/api/admin/userbots")
 async def admin_get_userbots(admin=Depends(get_admin)):

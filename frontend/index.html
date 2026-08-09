@@ -20,7 +20,7 @@
   <script src="vue.min.js"></script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css?v=1.0.2"/>
+  <link rel="stylesheet" href="style.css?v=1.0.3"/>
 </head>
 <body>
 <div id="app" v-cloak>
@@ -225,7 +225,6 @@
             <button v-if="ub.active !== false" class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3);" title="Disable Userbot">🔴 Disable</button>
             <button v-else class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(34, 197, 94, 0.15); color: #4ADE80; border: 1px solid rgba(34, 197, 94, 0.3);" title="Undo / Re-enable Userbot">↩️ Undo</button>
             <button class="ibtn" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">✏️ Edit</button>
-            <button class="ibtn" @click="openTelegramChatWithUserbot(ub)" style="background: rgba(59, 130, 246, 0.2); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.4);" title="Open in Telegram Chat">💬 Chat</button>
           </div>
         </div>
       </div>
@@ -253,11 +252,200 @@
             <button v-if="ub.active !== false" class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3);" title="Disable Userbot">🔴 Disable</button>
             <button v-else class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(34, 197, 94, 0.15); color: #4ADE80; border: 1px solid rgba(34, 197, 94, 0.3);" title="Undo / Re-enable Userbot">↩️ Undo</button>
             <button class="ibtn" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">✏️ Edit</button>
-            <button class="ibtn" @click="openTelegramChatWithUserbot(ub)" style="background: rgba(59, 130, 246, 0.2); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.4);" title="Open in Telegram Chat">💬 Chat</button>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- ── BOT CONTROL TAB ───────────────────────── -->
+    <div v-if="tab==='bot_control'" class="tg-app-container">
+      <div class="tg-body-split">
+        <!-- Left sidebar: Bot Panel Options -->
+        <div class="tg-sidebar">
+          <div class="tg-search-bar" style="padding: 16px 16px 10px 16px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <h3 style="margin: 0; color: #fff; font-size: 1.15rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+              🤖 Bot Panel
+            </h3>
+          </div>
+          
+          <div class="tg-chats-list">
+            <!-- Control Panel -->
+            <div :class="['tg-chat-item', botMenuTab==='main'?'active':'']" @click="botMenuTab='main'">
+              <div class="tg-ci-avatar-wrap">
+                <div class="tg-ci-avatar-placeholder" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8);">🤖</div>
+              </div>
+              <div class="tg-ci-content">
+                <div class="tg-ci-top"><span class="tg-ci-title">Bot Control</span></div>
+                <div class="tg-ci-bottom"><span class="tg-ci-preview">Webhook, restart, commands</span></div>
+              </div>
+            </div>
+
+            <!-- User Directory -->
+            <div :class="['tg-chat-item', botMenuTab==='users'?'active':'']" @click="botMenuTab='users'; loadBotPanelUsers()">
+              <div class="tg-ci-avatar-wrap">
+                <div class="tg-ci-avatar-placeholder" style="background: linear-gradient(135deg, #10b981, #047857);">👤</div>
+              </div>
+              <div class="tg-ci-content">
+                <div class="tg-ci-top"><span class="tg-ci-title">Users Directory</span></div>
+                <div class="tg-ci-bottom"><span class="tg-ci-preview">Manage & message users</span></div>
+              </div>
+            </div>
+
+            <!-- Orders -->
+            <div :class="['tg-chat-item', botMenuTab==='orders'?'active':'']" @click="botMenuTab='orders'; loadAdminOrders()">
+              <div class="tg-ci-avatar-wrap">
+                <div class="tg-ci-avatar-placeholder" style="background: linear-gradient(135deg, #f59e0b, #d97706);">📦</div>
+              </div>
+              <div class="tg-ci-content">
+                <div class="tg-ci-top"><span class="tg-ci-title">Order Manager</span></div>
+                <div class="tg-ci-bottom"><span class="tg-ci-preview">Total user purchases</span></div>
+              </div>
+            </div>
+
+            <!-- Pricing -->
+            <div :class="['tg-chat-item', botMenuTab==='settings'?'active':'']" @click="botMenuTab='settings'; loadPricing()">
+              <div class="tg-ci-avatar-wrap">
+                <div class="tg-ci-avatar-placeholder" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9);">⚙️</div>
+              </div>
+              <div class="tg-ci-content">
+                <div class="tg-ci-top"><span class="tg-ci-title">Pricing & Settings</span></div>
+                <div class="tg-ci-bottom"><span class="tg-ci-preview">Edit fees, star costs</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right workspace -->
+        <div class="tg-chat-main">
+          <!-- Main Bot Control Panel -->
+          <div v-if="botMenuTab==='main'" style="display:flex; flex-direction:column; height:100%;">
+            <div class="tg-chat-header" style="height: 60px; display:flex; align-items:center; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+              <div class="tg-ch-title" style="font-weight:600; color:#fff;">🤖 Main Bot Control</div>
+            </div>
+            <div style="flex:1; overflow-y:auto; padding: 24px;">
+              <div class="admin-pricing-box" style="margin-bottom: 24px; padding: 20px; border-radius:12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05);">
+                <h3 style="margin-top:0; margin-bottom:12px; display:flex; align-items:center; gap:8px;">⚡ Control Commands</h3>
+                <p style="color: rgba(255,255,255,0.5); font-size:0.9rem; margin-bottom: 16px;">Perform administrative commands to manage the Telegram Bot instance lifecycle.</p>
+                <div style="display:flex; gap:12px;">
+                  <button class="add-btn" @click="restartTelegramBot" style="background: #ef4444; border-color: #ef4444; color: #fff; padding: 10px 16px; border-radius: 8px;">🔄 Restart Bot</button>
+                  <button class="add-btn" @click="refreshWebhook" style="background: #3b82f6; border-color: #3b82f6; color: #fff; padding: 10px 16px; border-radius: 8px;">🔗 Sync Webhook</button>
+                </div>
+              </div>
+
+              <div class="admin-pricing-box" style="padding: 20px; border-radius:12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05);">
+                <h3 style="margin-top:0; margin-bottom:12px;">📈 Bot Status & Info</h3>
+                <div style="display:grid; grid-template-columns: 140px 1fr; gap:12px; font-size:0.95rem;">
+                  <span style="color:rgba(255,255,255,0.4)">Bot Username:</span>
+                  <span style="color:#fff; font-weight:500;">@DeletedGiftsBot</span>
+                  
+                  <span style="color:rgba(255,255,255,0.4)">Status:</span>
+                  <span style="color:#10b981; font-weight:600; display:flex; align-items:center; gap:6px;">
+                    <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>
+                    Online
+                  </span>
+                  
+                  <span style="color:rgba(255,255,255,0.4)">Webhook Status:</span>
+                  <span style="color:#10b981; font-weight:500;">Active & Synced</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Users Directory -->
+          <div v-if="botMenuTab==='users'" style="display:flex; flex-direction:column; height:100%;">
+            <div class="tg-chat-header" style="height: 60px; display:flex; align-items:center; justify-content:space-between; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+              <div class="tg-ch-title" style="font-weight:600; color:#fff;">👤 Users Directory</div>
+              <button class="add-btn" @click="openBroadcastModal" style="background:#10b981; border-color:#10b981; color:#fff; padding: 8px 14px; border-radius: 8px; font-weight:600; display:flex; align-items:center; gap:6px;">
+                📢 Broadcast
+              </button>
+            </div>
+            
+            <div style="flex:1; overflow-y:auto; padding: 24px;">
+              <h3 style="margin-top:0; margin-bottom:16px;">Registered Users ({{ botPanelUsers.length }})</h3>
+              <div v-if="!botPanelUsers.length" style="text-align:center; padding:40px; color:rgba(255,255,255,0.3)">
+                No registered users found.
+              </div>
+              
+              <div v-else v-for="usr in botPanelUsers" :key="usr.buyer_tg_id" class="admin-row" style="padding: 16px; margin-bottom: 12px; border-radius: 10px; background: rgba(255,255,255,0.02); display:flex; justify-content:space-between; align-items:center; border: 1px solid rgba(255,255,255,0.04);">
+                <div>
+                  <b style="color:#fff; font-size:1.05rem;">ID: {{ usr.buyer_tg_id }}</b>
+                  <span v-if="usr.buyer_username" style="color:#10b981; font-weight:600; margin-left:10px;">@{{ usr.buyer_username }}</span>
+                  <div style="margin-top:6px; color:rgba(255,255,255,0.4); font-size:0.88rem;">
+                    Total placed orders: <strong style="color:#fff;">{{ usr.orders_count }}</strong>
+                  </div>
+                </div>
+                <div>
+                  <button class="add-btn" @click="startChatWithQuery(usr.buyer_tg_id.toString())" style="background: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.3); color: #60a5fa; padding: 8px 14px; border-radius: 8px;">
+                    💬 Open Chat
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Orders Manager -->
+          <div v-if="botMenuTab==='orders'" style="display:flex; flex-direction:column; height:100%;">
+            <div class="tg-chat-header" style="height: 60px; display:flex; align-items:center; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+              <div class="tg-ch-title" style="font-weight:600; color:#fff;">📦 Order Manager</div>
+            </div>
+            <div style="flex:1; overflow-y:auto; padding: 24px;">
+              <h3 style="margin-top:0; margin-bottom:16px;">System Orders ({{ adminOrders.length }})</h3>
+              <div v-if="!adminOrders.length" style="text-align:center; padding:40px; color:rgba(255,255,255,0.3)">
+                No orders placed in the system.
+              </div>
+              <div v-else v-for="ord in adminOrders" :key="ord.id" class="admin-row" style="padding: 16px; margin-bottom: 12px; border-radius: 10px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                  <b style="color:#fff; font-size:1.05rem;">Order #{{ ord.id }}</b>
+                  <span :style="{
+                    background: ord.status === 'completed' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                    color: ord.status === 'completed' ? '#10B981' : '#F59E0B',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    fontSize: '0.8rem',
+                    fontWeight: '600'
+                  }">{{ ord.status.toUpperCase() }}</span>
+                </div>
+                <div style="display:grid; grid-template-columns: 100px 1fr; gap:6px; font-size:0.9rem; color:rgba(255,255,255,0.6);">
+                  <span>Buyer:</span>
+                  <span style="color:#fff;">{{ ord.buyer_username ? '@' + ord.buyer_username : ord.buyer_tg_id }}</span>
+                  <span>Recipient:</span>
+                  <span style="color:#fff;">{{ ord.recipient_id }} ({{ ord.recipient_type }})</span>
+                  <span>Gift:</span>
+                  <span style="color:#fff;">{{ ord.emoji }} {{ ord.display_name }}</span>
+                  <span>Total stars:</span>
+                  <span style="color:#f59e0b; font-weight:600;">{{ ord.total_stars }} ⭐</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pricing & Settings -->
+          <div v-if="botMenuTab==='settings'" style="display:flex; flex-direction:column; height:100%;">
+            <div class="tg-chat-header" style="height: 60px; display:flex; align-items:center; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+              <div class="tg-ch-title" style="font-weight:600; color:#fff;">⚙️ Pricing Settings</div>
+            </div>
+            <div style="flex:1; overflow-y:auto; padding: 24px;">
+              <h3 style="margin-top:0; margin-bottom:16px;">💰 Star Prices Settings</h3>
+              <div class="admin-pricing-box" style="padding: 20px; border-radius:12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); max-width:500px;">
+                <label class="fi-lbl" style="display:block; margin-bottom:6px; color:rgba(255,255,255,0.6);">{{ t('botPriceLabel') }}:</label>
+                <input v-model.number="pricing.bot_stars" type="number" class="fi" style="width:100%; margin-bottom:16px; padding:10px; border-radius:8px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff;" />
+
+                <label class="fi-lbl" style="display:block; margin-bottom:6px; color:rgba(255,255,255,0.6);">{{ t('userbotPriceLabel') }}:</label>
+                <input v-model.number="pricing.userbot_stars" type="number" class="fi" style="width:100%; margin-bottom:16px; padding:10px; border-radius:8px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff;" />
+
+                <label class="fi-lbl" style="display:block; margin-bottom:6px; color:rgba(255,255,255,0.6);">{{ t('myAccountPriceLabel') }}:</label>
+                <input v-model.number="pricing.myaccount_stars" type="number" class="fi" style="width:100%; margin-bottom:20px; padding:10px; border-radius:8px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff;" />
+
+                <button class="fsave" style="width:100%; padding:12px; font-weight:600; border-radius:8px;" @click="savePricing">
+                  💾 {{ t('savePricingBtn') }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
 
     <!-- ── 1-TO-1 TELEGRAM CHAT TAB ────────────────── -->
     <div v-show="tab==='chat'" class="tg-app-container">
@@ -347,6 +535,28 @@
 
           <!-- Chat items list -->
           <div class="tg-chats-list">
+            <!-- Resolve username/ID search target -->
+            <div
+              v-if="chatSearchQuery.trim()"
+              class="tg-chat-item search-start-item"
+              style="border-bottom: 1px dashed rgba(255,255,255,0.08); background: rgba(16, 185, 129, 0.05);"
+              @click="startChatWithQuery(chatSearchQuery)"
+            >
+              <div class="tg-ci-avatar-wrap">
+                <div class="tg-ci-avatar-placeholder" style="background: linear-gradient(135deg, #10B981, #059669);">
+                  🔍
+                </div>
+              </div>
+              <div class="tg-ci-content">
+                <div class="tg-ci-top">
+                  <span class="tg-ci-title" style="color:#10B981; font-weight:600;">Start chat / Resolve ID</span>
+                </div>
+                <div class="tg-ci-bottom">
+                  <span class="tg-ci-preview">Go to: {{ chatSearchQuery }}</span>
+                </div>
+              </div>
+            </div>
+
             <div
               v-for="chat in filteredChatList" :key="chat.peer"
               :class="['tg-chat-item', currentChatPeer === chat.peer ? 'active' : '']"
@@ -412,7 +622,7 @@
             </div>
 
             <!-- Message stream -->
-            <div class="tg-messages-stream" ref="messagesStreamEl">
+            <div class="tg-messages-stream" ref="messagesStreamEl" @click="handleMessageStreamClick">
               <div v-if="chatLoading" class="tg-chat-loading">
                 <span class="spin">⏳</span> Loading messages...
               </div>
@@ -451,27 +661,35 @@
               </div>
             </div>
 
-            <!-- Input bar -->
+            <!-- Input bar / START button -->
             <div class="tg-chat-input-bar">
-              <div v-show="showEmojiPicker" class="tg-quick-emoji-bar">
-                <span v-for="em in ['😊','❤️','👍','🔥','🚀','🎁','⭐','✨','😂','🙏','💯','🎉']" :key="em" class="tg-em-item" @click="chatInputText += em">{{ em }}</span>
-              </div>
-              <div class="tg-input-wrapper">
-                <button class="tg-input-icon-btn" @click="triggerAttachment" title="Attach">📎</button>
-                <textarea
-                  v-model="chatInputText"
-                  class="tg-chat-textarea"
-                  placeholder="Write a message..."
-                  rows="1"
-                  @keydown.enter.exact.prevent="sendChatMessage"
-                ></textarea>
-                <button class="tg-input-icon-btn" @click="showEmojiPicker = !showEmojiPicker">😊</button>
-                <button class="tg-send-plane-btn" :disabled="!chatInputText.trim() || chatSending" @click="sendChatMessage">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                  </svg>
+              <!-- Start command for bots with no message history -->
+              <div v-if="activeChat.is_bot && currentMessages.length === 0" style="display:flex;width:100%;justify-content:center;padding:4px 0;">
+                <button class="tg-bot-start-btn" @click="sendStartCommand" :disabled="chatSending" style="width:100%;background:#3390ec;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:600;cursor:pointer;font-size:0.95rem;transition:opacity 0.2s;">
+                  {{ chatSending ? 'Starting...' : 'START' }}
                 </button>
               </div>
+              <template v-else>
+                <div v-show="showEmojiPicker" class="tg-quick-emoji-bar">
+                  <span v-for="em in ['😊','❤️','👍','🔥','🚀','🎁','⭐','✨','😂','🙏','💯','🎉']" :key="em" class="tg-em-item" @click="chatInputText += em">{{ em }}</span>
+                </div>
+                <div class="tg-input-wrapper">
+                  <button class="tg-input-icon-btn" @click="triggerAttachment" title="Attach">📎</button>
+                  <textarea
+                    v-model="chatInputText"
+                    class="tg-chat-textarea"
+                    placeholder="Write a message..."
+                    rows="1"
+                    @keydown.enter.exact.prevent="sendChatMessage"
+                  ></textarea>
+                  <button class="tg-input-icon-btn" @click="showEmojiPicker = !showEmojiPicker">😊</button>
+                  <button class="tg-send-plane-btn" :disabled="!chatInputText.trim() || chatSending" @click="sendChatMessage">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                  </button>
+                </div>
+              </template>
             </div>
           </template>
 
@@ -518,7 +736,40 @@
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><circle cx="8" cy="16" r="1"/><circle cx="16" cy="16" r="1"/></svg>
       <span>{{ t('userbots') }}</span>
     </button>
+    <button v-if="isAdmin" :class="['nav-item', tab==='bot_control'?'active':'']" @click="tab='bot_control'">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+        <line x1="8" y1="21" x2="16" y2="21"/>
+        <line x1="12" y1="17" x2="12" y2="21"/>
+      </svg>
+      <span>Bot Panel</span>
+    </button>
   </nav>
+
+
+  <!-- Broadcast Modal -->
+  <transition name="sheet">
+    <div class="modal-backdrop" v-if="broadcastShow" @click.self="broadcastShow=false">
+      <div class="modal-card" style="max-width: 440px;">
+        <div class="modal-header">
+          <h3>📢 Broadcast Announcement</h3>
+          <button class="close-modal-btn" @click="broadcastShow=false">✕</button>
+        </div>
+        <p class="modal-subtitle">Send a global push announcement to all registered customers.</p>
+        <div class="admin-pricing-box" style="margin-top: 15px;">
+          <label class="fi-lbl">Announcement Message Text:</label>
+          <textarea v-model="broadcastText" class="fi" rows="4" placeholder="Enter message text to send..." style="width: 100%; font-family: inherit; font-size: 0.95rem; resize: vertical; margin-bottom: 12px; padding: 10px; border-radius:8px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff;"></textarea>
+          
+          <div class="form-row">
+            <button class="fsave" @click="sendBroadcast" :disabled="!broadcastText.trim()">
+              🚀 Send Announcement
+            </button>
+            <button class="fcancel" @click="broadcastShow=false">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </transition>
 
   <!-- ── Phone Authentication Modal ──────────── -->
   <transition name="sheet">
@@ -980,7 +1231,7 @@
   <canvas id="confettiCanvas" style="position:fixed;inset:0;z-index:999;pointer-events:none"></canvas>
 </div>
 
-<script src="chat.js?v=1.0.2"></script>
-<script src="app.js?v=1.0.2"></script>
+<script src="chat.js?v=1.0.3"></script>
+<script src="app.js?v=1.0.3"></script>
 </body>
 </html>
