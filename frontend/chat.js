@@ -179,14 +179,21 @@ function setupChatState(Vue, api, showToast, tg) {
       }
     };
 
+    let pingInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        try { ws.send('ping'); } catch {}
+      }
+    }, 20000);
+
     ws.onclose = () => {
-      // Reconnect after 3s if still on this chat
+      clearInterval(pingInterval);
+      // Reconnect after 5s if still active on this chat and socket matches
       if (chatSocket === ws && activeChat.value && activeChat.value.peer === peer) {
         setTimeout(() => {
           if (activeChat.value && activeChat.value.peer === peer) {
             connectChatSocket(peer);
           }
-        }, 3000);
+        }, 5000);
       }
     };
   };

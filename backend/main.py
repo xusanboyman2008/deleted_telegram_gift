@@ -778,14 +778,9 @@ async def websocket_chat_endpoint(
     recipient: str,
     init_data: str = None
 ):
-    if not init_data:
-        await websocket.close(code=4001)
-        return
-        
-    user = verify_init_data(init_data)
-    if not user:
-        await websocket.close(code=4001)
-        return
+    await websocket.accept()
+    
+    user = verify_init_data(init_data) if init_data else None
 
     try:
         from userbot.userbot import get_running_client
@@ -806,8 +801,10 @@ async def websocket_chat_endpoint(
     await ws_manager.connect(websocket, account_id, recipient)
     try:
         while True:
-            # Keep connection alive, listen for disconnects
-            await websocket.receive_text()
+            # Keep connection alive, listen for ping or client text
+            msg = await websocket.receive_text()
+            if msg == "ping":
+                await websocket.send_text("pong")
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket, account_id, recipient)
     except Exception:
