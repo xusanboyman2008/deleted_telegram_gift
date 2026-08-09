@@ -260,92 +260,29 @@ async function preloadAnim(filename) {
 const LottieAnim = {
   props: { filename: String, fallbackImg: String },
   setup(props) {
-    const el = ref(null);
     const failed = ref(false);
-    let inst = null;
-    let isPlaying = false;
-    let failTimer = null;
-    let hasPlayed = false;
 
-    const destroy = () => {
-      if (failTimer) { clearTimeout(failTimer); failTimer = null; }
-      if (inst) {
-        try { inst.destroy(); } catch {}
-        inst = null;
-      }
-    };
-
-    const replay = () => {
-      if (inst && hasPlayed) {
-        inst.goToAndPlay(0, true);
-      }
-    };
-
-    const init = async () => {
-      destroy();
+    watch(() => props.filename, () => {
       failed.value = false;
-      hasPlayed = false;
-      if (!props.filename) return;
-
-      const data = await preloadAnim(props.filename);
-      if (!data) { failed.value = true; return; }
-
-      await nextTick();
-      if (!el.value) return;
-
-      failTimer = setTimeout(() => {
-        if (!isPlaying) {
-          console.warn('Lottie render timeout, falling back to PNG:', props.filename);
-          failed.value = true;
-          destroy();
-        }
-      }, 3000);
-
-      try {
-        inst = lottie.loadAnimation({
-          container: el.value,
-          renderer: getRenderer(props.filename),
-          loop: false,
-          autoplay: true,
-          animationData: data,
-        });
-
-        const onReady = () => {
-          isPlaying = true;
-          if (failTimer) { clearTimeout(failTimer); failTimer = null; }
-        };
-
-        inst.addEventListener('DOMLoaded', onReady);
-        inst.addEventListener('data_ready', onReady);
-        inst.addEventListener('configReady', onReady);
-        inst.addEventListener('drawnFrame', onReady);
-        inst.addEventListener('complete', () => {
-          hasPlayed = true;
-        });
-        inst.addEventListener('error', (err) => {
-          console.error('Lottie runtime error:', props.filename, err);
-          isPlaying = false;
-          failed.value = true;
-          destroy();
-        });
-      } catch (e) {
-        console.error('Lottie setup error:', e);
-        failed.value = true;
-      }
-    };
-
-    onMounted(init);
-    watch(() => props.filename, init);
+    });
 
     return () => {
+      if (!props.filename) return null;
       if (failed.value && props.fallbackImg) {
         return Vue.h('img', { src: props.fallbackImg, class: 'gift-png-fallback' });
       }
-      return Vue.h('div', {
-        ref: el,
-        class: 'lottie-box',
-        onMouseenter: replay,
-        onTouchstart: replay,
+      
+      const lottieSrc = `assets/${props.filename.replace('.json', '.lottie')}`;
+      return Vue.h('dotlottie-player', {
+        src: lottieSrc,
+        background: 'transparent',
+        speed: '1.2',
+        loop: true,
+        autoplay: true,
+        style: 'width: 100%; height: 100%; display: block;',
+        onError: () => {
+          failed.value = true;
+        }
       });
     };
   },
