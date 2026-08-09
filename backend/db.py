@@ -661,7 +661,7 @@ async def set_userbot_active_status(account_id: int, active: bool) -> bool:
 
 async def get_pricing_settings() -> dict:
     """Returns dynamic pricing settings for Bot, Userbot, and My Account senders."""
-    defaults = {"bot_stars": 53, "userbot_stars": 55, "myaccount_stars": 60}
+    defaults = {"bot_stars": 53, "userbot_stars": 55, "myaccount_stars": 51}
     try:
         if IS_POSTGRES:
             async with pool.acquire() as conn:

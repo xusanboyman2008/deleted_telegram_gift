@@ -48,7 +48,7 @@ const I18N = {
     userbotSender: "Userbot",
     userbotSenderSub: "Userbot",
     myAccountSender: "My Account",
-    myAccountSenderSub: "Personal Account",
+    myAccountSenderSub: "Personal Account (50⭐ gift + 1⭐ bot fee)",
     connectMyAccount: "Connect Account",
     myAccountConnected: "Connected",
     disconnectAccount: "Disconnect",
@@ -100,7 +100,7 @@ const I18N = {
     userbotSender: "Userbot",
     userbotSenderSub: "Userbot",
     myAccountSender: "O'z hisobim",
-    myAccountSenderSub: "Shaxsiy hisob",
+    myAccountSenderSub: "Shaxsiy hisob (50⭐ sovg'a + 1⭐ bot komissiyasi)",
     connectMyAccount: "Hisobni ulash",
     myAccountConnected: "Ulangan",
     disconnectAccount: "Uzish",
@@ -432,7 +432,7 @@ createApp({
     const pricing = reactive({
       bot_stars: 53,
       userbot_stars: 55,
-      myaccount_stars: 60,
+      myaccount_stars: 51,
     });
 
     const loadPricing = async () => {
@@ -1167,7 +1167,7 @@ createApp({
 
     const totalStars = computed(() => {
       if (!selected.value) return 0;
-      if (selectedSender.value === 'myaccount') return pricing.myaccount_stars || 60;
+      if (selectedSender.value === 'myaccount') return pricing.myaccount_stars || 51;
       if (selectedSender.value === 'userbot') return pricing.userbot_stars || 55;
       return pricing.bot_stars || (selected.value.base_stars + selected.value.commission);
     });
