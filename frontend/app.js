@@ -260,29 +260,52 @@ async function preloadAnim(filename) {
 const LottieAnim = {
   props: { filename: String, fallbackImg: String },
   setup(props) {
+    const el = ref(null);
     const failed = ref(false);
+    let inst = null;
 
-    watch(() => props.filename, () => {
+    const destroy = () => {
+      if (inst) {
+        try { inst.destroy(); } catch {}
+        inst = null;
+      }
+    };
+
+    const init = async () => {
+      destroy();
       failed.value = false;
-    });
+      if (!props.filename) return;
+
+      const data = await preloadAnim(props.filename);
+      if (!data) { failed.value = true; return; }
+
+      await nextTick();
+      if (!el.value) return;
+
+      try {
+        inst = lottie.loadAnimation({
+          container: el.value,
+          renderer: 'svg',
+          loop: true,
+          autoplay: true,
+          animationData: data,
+        });
+      } catch (e) {
+        console.error('Lottie setup error:', e);
+        failed.value = true;
+      }
+    };
+
+    onMounted(init);
+    watch(() => props.filename, init);
 
     return () => {
-      if (!props.filename) return null;
       if (failed.value && props.fallbackImg) {
         return Vue.h('img', { src: props.fallbackImg, class: 'gift-png-fallback' });
       }
-      
-      const lottieSrc = `assets/${props.filename.replace('.json', '.lottie')}`;
-      return Vue.h('dotlottie-player', {
-        src: lottieSrc,
-        background: 'transparent',
-        speed: '1.2',
-        loop: true,
-        autoplay: true,
-        style: 'width: 100%; height: 100%; display: block;',
-        onError: () => {
-          failed.value = true;
-        }
+      return Vue.h('div', {
+        ref: el,
+        class: 'lottie-box',
       });
     };
   },
