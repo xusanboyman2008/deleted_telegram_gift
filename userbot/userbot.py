@@ -486,7 +486,15 @@ async def request_userbot_phone_code(phone: str, api_id: int = None, api_hash: s
                 os.remove(session_path + ".session")
             except Exception:
                 pass
-        client = Client(session_path, api_id=use_api_id, api_hash=use_api_hash)
+        client = Client(
+            session_path,
+            api_id=use_api_id,
+            api_hash=use_api_hash,
+            ipv6=False,
+            device_model="Telegram MiniApp",
+            system_version="Linux",
+            app_version="1.0.0"
+        )
         await client.connect()
 
     try:
@@ -536,7 +544,15 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
         first_acc = accounts[0] if accounts else {}
         api_id = first_acc.get("api_id") or 35251724
         api_hash = first_acc.get("api_hash") or "b11e753959873b1df047454a8d816604"
-        client = Client(session_path, api_id=api_id, api_hash=api_hash)
+        client = Client(
+            session_path,
+            api_id=api_id,
+            api_hash=api_hash,
+            ipv6=False,
+            device_model="Telegram MiniApp",
+            system_version="Linux",
+            app_version="1.0.0"
+        )
         phone_code_hash = None
     else:
         return {"success": False, "error": "No pending login session found for this phone number. Please request code first."}
