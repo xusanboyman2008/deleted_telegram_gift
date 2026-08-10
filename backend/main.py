@@ -12,6 +12,7 @@ import hmac
 import hashlib
 import logging
 import httpx
+from typing import Any, Optional, Union, Dict, List
 from contextlib import asynccontextmanager
 from urllib.parse import parse_qsl
 
@@ -630,6 +631,7 @@ async def user_message_or_admin_reply_handler(update: Update, context):
 class ConnectionManager:
     def __init__(self):
         self.active_connections = {}
+        self.global_connections = []
 
     async def connect(self, websocket: WebSocket, account_id: str, recipient: str):
         key = (str(account_id), str(recipient).lower().replace("@", ""))
@@ -645,6 +647,14 @@ class ConnectionManager:
             if not self.active_connections[key]:
                 del self.active_connections[key]
 
+    async def connect_global(self, websocket: WebSocket):
+        if websocket not in self.global_connections:
+            self.global_connections.append(websocket)
+
+    def disconnect_global(self, websocket: WebSocket):
+        if websocket in self.global_connections:
+            self.global_connections.remove(websocket)
+
     async def broadcast_to_chat(self, account_id: str, recipient: str, payload: dict):
         clean_recipient = str(recipient).lower().replace("@", "")
         key = (str(account_id), clean_recipient)
@@ -655,7 +665,24 @@ class ConnectionManager:
             except Exception:
                 pass
 
+    async def broadcast_global(self, payload: dict):
+        for ws in list(self.global_connections):
+            try:
+                await ws.send_json(payload)
+            except Exception:
+                pass
+
 ws_manager = ConnectionManager()
+
+async def ws_bot_message_callback(bot_token: str, user_id: int, msg_data: dict):
+    payload = {
+        "event": "bot_message",
+        "bot_token": bot_token,
+        "user_id": user_id,
+        "message": msg_data
+    }
+    await ws_manager.broadcast_global(payload)
+    await ws_manager.broadcast_to_chat(bot_token, str(user_id), payload)
 
 async def ws_new_message_callback(account_id: int, message):
     chat_id = str(message.chat.id)
@@ -709,6 +736,8 @@ async def ws_new_message_callback(account_id: int, message):
 
     payload = {
         "event": "message",
+        "account_id": account_id,
+        "peer": username or chat_id,
         "message": {
             "id": message.id,
             "text": message.text or message.caption or "",
@@ -725,6 +754,7 @@ async def ws_new_message_callback(account_id: int, message):
     await ws_manager.broadcast_to_chat(str(account_id), chat_id, payload)
     if username:
         await ws_manager.broadcast_to_chat(str(account_id), username, payload)
+    await ws_manager.broadcast_global(payload)
 
 
 async def uptime_pinger():
@@ -851,6 +881,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Could not set message callback: {e}")
 
+    try:
+        from bot_manager import set_bot_ws_broadcast_callback, sync_all_managed_bots
+        set_bot_ws_broadcast_callback(ws_bot_message_callback)
+        await sync_all_managed_bots()
+    except Exception as e:
+        logger.warning(f"Managed bots startup sync: {e}")
+
     yield
     # Shutdown all active running userbots
     try:
@@ -874,6 +911,23 @@ class NgrokMiddleware(BaseHTTPMiddleware):
         return response
 
 app.add_middleware(NgrokMiddleware)
+
+
+@app.websocket("/api/ws/global")
+async def websocket_global_endpoint(websocket: WebSocket, init_data: str = None):
+    await websocket.accept()
+    await ws_manager.connect_global(websocket)
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            if raw == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        ws_manager.disconnect_global(websocket)
 
 
 @app.websocket("/api/ws/chat")
@@ -957,6 +1011,125 @@ async def websocket_chat_endpoint(
         ws_manager.disconnect(websocket, account_id, recipient)
         if extra_key:
             ws_manager.disconnect(websocket, account_id, extra_key)
+
+
+# ── Managed Bots Admin APIs ────────────────────────────────────────────────
+
+@app.get("/api/admin/managed-bots")
+async def get_managed_bots_endpoint(request: Request):
+    user = verify_request_auth(request)
+    if not is_admin(user):
+        raise HTTPException(status_code=403, detail="Admin only")
+    bots = await db.get_all_managed_bots()
+    return {"success": True, "bots": bots}
+
+@app.post("/api/admin/managed-bots")
+async def add_managed_bot_endpoint(request: Request, body: dict = Body(...)):
+    user = verify_request_auth(request)
+    if not is_admin(user):
+        raise HTTPException(status_code=403, detail="Admin only")
+    token = (body.get("token") or "").strip()
+    if not token:
+        return {"success": False, "error": "Bot Token is required"}
+
+    from bot_manager import validate_bot_token, start_bot_instance
+    val = await validate_bot_token(token)
+    if not val.get("success"):
+        return {"success": False, "error": val.get("error", "Invalid Bot Token")}
+
+    bot = await db.add_managed_bot(
+        token=token,
+        bot_username=val.get("bot_username", ""),
+        bot_name=val.get("bot_name", ""),
+        bot_id=val.get("bot_id", 0)
+    )
+    if bot:
+        await start_bot_instance(bot)
+    return {"success": True, "bot": bot}
+
+@app.post("/api/admin/managed-bots/{bot_id}/toggle")
+async def toggle_managed_bot_endpoint(bot_id: int, request: Request, body: dict = Body(...)):
+    user = verify_request_auth(request)
+    if not is_admin(user):
+        raise HTTPException(status_code=403, detail="Admin only")
+    active = 1 if body.get("active", True) else 0
+    await db.toggle_managed_bot_status(bot_id, active)
+    from bot_manager import start_bot_instance, stop_bot_instance
+    bot = await db.get_managed_bot_by_id(bot_id)
+    if bot:
+        if active:
+            await start_bot_instance(bot)
+        else:
+            await stop_bot_instance(bot_id)
+    return {"success": True, "active": active}
+
+@app.delete("/api/admin/managed-bots/{bot_id}")
+async def delete_managed_bot_endpoint(bot_id: int, request: Request):
+    user = verify_request_auth(request)
+    if not is_admin(user):
+        raise HTTPException(status_code=403, detail="Admin only")
+    from bot_manager import stop_bot_instance
+    await stop_bot_instance(bot_id)
+    await db.delete_managed_bot(bot_id)
+    return {"success": True}
+
+@app.post("/api/admin/managed-bots/{bot_id}/commands")
+async def update_managed_bot_commands_endpoint(bot_id: int, request: Request, body: dict = Body(...)):
+    user = verify_request_auth(request)
+    if not is_admin(user):
+        raise HTTPException(status_code=403, detail="Admin only")
+    commands_json = json.dumps(body.get("commands", []))
+    scripts_json = json.dumps(body.get("scripts", {}))
+    await db.update_managed_bot_commands(bot_id, commands_json, scripts_json)
+    return {"success": True}
+
+@app.get("/api/admin/managed-bots/{bot_id}/contacts")
+async def get_managed_bot_contacts_endpoint(bot_id: int, request: Request):
+    user = verify_request_auth(request)
+    if not is_admin(user):
+        raise HTTPException(status_code=403, detail="Admin only")
+    bot = await db.get_managed_bot_by_id(bot_id)
+    if not bot:
+        return {"success": False, "error": "Bot not found"}
+    contacts = await db.get_bot_chat_contacts(bot["token"])
+    return {"success": True, "contacts": contacts}
+
+@app.get("/api/admin/managed-bots/{bot_id}/history/{user_id}")
+async def get_managed_bot_history_endpoint(bot_id: int, user_id: int, request: Request):
+    user = verify_request_auth(request)
+    if not is_admin(user):
+        raise HTTPException(status_code=403, detail="Admin only")
+    bot = await db.get_managed_bot_by_id(bot_id)
+    if not bot:
+        return {"success": False, "error": "Bot not found"}
+    messages = await db.get_bot_user_chat_history(bot["token"], user_id)
+    return {"success": True, "messages": messages}
+
+@app.post("/api/admin/managed-bots/{bot_id}/send")
+async def send_managed_bot_message_endpoint(bot_id: int, request: Request, body: dict = Body(...)):
+    user = verify_request_auth(request)
+    if not is_admin(user):
+        raise HTTPException(status_code=403, detail="Admin only")
+    bot = await db.get_managed_bot_by_id(bot_id)
+    if not bot:
+        return {"success": False, "error": "Bot not found"}
+    user_id = int(body.get("user_id", 0))
+    text = (body.get("text") or "").strip()
+    if not user_id or not text:
+        return {"success": False, "error": "user_id and text required"}
+
+    from bot_manager import send_bot_api_message
+    res = await send_bot_api_message(bot["token"], user_id, text)
+    if res.get("ok"):
+        date_str = datetime.now().strftime("%H:%M")
+        saved = await db.save_bot_user_message(
+            bot["token"], user_id, body.get("user_username", ""), body.get("user_first_name", "User"),
+            res["result"].get("message_id", 0), text, out=1, date_str=date_str
+        )
+        await ws_bot_message_callback(bot["token"], user_id, saved)
+        return {"success": True, "message": saved}
+    else:
+        return {"success": False, "error": res.get("description", "Failed to send message")}
 
 
 @app.get("/api/userbot/chat/profile")
@@ -1221,7 +1394,7 @@ class CreateInvoiceRequest(BaseModel):
     gift_id: int
     gift_text: str = None
     sender_type: str = "bot"
-    userbot_id: int = None
+    userbot_id: Any = None
 
 
 @app.post("/api/invoice")

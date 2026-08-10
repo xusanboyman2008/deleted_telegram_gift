@@ -147,6 +147,64 @@ CREATE TABLE IF NOT EXISTS settings (
 )
 """
 
+CREATE_MANAGED_BOTS_SQLITE = """
+CREATE TABLE IF NOT EXISTS managed_bots (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    token           TEXT NOT NULL UNIQUE,
+    bot_username    TEXT,
+    bot_name        TEXT,
+    bot_id          INTEGER,
+    active          INTEGER DEFAULT 1,
+    commands_json   TEXT DEFAULT '[]',
+    scripts_json    TEXT DEFAULT '{}',
+    created_at      TEXT DEFAULT (datetime('now'))
+)
+"""
+
+CREATE_BOT_USER_MESSAGES_SQLITE = """
+CREATE TABLE IF NOT EXISTS bot_user_messages (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    bot_token       TEXT NOT NULL,
+    user_id         INTEGER NOT NULL,
+    user_username   TEXT,
+    user_first_name TEXT,
+    message_id      INTEGER,
+    text            TEXT,
+    out             INTEGER DEFAULT 0,
+    date            TEXT,
+    created_at      TEXT DEFAULT (datetime('now'))
+)
+"""
+
+CREATE_MANAGED_BOTS_POSTGRES = """
+CREATE TABLE IF NOT EXISTS managed_bots (
+    id              SERIAL PRIMARY KEY,
+    token           TEXT NOT NULL UNIQUE,
+    bot_username    TEXT,
+    bot_name        TEXT,
+    bot_id          BIGINT,
+    active          INTEGER DEFAULT 1,
+    commands_json   TEXT DEFAULT '[]',
+    scripts_json    TEXT DEFAULT '{}',
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+
+CREATE_BOT_USER_MESSAGES_POSTGRES = """
+CREATE TABLE IF NOT EXISTS bot_user_messages (
+    id              SERIAL PRIMARY KEY,
+    bot_token       TEXT NOT NULL,
+    user_id         BIGINT NOT NULL,
+    user_username   TEXT,
+    user_first_name TEXT,
+    message_id      INTEGER,
+    text            TEXT,
+    out             INTEGER DEFAULT 0,
+    date            TEXT,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+
 pool = None
 
 
@@ -163,6 +221,8 @@ async def init_db():
             await conn.execute(CREATE_ORDERS_POSTGRES)
             await conn.execute(CREATE_USERBOTS_POSTGRES)
             await conn.execute(CREATE_SETTINGS_POSTGRES)
+            await conn.execute(CREATE_MANAGED_BOTS_POSTGRES)
+            await conn.execute(CREATE_BOT_USER_MESSAGES_POSTGRES)
             try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS gift_text TEXT")
             except Exception: pass
             try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS sender_type TEXT DEFAULT 'bot'")
@@ -216,6 +276,8 @@ async def init_db():
             await db.execute(CREATE_ORDERS_SQLITE)
             await db.execute(CREATE_USERBOTS_SQLITE)
             await db.execute(CREATE_SETTINGS_SQLITE)
+            await db.execute(CREATE_MANAGED_BOTS_SQLITE)
+            await db.execute(CREATE_BOT_USER_MESSAGES_SQLITE)
             try: await db.execute("ALTER TABLE orders ADD COLUMN gift_text TEXT")
             except Exception: pass
             try: await db.execute("ALTER TABLE orders ADD COLUMN sender_type TEXT DEFAULT 'bot'")
@@ -700,3 +762,155 @@ async def set_pricing_settings(prices: dict) -> bool:
     except Exception as e:
         logger.error(f"set_pricing_settings error: {e}")
         return False
+
+
+# ── Managed Bots CRUD ───────────────────────────────────────────────
+
+async def get_all_managed_bots():
+    if IS_POSTGRES and pool:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("SELECT * FROM managed_bots ORDER BY id ASC")
+            return [dict(r) for r in rows]
+    else:
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM managed_bots ORDER BY id ASC") as cursor:
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+async def add_managed_bot(token: str, bot_username: str, bot_name: str, bot_id: int):
+    if IS_POSTGRES and pool:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """INSERT INTO managed_bots (token, bot_username, bot_name, bot_id, active)
+                   VALUES ($1, $2, $3, $4, 1)
+                   ON CONFLICT (token) DO UPDATE SET bot_username=$2, bot_name=$3, bot_id=$4, active=1
+                   RETURNING *""",
+                token, bot_username, bot_name, bot_id
+            )
+            return dict(row)
+    else:
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            await db.execute(
+                """INSERT OR REPLACE INTO managed_bots (token, bot_username, bot_name, bot_id, active)
+                   VALUES (?, ?, ?, ?, 1)""",
+                (token, bot_username, bot_name, bot_id)
+            )
+            await db.commit()
+            async with db.execute("SELECT * FROM managed_bots WHERE token=?", (token,)) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+async def toggle_managed_bot_status(bot_id: int, active: int):
+    if IS_POSTGRES and pool:
+        async with pool.acquire() as conn:
+            await conn.execute("UPDATE managed_bots SET active=$1 WHERE id=$2", active, bot_id)
+    else:
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("UPDATE managed_bots SET active=? WHERE id=?", (active, bot_id))
+            await db.commit()
+
+async def delete_managed_bot(bot_id: int):
+    if IS_POSTGRES and pool:
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM managed_bots WHERE id=$1", bot_id)
+    else:
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("DELETE FROM managed_bots WHERE id=?", (bot_id,))
+            await db.commit()
+
+async def update_managed_bot_commands(bot_id: int, commands_json: str, scripts_json: str):
+    if IS_POSTGRES and pool:
+        async with pool.acquire() as conn:
+            await conn.execute("UPDATE managed_bots SET commands_json=$1, scripts_json=$2 WHERE id=$3", commands_json, scripts_json, bot_id)
+    else:
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("UPDATE managed_bots SET commands_json=?, scripts_json=? WHERE id=?", (commands_json, scripts_json, bot_id))
+            await db.commit()
+
+async def get_managed_bot_by_id(bot_id: int):
+    if IS_POSTGRES and pool:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT * FROM managed_bots WHERE id=$1", bot_id)
+            return dict(row) if row else None
+    else:
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM managed_bots WHERE id=?", (bot_id,)) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+# ── Bot User Messages CRUD ───────────────────────────────────────────────
+
+async def save_bot_user_message(bot_token: str, user_id: int, user_username: str, user_first_name: str, message_id: int, text: str, out: int = 0, date_str: str = ""):
+    if IS_POSTGRES and pool:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """INSERT INTO bot_user_messages (bot_token, user_id, user_username, user_first_name, message_id, text, out, date)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                   RETURNING *""",
+                bot_token, user_id, user_username, user_first_name, message_id, text, out, date_str
+            )
+            return dict(row)
+    else:
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """INSERT INTO bot_user_messages (bot_token, user_id, user_username, user_first_name, message_id, text, out, date)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (bot_token, user_id, user_username, user_first_name, message_id, text, out, date_str)
+            )
+            await db.commit()
+            last_id = cursor.lastrowid
+            async with db.execute("SELECT * FROM bot_user_messages WHERE id=?", (last_id,)) as c:
+                row = await c.fetchone()
+                return dict(row) if row else None
+
+async def get_bot_user_chat_history(bot_token: str, user_id: int):
+    if IS_POSTGRES and pool:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("SELECT * FROM bot_user_messages WHERE bot_token=$1 AND user_id=$2 ORDER BY id ASC", bot_token, user_id)
+            return [dict(r) for r in rows]
+    else:
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM bot_user_messages WHERE bot_token=? AND user_id=? ORDER BY id ASC", (bot_token, user_id)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+async def get_bot_chat_contacts(bot_token: str):
+    sql = """
+    SELECT user_id, user_username, user_first_name, text as last_msg, date as last_time, out as last_out
+    FROM bot_user_messages
+    WHERE id IN (
+        SELECT MAX(id) FROM bot_user_messages WHERE bot_token GROUP BY user_id
+    )
+    ORDER BY id DESC
+    """
+    if IS_POSTGRES and pool:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("SELECT user_id, user_username, user_first_name, text as last_msg, date as last_time, out as last_out FROM bot_user_messages WHERE bot_token=$1 ORDER BY id DESC", bot_token)
+            # Group by user_id preserving latest
+            seen = set()
+            contacts = []
+            for r in rows:
+                uid = r["user_id"]
+                if uid not in seen:
+                    seen.add(uid)
+                    contacts.append(dict(r))
+            return contacts
+    else:
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT user_id, user_username, user_first_name, text as last_msg, date as last_time, out as last_out FROM bot_user_messages WHERE bot_token=? ORDER BY id DESC", (bot_token,)) as cursor:
+                rows = await cursor.fetchall()
+                seen = set()
+                contacts = []
+                for r in rows:
+                    uid = r["user_id"]
+                    if uid not in seen:
+                        seen.add(uid)
+                        contacts.append(dict(r))
+                return contacts
+

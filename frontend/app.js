@@ -1334,9 +1334,241 @@ createApp({
       botCommands.value.splice(idx, 1);
     };
 
+    // ── Multi-Bot Management State & Logic ────────────────
+    const managedBots = ref([]);
+    const botLoading = ref(false);
+    const showAddBotModal = ref(false);
+    const newBotToken = ref('');
+    const addingBot = ref(false);
+    const showCommandModal = ref(false);
+    const selectedBotForConfig = ref(null);
+    const botCommandsList = ref([]);
+    const activeBotNav = ref('bots'); // 'bots' or 'bot_chat'
+    const selectedBotChat = ref(null);
+    const botChatContacts = ref([]);
+    const activeBotUser = ref(null);
+    const botMessages = ref([]);
+    const botInputText = ref('');
+    const botSending = ref(false);
+
+    window.handleGlobalBotMessage = (data) => {
+      const msg = data.message;
+      const token = data.bot_token;
+      const userId = data.user_id;
+      if (selectedBotChat.value && selectedBotChat.value.token === token && activeBotUser.value && activeBotUser.value.user_id === userId) {
+        if (!botMessages.value.some(m => m.id === msg.id)) {
+          botMessages.value.push(msg);
+        }
+      }
+      if (selectedBotChat.value && selectedBotChat.value.token === token) {
+        loadBotContacts(selectedBotChat.value.id);
+      }
+    };
+
+    const loadManagedBots = async () => {
+      botLoading.value = true;
+      try {
+        const r = await api('/api/admin/managed-bots');
+        const data = await r.json();
+        if (data.success) {
+          managedBots.value = data.bots;
+        }
+      } catch (e) {
+        console.error('loadManagedBots error:', e);
+      } finally {
+        botLoading.value = false;
+      }
+    };
+
+    const addBotToken = async () => {
+      const token = newBotToken.value.trim();
+      if (!token) { showToast('⚠️ Enter Bot Token'); return; }
+      addingBot.value = true;
+      try {
+        const r = await api('/api/admin/managed-bots', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        });
+        const data = await r.json();
+        if (data.success) {
+          showToast('🎉 Bot added successfully!');
+          newBotToken.value = '';
+          showAddBotModal.value = false;
+          await loadManagedBots();
+        } else {
+          showToast('❌ ' + (data.error || 'Failed to add bot'));
+        }
+      } catch (e) {
+        showToast('❌ Add bot error: ' + e.message);
+      } finally {
+        addingBot.value = false;
+      }
+    };
+
+    const toggleBotStatus = async (bot) => {
+      const nextState = !bot.active;
+      try {
+        const r = await api(`/api/admin/managed-bots/${bot.id}/toggle`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ active: nextState })
+        });
+        const data = await r.json();
+        if (data.success) {
+          bot.active = nextState ? 1 : 0;
+          showToast(nextState ? '🟢 Bot started' : '🔴 Bot stopped');
+        }
+      } catch (e) {
+        showToast('❌ Error toggling bot');
+      }
+    };
+
+    const deleteBot = async (bot) => {
+      if (!confirm(`Delete bot @${bot.bot_username}?`)) return;
+      try {
+        const r = await api(`/api/admin/managed-bots/${bot.id}`, { method: 'DELETE' });
+        const data = await r.json();
+        if (data.success) {
+          showToast('🗑️ Bot deleted');
+          await loadManagedBots();
+        }
+      } catch (e) {
+        showToast('❌ Error deleting bot');
+      }
+    };
+
+    const openBotConfig = (bot) => {
+      selectedBotForConfig.value = bot;
+      botCommandsList.value = [];
+      try {
+        const scripts = JSON.parse(bot.scripts_json || '{}');
+        for (const [cmd, reply] of Object.entries(scripts)) {
+          botCommandsList.value.push({ cmd, reply });
+        }
+      } catch {}
+      if (!botCommandsList.value.length) {
+        botCommandsList.value.push({ cmd: '/start', reply: 'Welcome to our bot!' });
+      }
+      showCommandModal.value = true;
+    };
+
+    const addCommandRow = () => {
+      botCommandsList.value.push({ cmd: '', reply: '' });
+    };
+
+    const removeCommandRow = (idx) => {
+      botCommandsList.value.splice(idx, 1);
+    };
+
+    const saveManagedBotCommands = async () => {
+      if (!selectedBotForConfig.value) return;
+      const scripts = {};
+      const commands = [];
+      botCommandsList.value.forEach(row => {
+        let c = row.cmd.trim();
+        if (c && row.reply.trim()) {
+          if (!c.startsWith('/')) c = '/' + c;
+          scripts[c] = row.reply.trim();
+          commands.push(c);
+        }
+      });
+      try {
+        const r = await api(`/api/admin/managed-bots/${selectedBotForConfig.value.id}/commands`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ commands, scripts })
+        });
+        const data = await r.json();
+        if (data.success) {
+          showToast('💾 Commands saved');
+          showCommandModal.value = false;
+          await loadManagedBots();
+        }
+      } catch (e) {
+        showToast('❌ Error saving commands');
+      }
+    };
+
+    const openBotChatNav = async (bot) => {
+      selectedBotChat.value = bot;
+      activeBotNav.value = 'bot_chat';
+      activeBotUser.value = null;
+      botMessages.value = [];
+      await loadBotContacts(bot.id);
+    };
+
+    const loadBotContacts = async (botId) => {
+      try {
+        const r = await api(`/api/admin/managed-bots/${botId}/contacts`);
+        const data = await r.json();
+        if (data.success) {
+          botChatContacts.value = data.contacts;
+        }
+      } catch (e) {
+        console.error('loadBotContacts error:', e);
+      }
+    };
+
+    const selectBotUserChat = async (user) => {
+      activeBotUser.value = user;
+      botMessages.value = [];
+      if (!selectedBotChat.value) return;
+      try {
+        const r = await api(`/api/admin/managed-bots/${selectedBotChat.value.id}/history/${user.user_id}`);
+        const data = await r.json();
+        if (data.success) {
+          botMessages.value = data.messages;
+        }
+      } catch (e) {
+        console.error('selectBotUserChat history error:', e);
+      }
+    };
+
+    const sendBotMessageToUser = async () => {
+      const text = botInputText.value.trim();
+      if (!text || !selectedBotChat.value || !activeBotUser.value) return;
+      botSending.value = true;
+      try {
+        const r = await api(`/api/admin/managed-bots/${selectedBotChat.value.id}/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: activeBotUser.value.user_id,
+            user_username: activeBotUser.value.user_username,
+            user_first_name: activeBotUser.value.user_first_name,
+            text
+          })
+        });
+        const data = await r.json();
+        botSending.value = false;
+        if (data.success) {
+          botInputText.value = '';
+          if (data.message && !botMessages.value.some(m => m.id === data.message.id)) {
+            botMessages.value.push(data.message);
+          }
+        } else {
+          showToast('❌ Send error: ' + (data.error || 'Failed'));
+        }
+      } catch (e) {
+        botSending.value = false;
+        showToast('❌ ' + e.message);
+      }
+    };
+
+    onMounted(() => {
+      loadManagedBots();
+    });
+
     return {
       pageLoading, botCommands, loadBotCommands, saveBotCommands, addBotCommand, removeBotCommand,
       botMenuTab, botPanelUsers, broadcastShow, broadcastText, loadBotPanelUsers, restartTelegramBot, refreshWebhook, openBroadcastModal, sendBroadcast,
+
+      // Managed Bots Exports
+      managedBots, botLoading, showAddBotModal, newBotToken, addingBot, showCommandModal, selectedBotForConfig,
+      botCommandsList, activeBotNav, selectedBotChat, botChatContacts, activeBotUser, botMessages, botInputText, botSending,
+      loadManagedBots, addBotToken, toggleBotStatus, deleteBot, openBotConfig, addCommandRow, removeCommandRow,
+      saveManagedBotCommands, openBotChatNav, loadBotContacts, selectBotUserChat, sendBotMessageToUser,
 
       tab, gifts, selected, hoveredGiftId, recipient, giftMsg, paying, errMsg, toast, totalStars, priceBreakdown,
       isAdmin, showAdmin, aTab, adminGifts, sortedAdminGifts, adminOrders, adminUserbots, userLinkedAccounts, systemUserbots, ubForm, ubMsgForm, myOrders, user, form,

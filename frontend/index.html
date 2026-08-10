@@ -807,11 +807,204 @@
           </template>
 
         </div>
+    <!-- ── Bot Control Tab ────────────────────────── -->
+    <div v-if="tab==='bot_control' && isAdmin" class="tg-chat-app" style="height: calc(100vh - 120px);">
+      <!-- Bot Panel Header -->
+      <div style="background: #17212B; padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button v-if="activeBotNav === 'bot_chat'" @click="activeBotNav = 'bots'" style="background: none; border: none; color: #3390EC; font-size: 1.2rem; cursor: pointer; padding: 0 4px;">← Back</button>
+          <h2 style="margin: 0; font-size: 1.1rem; color: #fff; font-weight: 600;">
+            🤖 {{ activeBotNav === 'bot_chat' ? (`Chatting via @${selectedBotChat?.bot_username}`) : 'Multi-Bot Control Center' }}
+          </h2>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="tg-connect-acc-btn" style="padding: 6px 14px; font-size: 0.85rem;" @click="showAddBotModal = true">
+            ➕ Add Bot API Token
+          </button>
+        </div>
       </div>
 
+      <!-- Main Bot Center View (bots list) -->
+      <div v-if="activeBotNav === 'bots'" style="padding: 16px; overflow-y: auto; height: calc(100% - 60px);">
+        <div v-if="botLoading" style="text-align: center; padding: 40px;">
+          <span class="spin" style="font-size: 2rem; display: block; margin-bottom: 10px;">⏳</span>
+          <p style="color: rgba(255,255,255,0.6);">Loading managed bots...</p>
+        </div>
+
+        <div v-else-if="!managedBots.length" style="text-align: center; padding: 50px 20px; background: #17212B; border-radius: 16px; border: 1px dashed rgba(255,255,255,0.15);">
+          <div style="font-size: 3rem; margin-bottom: 12px;">🤖</div>
+          <h3 style="color: #fff; margin-bottom: 6px;">No Managed Bots Configured</h3>
+          <p style="color: rgba(255,255,255,0.6); max-width: 360px; margin: 0 auto 18px; font-size: 0.9rem;">
+            Add your Telegram Bot API tokens from @BotFather to manage multiple bots, configure auto-replies/scripts, and chat with bot users in real time.
+          </p>
+          <button class="tg-connect-acc-btn" @click="showAddBotModal = true">
+            ➕ Add Your First Bot Token
+          </button>
+        </div>
+
+        <div v-else style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px;">
+          <div v-for="bot in managedBots" :key="bot.id" style="background: #17212B; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08); padding: 16px; display: flex; flex-direction: column; justify-content: space-between; position: relative;">
+            <div>
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <div style="width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #7B61FF, #3390EC); display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
+                    🤖
+                  </div>
+                  <div>
+                    <h4 style="margin: 0; color: #fff; font-size: 1rem; font-weight: 600;">{{ bot.bot_name || 'Telegram Bot' }}</h4>
+                    <span style="color: #3390EC; font-size: 0.85rem; text-decoration: none;">@{{ bot.bot_username }}</span>
+                  </div>
+                </div>
+                <span :style="{ background: bot.active ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: bot.active ? '#10B981' : '#EF4444', padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '600' }">
+                  {{ bot.active ? '🟢 Running' : '🔴 Stopped' }}
+                </span>
+              </div>
+
+              <div style="background: rgba(0,0,0,0.2); padding: 8px 12px; border-radius: 8px; font-family: monospace; font-size: 0.8rem; color: rgba(255,255,255,0.7); margin-bottom: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                Token: {{ bot.token.substring(0, 10) }}...{{ bot.token.substring(bot.token.length - 5) }}
+              </div>
+            </div>
+
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px;">
+              <button @click="toggleBotStatus(bot)" :style="{ background: bot.active ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)', color: bot.active ? '#F87171' : '#34D399', border: 'none', borderRadius: '8px', padding: '6px 12px', fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer' }">
+                {{ bot.active ? '⏹️ Stop' : '▶️ Start' }}
+              </button>
+              <button @click="openBotConfig(bot)" style="background: rgba(255,255,255,0.08); color: #fff; border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.8rem; fontWeight: '600'; cursor: pointer;">
+                ⚡ Scripts & Commands
+              </button>
+              <button @click="openBotChatNav(bot)" style="background: rgba(51,144,236,0.2); color: #3390EC; border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.8rem; fontWeight: '600'; cursor: pointer;">
+                💬 Message Users
+              </button>
+              <button @click="deleteBot(bot)" style="background: rgba(239,68,68,0.1); color: #EF4444; border: none; border-radius: 8px; padding: 6px 10px; font-size: 0.8rem; cursor: pointer; margin-left: auto;">
+                🗑️
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bot Users 1-to-1 Chat View -->
+      <div v-else-if="activeBotNav === 'bot_chat'" class="tg-chat-app" style="height: calc(100% - 50px); margin: 0;">
+        <!-- Left Users Sidebar -->
+        <div class="tg-chat-sidebar">
+          <div style="padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.08); font-weight: 600; color: rgba(255,255,255,0.8); font-size: 0.85rem;">
+            👥 Users of @{{ selectedBotChat?.bot_username }}
+          </div>
+          <div style="overflow-y: auto; flex: 1;">
+            <div v-if="!botChatContacts.length" style="padding: 24px 14px; text-align: center; color: rgba(255,255,255,0.5); font-size: 0.85rem;">
+              No user messages received yet. Users will appear here when they message @{{ selectedBotChat?.bot_username }}.
+            </div>
+            <div
+              v-for="usr in botChatContacts" :key="usr.user_id"
+              :class="['tg-chat-item', activeBotUser?.user_id === usr.user_id ? 'active' : '']"
+              @click="selectBotUserChat(usr)"
+            >
+              <div class="tg-chat-avatar" style="background: #3390EC;">
+                👤
+              </div>
+              <div class="tg-chat-info">
+                <div class="tg-chat-name">{{ usr.user_first_name || 'User' }}</div>
+                <div class="tg-chat-preview">{{ usr.last_msg || 'No messages' }}</div>
+              </div>
+              <div class="tg-chat-meta">
+                <span class="tg-chat-time">{{ usr.last_time }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Chat Area -->
+        <div class="tg-chat-main">
+          <template v-if="activeBotUser">
+            <!-- Header -->
+            <div class="tg-chat-header">
+              <div style="font-weight: 600; color: #fff;">{{ activeBotUser.user_first_name }} (ID: {{ activeBotUser.user_id }})</div>
+              <div style="font-size: 0.8rem; color: rgba(255,255,255,0.5);">@{{ activeBotUser.user_username || 'no_username' }}</div>
+            </div>
+
+            <!-- Messages Stream -->
+            <div class="tg-chat-messages" style="flex: 1; overflow-y: auto; padding: 14px;">
+              <div v-for="m in botMessages" :key="m.id" :class="['tg-msg-bubble', m.out ? 'outgoing' : 'incoming']">
+                <div class="tg-msg-text">{{ m.text }}</div>
+                <div class="tg-msg-meta">
+                  <span class="tg-msg-time">{{ m.date }}</span>
+                  <span v-if="m.out" class="tg-msg-read-ticks">✓✓</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Input Bar -->
+            <div class="tg-chat-input-bar">
+              <div class="tg-input-wrapper">
+                <textarea v-model="botInputText" class="tg-chat-textarea" placeholder="Send reply as Bot..." rows="1" @keydown.enter.exact.prevent="sendBotMessageToUser"></textarea>
+                <button class="tg-send-plane-btn" :disabled="!botInputText.trim() || botSending" @click="sendBotMessageToUser">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                </button>
+              </div>
+            </div>
+          </template>
+          <template v-else>
+            <div class="tg-no-chat-selected">
+              <div class="tg-ncs-icon">💬</div>
+              <h3>Select a User</h3>
+              <p>Pick a user from the sidebar to view their message history and reply directly as the bot.</p>
+            </div>
+          </template>
+        </div>
+      </div>
     </div>
 
-  </div>
+    <!-- ── Add Bot Token Modal ────────────────────────────── -->
+    <div v-if="showAddBotModal" class="sheet-backdrop" @click.self="showAddBotModal=false">
+      <div class="modal-card" style="max-width: 420px; padding: 24px;">
+        <h3 style="margin-top: 0; color: #fff;">➕ Add Telegram Bot API Token</h3>
+        <p style="color: rgba(255,255,255,0.6); font-size: 0.85rem; margin-bottom: 16px;">
+          Create a bot with <b>@BotFather</b> on Telegram and paste its API token below.
+        </p>
+        <div style="margin-bottom: 16px;">
+          <label style="color: rgba(255,255,255,0.8); font-size: 0.85rem; display: block; margin-bottom: 6px;">Bot API Token</label>
+          <input v-model="newBotToken" type="text" placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" style="width: 100%; background: #17212B; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 10px; color: #fff; font-family: monospace;" />
+        </div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button @click="showAddBotModal=false" style="background: rgba(255,255,255,0.1); color: #fff; border: none; border-radius: 10px; padding: 10px 16px; cursor: pointer;">Cancel</button>
+          <button @click="addBotToken" class="tg-connect-acc-btn" :disabled="addingBot">
+            {{ addingBot ? 'Validating...' : 'Validate & Add' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Bot Commands & Script Modal ────────────────────── -->
+    <div v-if="showCommandModal" class="sheet-backdrop" @click.self="showCommandModal=false">
+      <div class="modal-card" style="max-width: 520px; padding: 24px; max-height: 85vh; overflow-y: auto;">
+        <h3 style="margin-top: 0; color: #fff;">⚡ Custom Commands & Script Auto-Replies</h3>
+        <p style="color: rgba(255,255,255,0.6); font-size: 0.85rem; margin-bottom: 16px;">
+          Configure trigger commands (e.g. <code>/start</code>, <code>/help</code>, <code>/gift</code>) and automated response messages for <b>@{{ selectedBotForConfig?.bot_username }}</b>.
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px;">
+          <div v-for="(row, idx) in botCommandsList" :key="idx" style="background: #17212B; border-radius: 10px; padding: 12px; border: 1px solid rgba(255,255,255,0.08);">
+            <div style="display: flex; gap: 10px; margin-bottom: 8px; align-items: center;">
+              <input v-model="row.cmd" type="text" placeholder="/command" style="width: 140px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 6px 10px; color: #3390EC; font-weight: 600;" />
+              <span style="color: rgba(255,255,255,0.4); font-size: 0.8rem;">→ Auto-Response</span>
+              <button @click="removeCommandRow(idx)" style="background: none; border: none; color: #EF4444; cursor: pointer; margin-left: auto;">✕</button>
+            </div>
+            <textarea v-model="row.reply" rows="2" placeholder="Response text sent to user..." style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 8px; color: #fff; font-size: 0.85rem;"></textarea>
+          </div>
+        </div>
+
+        <button @click="addCommandRow" style="background: rgba(51,144,236,0.15); color: #3390EC; border: 1px dashed #3390EC; border-radius: 8px; width: 100%; padding: 8px; font-weight: 600; cursor: pointer; margin-bottom: 18px;">
+          ➕ Add Another Command Trigger
+        </button>
+
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button @click="showCommandModal=false" style="background: rgba(255,255,255,0.1); color: #fff; border: none; border-radius: 10px; padding: 10px 16px; cursor: pointer;">Cancel</button>
+          <button @click="saveManagedBotCommands" class="tg-connect-acc-btn">
+            💾 Save Commands & Scripts
+          </button>
+        </div>
+      </div>
+    </div>
 
   <!-- ── Bottom Navigation ──────────────────── -->
   <nav class="bottom-nav">

@@ -151,11 +151,56 @@ function setupChatState(Vue, api, showToast, tg) {
     }
   };
 
-  const scrollToBottom = async () => {
-    await nextTick();
-    const el = messagesStreamEl.value;
-    if (el) el.scrollTop = el.scrollHeight;
+  // Global WebSocket for Real-Time Notification & Live Chat Sync
+  let globalSocket = null;
+  const connectGlobalSocket = () => {
+    if (globalSocket) return;
+    const initData = tg?.initData || '';
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    const wsUrl = `${protocol}//${host}/api/ws/global?init_data=${encodeURIComponent(initData)}`;
+    try {
+      const ws = new WebSocket(wsUrl);
+      globalSocket = ws;
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.event === 'message' && data.message) {
+            const currentPeer = currentChatPeer.value ? currentChatPeer.value.toLowerCase().replace('@','') : '';
+            const incomingPeer = data.peer ? data.peer.toLowerCase().replace('@','') : '';
+            if (currentPeer && incomingPeer && (currentPeer === incomingPeer || currentPeer.includes(incomingPeer))) {
+              const exists = currentMessages.value.some(m => m.id === data.message.id);
+              if (!exists) {
+                currentMessages.value.push(data.message);
+                scrollToBottom();
+              }
+            }
+            const chat = chatList.value.find(c => c.peer.toLowerCase().replace('@','') === incomingPeer);
+            if (chat) {
+              chat.last_msg = data.message.text || 'Message';
+              chat.last_time = data.message.date || '';
+              chat.last_out = data.message.out;
+            }
+          } else if (data.event === 'bot_message' && data.message) {
+            if (typeof window.handleGlobalBotMessage === 'function') {
+              window.handleGlobalBotMessage(data);
+            }
+          }
+        } catch (e) {}
+      };
+      setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) { try { ws.send('ping'); } catch {} }
+      }, 20000);
+      ws.onclose = () => {
+        globalSocket = null;
+        setTimeout(connectGlobalSocket, 5000);
+      };
+    } catch (e) {}
   };
+
+  onMounted(() => {
+    connectGlobalSocket();
+  });
 
   const connectChatSocket = (peer) => {
     if (chatSocket) {
