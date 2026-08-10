@@ -1382,7 +1382,7 @@
   <!-- ── Phone Auth Modal for "Use My Account" ── -->
   <transition name="sheet">
     <div class="sheet-backdrop" v-if="phoneModal.show" @click.self="phoneModal.show=false" style="z-index: 10000;">
-      <div class="sheet admin-sheet" style="max-height: 480px; padding: 24px 20px;">
+      <div class="sheet admin-sheet" style="max-height: 85vh; overflow-y: auto; padding: 24px 20px;">
         <div class="sheet-handle"></div>
         <h2 class="admin-title">📱 {{ t('connectMyAccount') }}</h2>
         <p style="font-size: 0.85rem; color: rgba(255,255,255,0.7); text-align: center; margin-bottom: 16px;">
@@ -1395,7 +1395,7 @@
         <!-- Step 1: Phone Number -->
         <div v-if="phoneModal.step === 1" class="admin-pricing-box">
           <label class="fi-lbl">Phone Number (with country code):</label>
-          <input v-model="phoneModal.phone" type="tel" class="fi" placeholder="+998901234567" style="font-size: 1.1rem; text-align: center;" />
+          <input v-model="phoneModal.phone" type="tel" class="fi" placeholder="+998901234567" style="font-size: 1.1rem; text-align: center;" @keydown.enter="requestPhoneCode" />
           <p v-if="phoneModal.error" class="err-msg" style="margin-top: 8px;">{{ phoneModal.error }}</p>
 
           <div class="form-row" style="margin-top: 14px;">
@@ -1407,17 +1407,22 @@
           </div>
         </div>
 
-        <!-- Step 2: Verification Code & 2FA -->
-        <div v-if="phoneModal.step === 2" class="admin-pricing-box">
+        <!-- Step 2 & 3: Verification Code & 2FA -->
+        <div v-if="phoneModal.step >= 2" class="admin-pricing-box">
           <p style="color: #10B981; font-weight: bold; text-align: center; font-size: 0.9rem;">
             📩 Code sent to Telegram app for {{ phoneModal.phone }}
           </p>
           <label class="fi-lbl">Enter Telegram Verification Code:</label>
-          <input v-model="phoneModal.code" type="text" class="fi" placeholder="12345" style="font-size: 1.3rem; letter-spacing: 4px; text-align: center;" />
+          <input v-model="phoneModal.code" type="text" class="fi" placeholder="12345" style="font-size: 1.3rem; letter-spacing: 4px; text-align: center;" @keydown.enter="confirmPhoneCode" />
 
-          <div v-if="phoneModal.requires_password" style="margin-top: 10px;">
-            <label class="fi-lbl">Two-Step Verification (2FA Password):</label>
-            <input v-model="phoneModal.password" type="password" class="fi" placeholder="Enter 2FA Password" />
+          <div v-if="phoneModal.requires_password || phoneModal.show_password || phoneModal.step === 3" style="margin-top: 12px;">
+            <label class="fi-lbl" style="color: #60a5fa;">🔑 Two-Step Verification (2FA Password):</label>
+            <input v-model="phoneModal.password" type="password" class="fi" placeholder="Enter 2FA Password" @keydown.enter="confirmPhoneCode" />
+          </div>
+          <div v-else style="margin-top: 6px; text-align: right;">
+            <button type="button" @click="phoneModal.show_password = true" style="background: none; border: none; color: #94a3b8; font-size: 11px; cursor: pointer; text-decoration: underline;">
+              🔑 Add 2FA Password if enabled
+            </button>
           </div>
 
           <p v-if="phoneModal.error" class="err-msg" style="margin-top: 8px;">{{ phoneModal.error }}</p>

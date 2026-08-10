@@ -804,19 +804,6 @@ createApp({
         } catch (e) {}
       }
 
-      if (typeof tg.requestContact === 'function') {
-        try {
-          tg.requestContact((ok, res) => {
-            if (ok && res) {
-              const c = res.responseUnsafe?.contact || res;
-              const val = c.username ? `@${c.username}` : (c.user_id ? `${c.user_id}` : (c.phone_number || ''));
-              if (val) { recipient.value = val; checkRecipientNow(); showToast(`Selected: ${val}`); }
-            }
-          });
-          return;
-        } catch (e) {}
-      }
-
       const inp = prompt('Enter Telegram Username (@username) or User ID:');
       if (inp) { recipient.value = inp.trim(); checkRecipientNow(); }
     };
