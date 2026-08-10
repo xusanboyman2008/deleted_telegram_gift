@@ -116,7 +116,7 @@ body::after {
 .view-wrap {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 20px;
+  padding-bottom: 80px !important;
 }
 .view { padding: 0 0 10px; }
 
@@ -374,21 +374,19 @@ body::after {
 
 /* ── Bottom Navigation ───────────────────────── */
 .bottom-nav {
-  position: sticky;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  flex-shrink: 0;
-  z-index: 99999;
-  background: rgba(14, 22, 33, 0.98);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  padding: 8px 4px calc(8px + env(safe-area-inset-bottom));
-  box-shadow: 0 -4px 25px rgba(0, 0, 0, 0.7);
+  position: absolute !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 60px !important;
+  z-index: 999999 !important;
+  background: #17212B !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.15) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-around !important;
+  padding: 4px 0 calc(4px + env(safe-area-inset-bottom)) !important;
+  box-shadow: 0 -6px 25px rgba(0, 0, 0, 0.8) !important;
 }
 .nav-item {
   flex: 1;
