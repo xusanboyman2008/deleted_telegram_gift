@@ -1133,18 +1133,12 @@ async def websocket_chat_endpoint(
 # ── Managed Bots Admin APIs ────────────────────────────────────────────────
 
 @app.get("/api/admin/managed-bots")
-async def get_managed_bots_endpoint(request: Request):
-    user = verify_request_auth(request)
-    if not is_admin(user):
-        raise HTTPException(status_code=403, detail="Admin only")
+async def get_managed_bots_endpoint(user: dict = Depends(get_admin)):
     bots = await db.get_all_managed_bots()
     return {"success": True, "bots": bots}
 
 @app.post("/api/admin/managed-bots")
-async def add_managed_bot_endpoint(request: Request, body: dict = Body(...)):
-    user = verify_request_auth(request)
-    if not is_admin(user):
-        raise HTTPException(status_code=403, detail="Admin only")
+async def add_managed_bot_endpoint(body: dict = Body(...), user: dict = Depends(get_admin)):
     token = (body.get("token") or "").strip()
     if not token:
         return {"success": False, "error": "Bot Token is required"}
@@ -1165,10 +1159,7 @@ async def add_managed_bot_endpoint(request: Request, body: dict = Body(...)):
     return {"success": True, "bot": bot}
 
 @app.post("/api/admin/managed-bots/{bot_id}/toggle")
-async def toggle_managed_bot_endpoint(bot_id: int, request: Request, body: dict = Body(...)):
-    user = verify_request_auth(request)
-    if not is_admin(user):
-        raise HTTPException(status_code=403, detail="Admin only")
+async def toggle_managed_bot_endpoint(bot_id: int, body: dict = Body(...), user: dict = Depends(get_admin)):
     active = 1 if body.get("active", True) else 0
     await db.toggle_managed_bot_status(bot_id, active)
     from bot_manager import start_bot_instance, stop_bot_instance
@@ -1181,30 +1172,21 @@ async def toggle_managed_bot_endpoint(bot_id: int, request: Request, body: dict 
     return {"success": True, "active": active}
 
 @app.delete("/api/admin/managed-bots/{bot_id}")
-async def delete_managed_bot_endpoint(bot_id: int, request: Request):
-    user = verify_request_auth(request)
-    if not is_admin(user):
-        raise HTTPException(status_code=403, detail="Admin only")
+async def delete_managed_bot_endpoint(bot_id: int, user: dict = Depends(get_admin)):
     from bot_manager import stop_bot_instance
     await stop_bot_instance(bot_id)
     await db.delete_managed_bot(bot_id)
     return {"success": True}
 
 @app.post("/api/admin/managed-bots/{bot_id}/commands")
-async def update_managed_bot_commands_endpoint(bot_id: int, request: Request, body: dict = Body(...)):
-    user = verify_request_auth(request)
-    if not is_admin(user):
-        raise HTTPException(status_code=403, detail="Admin only")
+async def update_managed_bot_commands_endpoint(bot_id: int, body: dict = Body(...), user: dict = Depends(get_admin)):
     commands_json = json.dumps(body.get("commands", []))
     scripts_json = json.dumps(body.get("scripts", {}))
     await db.update_managed_bot_commands(bot_id, commands_json, scripts_json)
     return {"success": True}
 
 @app.get("/api/admin/managed-bots/{bot_id}/contacts")
-async def get_managed_bot_contacts_endpoint(bot_id: int, request: Request):
-    user = verify_request_auth(request)
-    if not is_admin(user):
-        raise HTTPException(status_code=403, detail="Admin only")
+async def get_managed_bot_contacts_endpoint(bot_id: int, user: dict = Depends(get_admin)):
     bot = await db.get_managed_bot_by_id(bot_id)
     if not bot:
         return {"success": False, "error": "Bot not found"}
@@ -1212,10 +1194,7 @@ async def get_managed_bot_contacts_endpoint(bot_id: int, request: Request):
     return {"success": True, "contacts": contacts}
 
 @app.get("/api/admin/managed-bots/{bot_id}/history/{user_id}")
-async def get_managed_bot_history_endpoint(bot_id: int, user_id: int, request: Request):
-    user = verify_request_auth(request)
-    if not is_admin(user):
-        raise HTTPException(status_code=403, detail="Admin only")
+async def get_managed_bot_history_endpoint(bot_id: int, user_id: int, user: dict = Depends(get_admin)):
     bot = await db.get_managed_bot_by_id(bot_id)
     if not bot:
         return {"success": False, "error": "Bot not found"}
@@ -1223,10 +1202,7 @@ async def get_managed_bot_history_endpoint(bot_id: int, user_id: int, request: R
     return {"success": True, "messages": messages}
 
 @app.post("/api/admin/managed-bots/{bot_id}/send")
-async def send_managed_bot_message_endpoint(bot_id: int, request: Request, body: dict = Body(...)):
-    user = verify_request_auth(request)
-    if not is_admin(user):
-        raise HTTPException(status_code=403, detail="Admin only")
+async def send_managed_bot_message_endpoint(bot_id: int, body: dict = Body(...), user: dict = Depends(get_admin)):
     bot = await db.get_managed_bot_by_id(bot_id)
     if not bot:
         return {"success": False, "error": "Bot not found"}

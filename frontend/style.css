@@ -378,15 +378,16 @@ body::after {
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 30;
-  background: rgba(8, 10, 18, 0.92);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(123, 97, 255, 0.1);
+  z-index: 99999;
+  background: rgba(14, 22, 33, 0.96);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-around;
-  padding: 6px 0 calc(8px + env(safe-area-inset-bottom));
+  padding: 8px 4px calc(8px + env(safe-area-inset-bottom));
+  box-shadow: 0 -4px 25px rgba(0, 0, 0, 0.6);
 }
 .nav-item {
   flex: 1;

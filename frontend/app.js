@@ -1158,7 +1158,7 @@ createApp({
     onMounted(async () => {
       try {
         const cfg = await fetch('/api/config', { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
-        if (ME && ME.id === cfg.admin_id) {
+        if (ME && Number(ME.id) === Number(cfg.admin_id)) {
           isAdmin.value = true;
         }
       } catch {}
