@@ -812,9 +812,13 @@ async def lifespan(app: FastAPI):
     ptb_app.add_handler(CommandHandler("share", select_command_handler))
     ptb_app.add_handler(CallbackQueryHandler(callback_handler))
     ptb_app.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
-    ptb_app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
-    ptb_app.add_handler(MessageHandler(filters.StatusUpdate.USER_SHARED, shared_user_handler))
-    ptb_app.add_handler(MessageHandler(filters.StatusUpdate.CHAT_SHARED, shared_chat_handler))
+    user_shared_filter = getattr(filters.StatusUpdate, "USERS_SHARED", getattr(filters.StatusUpdate, "USER_SHARED", None))
+    if user_shared_filter:
+        ptb_app.add_handler(MessageHandler(user_shared_filter, shared_user_handler))
+
+    chat_shared_filter = getattr(filters.StatusUpdate, "CHAT_SHARED", None)
+    if chat_shared_filter:
+        ptb_app.add_handler(MessageHandler(chat_shared_filter, shared_chat_handler))
     ptb_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, user_message_or_admin_reply_handler))
     await ptb_app.initialize()
     await ptb_app.start()
