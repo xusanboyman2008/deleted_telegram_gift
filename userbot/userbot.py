@@ -337,51 +337,101 @@ async def verify_telegram_user(bot_token: str, query: str) -> dict:
 
     if active_acc:
         try:
-            from hydrogram import Client
-            api_id = active_acc.get("api_id")
-            api_hash = active_acc.get("api_hash")
-            session_string = active_acc.get("session_string")
+            ub_client = None
+            try:
+                ub_client = await get_running_client(active_acc['id'])
+            except Exception as client_err:
+                logger.warning(f"Could not get running client for verify: {client_err}")
 
-            async with Client(f"verify_user_{active_acc['id']}", api_id=api_id, api_hash=api_hash, session_string=session_string, in_memory=True) as ub_client:
+            user = None
+            if ub_client:
+                # Try getting user from active client
                 try:
                     user = await ub_client.get_users(target)
-                except Exception as get_usr_err:
-                    logger.warning(f"Hydrogram get_users failed for {target}: {get_usr_err}")
-                    user = None
-
-                if user:
-                    user_id = user.id
-                    first_name = user.first_name or ""
-                    last_name = user.last_name or ""
-                    full_name = f"{first_name} {last_name}".strip() or "Telegram User"
-                    username = f"@{user.username}" if user.username else f"ID:{user_id}"
-
-                    photo_url = None
-                    if user.photo:
+                except Exception as e:
+                    logger.warning(f"Active client get_users failed for {target}: {e}")
+                    if isinstance(target, str):
                         try:
-                            photo_path = os.path.join(photos_dir, f"{user_id}.jpg")
-                            if not os.path.exists(photo_path):
-                                try:
-                                    await ub_client.download_media(user.photo.big_file_id or user.photo.small_file_id, file_name=photo_path)
-                                except Exception:
-                                    await ub_client.download_media(user.photo, file_name=photo_path)
-                            if os.path.exists(photo_path):
-                                photo_url = f"assets/user_photos/{user_id}.jpg"
-                        except Exception as p_err:
-                            logger.warning(f"Failed downloading profile photo via Userbot for user {user_id}: {p_err}")
+                            user = await ub_client.get_users("@" + target)
+                        except Exception:
+                            pass
+                if not user:
+                    try:
+                        user = await ub_client.get_chat(target)
+                    except Exception:
+                        if isinstance(target, str):
+                            try:
+                                user = await ub_client.get_chat("@" + target)
+                            except Exception:
+                                pass
 
-                    return {
-                        "exists": True,
-                        "found": True,
-                        "id": user_id,
-                        "username": username,
-                        "first_name": first_name,
-                        "last_name": last_name,
-                        "full_name": full_name,
-                        "photo_url": photo_url
-                    }
-                else:
-                    return {"exists": False, "found": False, "error": "User does not exist on Telegram"}
+            # Fallback if no user or no active client
+            if not user:
+                from hydrogram import Client
+                api_id = active_acc.get("api_id")
+                api_hash = active_acc.get("api_hash")
+                session_string = active_acc.get("session_string")
+
+                async with Client(f"verify_user_{active_acc['id']}", api_id=api_id, api_hash=api_hash, session_string=session_string, in_memory=True) as temp_client:
+                    try:
+                        user = await temp_client.get_users(target)
+                    except Exception:
+                        if isinstance(target, str):
+                            try:
+                                user = await temp_client.get_users("@" + target)
+                            except Exception:
+                                pass
+                    if not user:
+                        try:
+                            user = await temp_client.get_chat(target)
+                        except Exception:
+                            if isinstance(target, str):
+                                try:
+                                    user = await temp_client.get_chat("@" + target)
+                                except Exception:
+                                    pass
+
+            if user:
+                user_id = user.id
+                first_name = getattr(user, "first_name", "") or ""
+                last_name = getattr(user, "last_name", "") or ""
+                full_name = f"{first_name} {last_name}".strip() or getattr(user, "title", "Telegram User")
+                username = f"@{user.username}" if getattr(user, "username", None) else f"ID:{user_id}"
+
+                photo_url = None
+                if getattr(user, "photo", None):
+                    try:
+                        photo_path = os.path.join(photos_dir, f"{user_id}.jpg")
+                        if not os.path.exists(photo_path):
+                            client_to_use = ub_client if ub_client else None
+                            if client_to_use:
+                                try:
+                                    await client_to_use.download_media(user.photo.big_file_id or user.photo.small_file_id, file_name=photo_path)
+                                except Exception:
+                                    await client_to_use.download_media(user.photo, file_name=photo_path)
+                            else:
+                                async with Client(f"verify_user_photo_{active_acc['id']}", api_id=api_id, api_hash=api_hash, session_string=session_string, in_memory=True) as photo_client:
+                                    try:
+                                        await photo_client.download_media(user.photo.big_file_id or user.photo.small_file_id, file_name=photo_path)
+                                    except Exception:
+                                        await photo_client.download_media(user.photo, file_name=photo_path)
+                        if os.path.exists(photo_path):
+                            photo_url = f"assets/user_photos/{user_id}.jpg"
+                    except Exception as p_err:
+                        logger.warning(f"Failed downloading profile photo via Userbot for user {user_id}: {p_err}")
+
+                return {
+                    "exists": True,
+                    "found": True,
+                    "id": user_id,
+                    "username": username,
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "full_name": full_name,
+                    "photo_url": photo_url
+                }
+            else:
+                return {"exists": False, "found": False, "error": "User does not exist on Telegram"}
 
         except Exception as ub_err:
             logger.error(f"Userbot verify_telegram_user exception: {ub_err}")

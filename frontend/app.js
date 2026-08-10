@@ -72,6 +72,8 @@ const I18N = {
     savePricingBtn: "Save Prices",
     payBtn: "Pay",
     buyDirectBtn: "Buy Direct",
+    chooseSender: "Choose Sender...",
+    chooseSenderSub: "Tap to select official bot or userbot",
     recipientInputPlaceholder: "Username or ID",
     giftMsgPlaceholder: "Message...",
     userNotConnectedWarning: "Please connect account or pick another sender.",
@@ -124,6 +126,8 @@ const I18N = {
     savePricingBtn: "Saqlash",
     payBtn: "To'lash",
     buyDirectBtn: "Sotib olish",
+    chooseSender: "Yuboruvchini tanlang...",
+    chooseSenderSub: "Tanlash uchun bosing",
     recipientInputPlaceholder: "Username yoki ID",
     giftMsgPlaceholder: "Xabar...",
     userNotConnectedWarning: "Hisobni ulang yoki boshqa yuboruvchini tanlang.",
@@ -176,6 +180,8 @@ const I18N = {
     savePricingBtn: "Сохранить",
     payBtn: "Оплатить",
     buyDirectBtn: "Купить напрямую",
+    chooseSender: "Выберите отправителя...",
+    chooseSenderSub: "Нажмите для выбора бота или юзербота",
     recipientInputPlaceholder: "Username или ID",
     giftMsgPlaceholder: "Сообщение...",
     userNotConnectedWarning: "Подключите аккаунт или выберите другого отправителя.",
@@ -263,6 +269,7 @@ const LottieAnim = {
     const el = ref(null);
     const failed = ref(false);
     let inst = null;
+    const pageLoading = Vue.inject('pageLoading', ref(false));
 
     const destroy = () => {
       if (inst) {
@@ -295,7 +302,7 @@ const LottieAnim = {
           container: el.value,
           renderer: 'svg',
           loop: false,
-          autoplay: true,
+          autoplay: !pageLoading.value,
           animationData: data,
         });
       } catch (e) {
@@ -306,6 +313,11 @@ const LottieAnim = {
 
     onMounted(init);
     watch(() => props.filename, init);
+    watch(pageLoading, (loading) => {
+      if (!loading && inst) {
+        playOnce();
+      }
+    });
 
     const onHover = () => {
       playOnce();
@@ -387,6 +399,7 @@ createApp({
 
   setup() {
     const pageLoading = ref(true);
+    Vue.provide('pageLoading', pageLoading);
     const tab = ref('home');
     const gifts = ref(DEFAULT_GIFTS_SEED);
     const selected = ref(null);
@@ -460,7 +473,7 @@ createApp({
 
     // ── Userbot Accounts & Sender Selection State ─
     const userbotAccounts = ref([]);
-    const selectedSender = ref('bot'); // 'bot', 'userbot', 'myaccount'
+    const selectedSender = ref(null); // 'bot', 'userbot', 'myaccount' (default nothing)
     const selectedUserbot = ref(null);
 
     const userAccount = computed(() => {
@@ -706,6 +719,7 @@ createApp({
     const openSheet = g => {
       selected.value = g; recipient.value = ''; giftMsg.value = ''; errMsg.value = '';
       verifiedUser.value = null; userCheckError.value = '';
+      selectedSender.value = null; showSenderDropdown.value = false;
       if (tg) { tg.BackButton.show(); tg.BackButton.onClick(closeSheet); }
     };
     const closeSheet = () => {
@@ -758,17 +772,25 @@ createApp({
         return;
       }
 
-      if (typeof tg.requestContact === 'function') {
+      if (typeof tg.requestChat === 'function') {
         try {
-          tg.requestContact((ok, res) => {
-            if (ok && res) {
-              const c = res.responseUnsafe?.contact || res;
-              const val = c.username ? `@${c.username}` : (c.user_id ? `${c.user_id}` : (c.phone_number || ''));
-              if (val) { recipient.value = val; checkRecipientNow(); showToast(`Selected: ${val}`); }
+          tg.requestChat({
+            request_id: Math.floor(Math.random() * 1000000),
+            chat_is_channel: false,
+            chat_is_forum: false,
+            chat_has_username: true,
+            chat_is_created: false,
+            bot_is_member: false
+          }, (ok, chat) => {
+            if (ok && chat) {
+              const val = chat.username ? `@${chat.username}` : `${chat.id}`;
+              recipient.value = val; checkRecipientNow(); showToast(`Selected: ${val}`);
             }
           });
           return;
-        } catch (e) {}
+        } catch (e) {
+          console.error("tg.requestChat error:", e);
+        }
       }
 
       if (typeof tg.requestUser === 'function') {
@@ -777,6 +799,19 @@ createApp({
             if (ok && u) {
               const val = u.username ? `@${u.username}` : `${u.id}`;
               recipient.value = val; checkRecipientNow(); showToast(`Selected: ${val}`);
+            }
+          });
+          return;
+        } catch (e) {}
+      }
+
+      if (typeof tg.requestContact === 'function') {
+        try {
+          tg.requestContact((ok, res) => {
+            if (ok && res) {
+              const c = res.responseUnsafe?.contact || res;
+              const val = c.username ? `@${c.username}` : (c.user_id ? `${c.user_id}` : (c.phone_number || ''));
+              if (val) { recipient.value = val; checkRecipientNow(); showToast(`Selected: ${val}`); }
             }
           });
           return;
@@ -1127,6 +1162,12 @@ createApp({
       }
     };
 
+    const jumpToUserbotChat = (ub) => {
+      const acc = userbotAccounts.value.find(a => a.id === ub.id) || ub;
+      chatState.selectChatAccount(acc);
+      tab.value = 'chat';
+    };
+
     // ── Boot ───────────────────────────────────
     onMounted(async () => {
       try {
@@ -1320,7 +1361,7 @@ createApp({
       openSheet, closeSheet, pickContact, setRecipientMe, pay, loadHistory, openAdmin,
       onRecipientInput, checkRecipientNow, clearRecipient,
       loadAdminGifts, loadAdminOrders, loadAdminUserbots, openAddUserbot, editUserbot, saveUserbot, openAddForm, editGift, saveGift, toggleActive, delGift,
-      openUserbotMsg, sendUserbotMsg, toggleUserbotActive,
+      openUserbotMsg, sendUserbotMsg, toggleUserbotActive, jumpToUserbotChat,
       openTelegramLink, openTelegramChatWithUserbot,
       // ── Chat Module ──
       ...chatState,

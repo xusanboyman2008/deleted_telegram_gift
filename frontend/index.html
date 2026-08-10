@@ -165,7 +165,7 @@
       <div class="settings-card">
         <div class="settings-card-header">
           <span class="sc-icon">👤</span>
-          <div class="sc-title">{{ t('myAccountSender') }}</div>
+          <div class="sc-title" style="display: flex; align-items: center; gap: 6px;">{{ t('myAccountSender') }} <span class="info-circle" title="Tizimga shaxsiy profilingizni ulash orqali sovg'alarni o'z nomingizdan yuborish imkoniyatiga ega bo'lasiz. Telefon raqamingiz va tasdiqlash kodi orqali bog'lanadi.">!</span></div>
         </div>
         <p class="sc-desc">{{ t('myAccountSenderSub') }}</p>
 
@@ -213,67 +213,103 @@
 
     <!-- ── Admin Userbots Tab View ──────────────── -->
     <div class="page" v-if="tab==='userbots'">
-      <div class="page-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <div class="page-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h2>🤖 {{ t('userbots') }}</h2>
-        <button class="add-btn" @click="openAdmin(); aTab='userbots'; openAddUserbot()">➕ Add Account</button>
+        <button class="add-btn" @click="openAdmin(); aTab='userbots'; openAddUserbot()" style="display: flex; align-items: center; gap: 6px;">
+          ➕ Add Account
+        </button>
       </div>
 
       <!-- 1. Users Telegram Accounts -->
-      <div class="settings-card" style="margin-bottom: 20px;">
-        <div class="settings-card-header">
-          <span class="sc-icon">👤</span>
-          <div class="sc-title">{{ t('userAccounts') }}</div>
-        </div>
-        <div v-if="!userLinkedAccounts.length" style="color: rgba(255,255,255,0.5); padding: 10px 0; font-size: 0.9rem;">
-          No user-linked Telegram accounts yet.
-        </div>
-        <div v-for="ub in userLinkedAccounts" :key="ub.id" :class="['admin-row', 'userbot-admin-row', ub.active === false ? 'disabled-userbot-row' : '']">
-          <div class="ub-avatar-wrap">
-            <img v-if="ub.photo" :src="ub.photo" class="ub-avatar-large" alt="ub" />
-            <span v-else class="ub-avatar-placeholder">👤</span>
+      <h3 style="margin: 20px 0 10px 0; font-size: 1.05rem; color: #fff; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+        <span>👤</span> {{ t('userAccounts') }}
+      </h3>
+      <div v-if="!userLinkedAccounts.length" style="color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; font-size: 0.9rem; text-align: center;">
+        No user-linked Telegram accounts yet.
+      </div>
+      <div v-else class="premium-userbot-grid">
+        <div v-for="ub in userLinkedAccounts" :key="ub.id" :class="['premium-userbot-card', ub.active === false ? 'disabled' : '']">
+          <div class="pub-header">
+            <img v-if="ub.photo" :src="ub.photo" class="pub-avatar" alt="avatar" />
+            <div v-else class="pub-avatar-placeholder">👤</div>
+            <div class="pub-details">
+              <div class="pub-name">
+                {{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }}
+                <span :class="['status-pill', ub.active !== false ? 'active' : 'inactive']">
+                  {{ ub.active !== false ? '🟢 Active' : '🔴 Disabled' }}
+                </span>
+              </div>
+              <div class="pub-username">@{{ ub.username || 'no_username' }}</div>
+            </div>
           </div>
-          <div class="ar-inf">
-            <b>{{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }} <span :class="['status-pill', ub.active !== false ? 'active' : 'inactive']">{{ ub.active !== false ? '🟢 Active' : '🔴 Disabled' }}</span></b>
-            <small>@{{ ub.username || 'no_username' }} | {{ ub.phone }}</small>
-            <small style="color: #A855F7;">Owner User ID: {{ ub.owner_tg_id }}</small>
+          <div class="pub-meta">
+            <div>📞 {{ ub.phone }}</div>
+            <div style="color: #c084fc; font-weight: 500;">Owner ID: {{ ub.owner_tg_id }}</div>
           </div>
-          <div class="ar-act" style="display: flex; gap: 6px;">
-            <button v-if="ub.toggling" class="ibtn" disabled style="opacity: 0.6; cursor: wait;">
-              <span class="spin">⏳</span> Updating...
+          <div class="pub-actions">
+            <!-- Jump to Chat Button -->
+            <button class="btn-chat" @click="jumpToUserbotChat(ub)" title="Chat as this userbot">
+              💬 Chat
             </button>
-            <button v-else-if="ub.active !== false" class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3);" title="Disable Userbot">🔴 Disable</button>
-            <button v-else class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(34, 197, 94, 0.15); color: #4ADE80; border: 1px solid rgba(34, 197, 94, 0.3);" title="Undo / Re-enable Userbot">↩️ Undo</button>
-            <button class="ibtn" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">✏️ Edit</button>
+            <button v-if="ub.toggling" class="btn-edit" disabled style="opacity: 0.6; cursor: wait;">
+              ⏳ ...
+            </button>
+            <button v-else-if="ub.active !== false" class="btn-disable" @click="toggleUserbotActive(ub)" title="Disable Userbot">
+              🔴 Stop
+            </button>
+            <button v-else class="btn-enable" @click="toggleUserbotActive(ub)" title="Re-enable Userbot">
+              ↩️ Start
+            </button>
+            <button class="btn-edit" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">
+              ✏️ Edit
+            </button>
           </div>
         </div>
       </div>
 
-      <!-- 2. My Own Userbots (System) -->
-      <div class="settings-card">
-        <div class="settings-card-header">
-          <span class="sc-icon">🤖</span>
-          <div class="sc-title">{{ t('systemUserbots') }}</div>
-        </div>
-        <div v-if="!systemUserbots.length" style="color: rgba(255,255,255,0.5); padding: 10px 0; font-size: 0.9rem;">
-          No system userbots configured yet.
-        </div>
-        <div v-for="ub in systemUserbots" :key="ub.id" :class="['admin-row', 'userbot-admin-row', ub.active === false ? 'disabled-userbot-row' : '']">
-          <div class="ub-avatar-wrap">
-            <img v-if="ub.photo" :src="ub.photo" class="ub-avatar-large" alt="ub" />
-            <span v-else class="ub-avatar-placeholder">🤖</span>
+      <!-- 2. System Userbots (Official) -->
+      <h3 style="margin: 30px 0 10px 0; font-size: 1.05rem; color: #fff; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+        <span>🤖</span> {{ t('systemUserbots') }}
+      </h3>
+      <div v-if="!systemUserbots.length" style="color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; font-size: 0.9rem; text-align: center;">
+        No system userbots configured yet.
+      </div>
+      <div v-else class="premium-userbot-grid">
+        <div v-for="ub in systemUserbots" :key="ub.id" :class="['premium-userbot-card', ub.active === false ? 'disabled' : '']">
+          <div class="pub-header">
+            <img v-if="ub.photo" :src="ub.photo" class="pub-avatar" alt="avatar" />
+            <div v-else class="pub-avatar-placeholder">🤖</div>
+            <div class="pub-details">
+              <div class="pub-name">
+                {{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }}
+                <span :class="['status-pill', ub.active !== false ? 'active' : 'inactive']">
+                  {{ ub.active !== false ? '🟢 Active' : '🔴 Disabled' }}
+                </span>
+              </div>
+              <div class="pub-username">@{{ ub.username || 'no_username' }}</div>
+            </div>
           </div>
-          <div class="ar-inf">
-            <b>{{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }} <span :class="['status-pill', ub.active !== false ? 'active' : 'inactive']">{{ ub.active !== false ? '🟢 Active' : '🔴 Disabled' }}</span></b>
-            <small>@{{ ub.username || 'no_username' }} | {{ ub.phone }}</small>
-            <small style="color: #10B981;">Official Platform Bot</small>
+          <div class="pub-meta">
+            <div>📞 {{ ub.phone }}</div>
+            <div style="color: #4ade80; font-weight: 500;">Official Platform Bot</div>
           </div>
-          <div class="ar-act" style="display: flex; gap: 6px;">
-            <button v-if="ub.toggling" class="ibtn" disabled style="opacity: 0.6; cursor: wait;">
-              <span class="spin">⏳</span> Updating...
+          <div class="pub-actions">
+            <!-- Jump to Chat Button -->
+            <button class="btn-chat" @click="jumpToUserbotChat(ub)" title="Chat as this userbot">
+              💬 Chat
             </button>
-            <button v-else-if="ub.active !== false" class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3);" title="Disable Userbot">🔴 Disable</button>
-            <button v-else class="ibtn" @click="toggleUserbotActive(ub)" style="background: rgba(34, 197, 94, 0.15); color: #4ADE80; border: 1px solid rgba(34, 197, 94, 0.3);" title="Undo / Re-enable Userbot">↩️ Undo</button>
-            <button class="ibtn" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">✏️ Edit</button>
+            <button v-if="ub.toggling" class="btn-edit" disabled style="opacity: 0.6; cursor: wait;">
+              ⏳ ...
+            </button>
+            <button v-else-if="ub.active !== false" class="btn-disable" @click="toggleUserbotActive(ub)" title="Disable Userbot">
+              🔴 Stop
+            </button>
+            <button v-else class="btn-enable" @click="toggleUserbotActive(ub)" title="Re-enable Userbot">
+              ↩️ Start
+            </button>
+            <button class="btn-edit" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">
+              ✏️ Edit
+            </button>
           </div>
         </div>
       </div>
@@ -978,7 +1014,11 @@
         </div>
 
         <!-- ── Recipient Input Row ── -->
-        <div class="recipient-wrap">
+        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; padding: 0 4px; font-size: 0.8rem; font-weight: 600; color: rgba(255,255,255,0.75);">
+          <span>👤 {{ t('recipientInputPlaceholder') }}:</span>
+          <span class="info-circle" title="Telegram username (@username) yoki raqamli ID kiriting. Qabul qiluvchi botni kamida 1 marta start qilgan bo'lishi kerak.">!</span>
+        </div>
+        <div class="recipient-wrap" style="margin-bottom: 12px;">
           <div class="rec-input-box">
             <img
               v-if="verifiedUser && verifiedUser.exists && verifiedUser.photo_url"
@@ -1031,8 +1071,11 @@
         <!-- ── Sender Selection (Official Bot vs Userbots vs My Account) ── -->
         <div class="userbot-select-wrap">
           <div class="ub-toggle-header" @click="showSenderDropdown = !showSenderDropdown" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 4px 2px; margin-bottom: 6px;">
-            <span>⚡ {{ t('senderType') }}:</span>
-            <span class="ub-dropdown-arrow" style="font-size: 0.8rem; color: rgba(168, 85, 247, 0.9);">{{ showSenderDropdown ? '▲ Hide' : '▼ Change Sender' }}</span>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span>⚡ {{ t('senderType') }}:</span>
+              <span class="info-circle" title="Yuborish usulini tanlang: Rasmiy Bot (standart sovg'a), Tizim userboti, yoki Shaxsiy ulangan profilingiz.">!</span>
+            </div>
+            <span class="ub-dropdown-arrow" style="font-size: 0.8rem; color: #FFB300;">{{ showSenderDropdown ? '▲ Hide' : '▼ Change Sender' }}</span>
           </div>
 
           <!-- Active Selected Sender Card (Single Box) -->
@@ -1059,6 +1102,15 @@
                 <div class="ub-uname" @click.stop="!userAccount ? openPhoneAuth() : null" style="cursor: pointer;">
                   {{ pricing.myaccount_stars }} ⭐ · {{ userAccount ? getUserFirstName() : t('connectMyAccount') }}
                 </div>
+              </div>
+            </template>
+            <template v-else>
+              <div class="ub-avatar-wrap small" style="background: rgba(255, 179, 0, 0.1); border-radius: 50%; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border: 1.5px solid rgba(255, 179, 0, 0.35);">
+                <span style="font-size: 1rem;">⚡</span>
+              </div>
+              <div class="ub-info">
+                <div class="ub-name" style="color: #FFB300; font-weight: 700;">{{ t('chooseSender') }}</div>
+                <div class="ub-uname" style="color: rgba(255, 255, 255, 0.45);">{{ t('chooseSenderSub') }}</div>
               </div>
             </template>
             <span class="ub-check" style="font-size: 0.85rem;">▾</span>
@@ -1138,7 +1190,7 @@
             👤 {{ t('buyDirectBtn') }}
           </a>
 
-          <button class="sheet-pay-btn" :disabled="paying || !recipient.trim()" @click="pay">
+          <button class="sheet-pay-btn" :disabled="paying || !recipient.trim() || checkingUser || !!userCheckError || !verifiedUser || !selectedSender" @click="pay">
             <span v-if="!paying">{{ t('payBtn') }} {{ totalStars }} ⭐</span>
             <span v-else class="spin">⏳</span>
           </button>

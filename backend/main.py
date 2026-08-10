@@ -577,6 +577,11 @@ async def user_message_or_admin_reply_handler(update: Update, context):
     msg = update.message
     if not msg or not msg.text:
         return
+
+    if msg.text == "❌ Cancel":
+        from telegram import ReplyKeyboardRemove
+        await msg.reply_text("Keyboard removed.", reply_markup=ReplyKeyboardRemove())
+        return
         
     user = msg.from_user
     user_id = user.id
@@ -627,7 +632,6 @@ class ConnectionManager:
         self.active_connections = {}
 
     async def connect(self, websocket: WebSocket, account_id: str, recipient: str):
-        await websocket.accept()
         key = (str(account_id), str(recipient).lower().replace("@", ""))
         if key not in self.active_connections:
             self.active_connections[key] = []
@@ -706,6 +710,49 @@ async def uptime_pinger():
             await asyncio.sleep(40)
 
 
+async def select_command_handler(update: Update, context):
+    from telegram import ReplyKeyboardMarkup, KeyboardButtonRequestUsers, KeyboardButtonRequestChat, KeyboardButton
+    
+    keyboard = [
+        [
+            KeyboardButton("👤 Select User", request_users=KeyboardButtonRequestUsers(request_id=1, user_is_bot=False)),
+            KeyboardButton("💬 Select Chat", request_chat=KeyboardButtonRequestChat(request_id=2, chat_is_channel=False))
+        ],
+        [
+            KeyboardButton("❌ Cancel")
+        ]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
+    await update.message.reply_text(
+        "Please select a user or chat below to retrieve their ID:",
+        reply_markup=reply_markup
+    )
+
+async def shared_user_handler(update: Update, context):
+    shared = update.message.user_shared
+    user_id = shared.user_id
+    req_id = shared.request_id
+    await update.message.reply_text(
+        f"✅ <b>User Shared Successfully!</b>\n\n"
+        f"👤 <b>User ID:</b> <code>{user_id}</code>\n"
+        f"🔢 <b>Request ID:</b> <code>{req_id}</code>\n\n"
+        f"You can copy this User ID and paste it in the Gift Shop Mini App recipient input!",
+        parse_mode="HTML"
+    )
+
+async def shared_chat_handler(update: Update, context):
+    shared = update.message.chat_shared
+    chat_id = shared.chat_id
+    req_id = shared.request_id
+    await update.message.reply_text(
+        f"✅ <b>Chat Shared Successfully!</b>\n\n"
+        f"💬 <b>Chat ID:</b> <code>{chat_id}</code>\n"
+        f"🔢 <b>Request ID:</b> <code>{req_id}</code>\n\n"
+        f"You can copy this Chat ID and paste it in the Gift Shop Mini App recipient input!",
+        parse_mode="HTML"
+    )
+
+
 # ── Lifespan ───────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -725,9 +772,13 @@ async def lifespan(app: FastAPI):
     ptb_app.add_handler(CommandHandler("admin", admin_command_handler))
     ptb_app.add_handler(CommandHandler("stats", admin_command_handler))
     ptb_app.add_handler(CommandHandler("userbots", userbots_command_handler))
+    ptb_app.add_handler(CommandHandler("select", select_command_handler))
+    ptb_app.add_handler(CommandHandler("share", select_command_handler))
     ptb_app.add_handler(CallbackQueryHandler(callback_handler))
     ptb_app.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
     ptb_app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
+    ptb_app.add_handler(MessageHandler(filters.StatusUpdate.USER_SHARED, shared_user_handler))
+    ptb_app.add_handler(MessageHandler(filters.StatusUpdate.CHAT_SHARED, shared_chat_handler))
     ptb_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, user_message_or_admin_reply_handler))
     await ptb_app.initialize()
     await ptb_app.start()
