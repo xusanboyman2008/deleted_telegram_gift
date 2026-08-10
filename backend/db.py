@@ -662,6 +662,10 @@ def db_save_userbot_accounts(accounts: list) -> bool:
             conn = psycopg2.connect(pg_url)
             cur = conn.cursor()
             cur.execute("CREATE TABLE IF NOT EXISTS userbot_accounts (id INTEGER PRIMARY KEY, session TEXT, phone TEXT, session_string TEXT, api_id INTEGER, api_hash TEXT, first_name TEXT, last_name TEXT, username TEXT, bio TEXT, photo TEXT, active INTEGER DEFAULT 1, owner_tg_id BIGINT, stars_balance INTEGER DEFAULT 0)")
+            try: cur.execute("ALTER TABLE userbot_accounts ADD COLUMN owner_tg_id BIGINT")
+            except Exception: pass
+            try: cur.execute("ALTER TABLE userbot_accounts ADD COLUMN stars_balance INTEGER DEFAULT 0")
+            except Exception: pass
             cur.execute("DELETE FROM userbot_accounts")
             for a in accounts:
                 cur.execute(
@@ -682,6 +686,10 @@ def db_save_userbot_accounts(accounts: list) -> bool:
         conn = sqlite3.connect(DB_PATH)
         cur = conn.cursor()
         cur.execute("CREATE TABLE IF NOT EXISTS userbot_accounts (id INTEGER PRIMARY KEY, session TEXT, phone TEXT, session_string TEXT, api_id INTEGER, api_hash TEXT, first_name TEXT, last_name TEXT, username TEXT, bio TEXT, photo TEXT, active INTEGER DEFAULT 1, owner_tg_id INTEGER, stars_balance INTEGER DEFAULT 0)")
+        try: cur.execute("ALTER TABLE userbot_accounts ADD COLUMN owner_tg_id INTEGER")
+        except Exception: pass
+        try: cur.execute("ALTER TABLE userbot_accounts ADD COLUMN stars_balance INTEGER DEFAULT 0")
+        except Exception: pass
         cur.execute("DELETE FROM userbot_accounts")
         for a in accounts:
             cur.execute(
@@ -723,14 +731,14 @@ async def set_userbot_active_status(account_id: int, active: bool) -> bool:
 
 async def get_pricing_settings() -> dict:
     """Returns dynamic pricing settings for Bot, Userbot, and My Account senders."""
-    defaults = {"bot_stars": 53, "userbot_stars": 55, "myaccount_stars": 1}
+    defaults = {"bot_stars": 53, "userbot_stars": 55, "myaccount_stars": 0}
     try:
         if IS_POSTGRES:
             async with pool.acquire() as conn:
                 rows = await conn.fetch("SELECT key, value FROM settings WHERE key LIKE '%_stars'")
                 for r in rows:
                     if r["key"] in defaults:
-                        try: defaults[r["key"]] = int(r["value"])
+                        try: defaults[r["key"]] = float(r["value"])
                         except ValueError: pass
         else:
             async with aiosqlite.connect(DB_PATH) as db:
@@ -739,7 +747,7 @@ async def get_pricing_settings() -> dict:
                 rows = await cur.fetchall()
                 for r in rows:
                     if r["key"] in defaults:
-                        try: defaults[r["key"]] = int(r["value"])
+                        try: defaults[r["key"]] = float(r["value"])
                         except ValueError: pass
     except Exception as e:
         logger.error(f"get_pricing_settings error: {e}")
