@@ -846,16 +846,16 @@ createApp({
         const data = await r.json();
         if (!r.ok) throw new Error(data.detail || 'Failed');
 
-        if (data.free || data.direct_success || !data.link) {
+        if (data.free || data.direct_success || !data.link || totalStars.value <= 0) {
           paying.value = false;
           closeSheet();
           confetti();
-          showToast(data.message || '🎁 Gift sent successfully via connected account!');
+          showToast(data.message || '🎁 Gift sent successfully!');
           loadHistory();
           return;
         }
 
-        if (tg?.openInvoice) {
+        if (tg?.openInvoice && data.link) {
           tg.openInvoice(data.link, status => {
             paying.value = false;
             if (status === 'paid') {
@@ -869,11 +869,17 @@ createApp({
               errMsg.value = 'Payment failed. Try again.';
             }
           });
-        } else {
+        } else if (data.link) {
           window.open(data.link, '_blank');
           paying.value = false;
           closeSheet();
           showToast('✅ Invoice created — pay in Telegram');
+        } else {
+          paying.value = false;
+          closeSheet();
+          confetti();
+          showToast(data.message || '🎁 Gift sent successfully!');
+          loadHistory();
         }
       } catch (e) {
         paying.value = false;
@@ -1230,9 +1236,13 @@ createApp({
 
     const totalStars = computed(() => {
       if (!selected.value) return 0;
-      if (selectedSender.value === 'myaccount') return pricing.myaccount_stars || 1;
-      if (selectedSender.value === 'userbot') return pricing.userbot_stars || 55;
-      return pricing.bot_stars || (selected.value.base_stars + selected.value.commission);
+      if (selectedSender.value === 'myaccount') {
+        return (pricing.myaccount_stars !== undefined && pricing.myaccount_stars !== null) ? Number(pricing.myaccount_stars) : 0;
+      }
+      if (selectedSender.value === 'userbot') {
+        return (pricing.userbot_stars !== undefined && pricing.userbot_stars !== null) ? Number(pricing.userbot_stars) : 55;
+      }
+      return (pricing.bot_stars !== undefined && pricing.bot_stars !== null) ? Number(pricing.bot_stars) : (selected.value.base_stars + selected.value.commission);
     });
 
     const priceBreakdown = computed(() => {
