@@ -241,15 +241,28 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
 
         stars = await get_userbot_stars_balance(client)
         update_userbot_account(account.get("id"), stars_balance=stars)
-        if stars < 55:
+        if stars < 50:
             return {
                 "success": False,
                 "error_type": "INSUFFICIENT_STARS",
-                "error": f"Userbot {ub_name} has only {stars} ⭐ Stars (minimum 55 ⭐ required).",
+                "error": f"Userbot {ub_name} has only {stars} ⭐ Stars (minimum 50 ⭐ required).",
                 "warning": f"⚠️ Payment received! Userbot {ub_name} has only {stars} ⭐ Stars. Do not worry — your gift will be sent automatically via Main Bot or manually by our team shortly!"
             }
 
-        user = await client.get_users(recipient_id)
+        rec_target = recipient_id
+        if isinstance(recipient_id, str):
+            clean_str = recipient_id.strip()
+            if clean_str.startswith('@'):
+                rec_target = clean_str
+            elif clean_str.replace('-', '').isdigit():
+                rec_target = int(clean_str)
+
+        user = None
+        try:
+            user = await client.get_users(rec_target)
+        except Exception as ge:
+            logger.warning(f"get_users failed for {rec_target}: {ge}")
+
         if not user:
             return {
                 "success": False,
@@ -272,12 +285,13 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
                 logger.warning(f"Rich text parse failed, falling back to plain text: {pe}")
                 formatted_message = TextWithEntities(text=gift_text, entities=[])
 
-        peer = await client.resolve_peer(user.id)
+        peer = await client.resolve_peer(user.id if hasattr(user, 'id') else rec_target)
+        gift_id_val = int(gift_tg_id)
         try:
             from hydrogram.raw.functions.payments import SendGift
-            cmd = SendGift(user_id=peer, gift_id=int(gift_tg_id), message=formatted_message or gift_text or "")
+            cmd = SendGift(user_id=peer, gift_id=gift_id_val, message=formatted_message or gift_text or "")
         except (ImportError, AttributeError):
-            cmd = SendStarGift(user_id=peer, gift_id=int(gift_tg_id), message=formatted_message)
+            cmd = SendStarGift(user_id=peer, gift_id=gift_id_val, message=formatted_message)
 
         await client.invoke(cmd)
         return {"success": True, "message": f"🎁 Gift sent successfully via Userbot {ub_name}!"}
