@@ -1656,52 +1656,40 @@ async def create_invoice(body: CreateInvoiceRequest, user: dict = Depends(get_us
         await db.update_order_status(order_id, "paid", "free_order")
         gift_tg_id = gift.get("gift_tg_id")
         gift_text = body.gift_text
-        try:
-            from userbot.userbot import attempt_send_gift_via_userbot
-        except ImportError:
-            from userbot import attempt_send_gift_via_userbot
+        
+        target_ub = target_ub_id or 1
+        res = {"success": False}
+        if body.sender_type in ("userbot", "myaccount"):
+            try:
+                from userbot.userbot import attempt_send_gift_via_userbot
+            except ImportError:
+                from userbot import attempt_send_gift_via_userbot
+            res = await attempt_send_gift_via_userbot(target_ub, body.recipient_id, gift_tg_id, gift_text=gift_text)
+        else:
+            bot_delivered = await deliver_gift_via_bot(ptb_app.bot, body.recipient_id, gift_tg_id, gift_text=gift_text)
+            if bot_delivered:
+                res = {"success": True, "message": "🎁 Gift sent successfully via Main Shop Bot!"}
+            else:
+                try:
+                    from userbot.userbot import attempt_send_gift_via_userbot
+                except ImportError:
+                    from userbot import attempt_send_gift_via_userbot
+                res = await attempt_send_gift_via_userbot(target_ub, body.recipient_id, gift_tg_id, gift_text=gift_text)
 
-        res = await attempt_send_gift_via_userbot(target_ub_id or 1, body.recipient_id, gift_tg_id, gift_text=gift_text)
         if res.get("success"):
             await db.update_order_status(order_id, "delivered", "free_order")
-            return {
-                "free": True,
-                "direct_success": True,
-                "order_id": order_id,
-                "link": None,
-                "message": res.get("message") or "🎁 Gift sent successfully via connected account!"
-            }
+            msg = res.get("message") or "🎁 Gift sent successfully via connected account!"
         else:
-            logger.warning(f"Direct userbot transfer failed ({res.get('error')}). Creating 1-star invoice fallback...")
-            try:
-                desc = f"Gift delivery → {body.recipient_id}"
-                if body.gift_text:
-                    desc += f" ({body.gift_text})"
-                link = await ptb_app.bot.create_invoice_link(
-                    title=f"🎁 {name}",
-                    description=desc,
-                    payload=f"order_{order_id}",
-                    provider_token="",
-                    currency="XTR",
-                    prices=[LabeledPrice(label=name, amount=1)]
-                )
-                return {
-                    "free": False,
-                    "direct_success": False,
-                    "order_id": order_id,
-                    "link": link,
-                    "message": "Click the payment link below to complete gift delivery!"
-                }
-            except Exception as ie:
-                logger.error(f"Fallback invoice link creation failed: {ie}")
-                warning_msg = res.get("warning") or res.get("error") or "Order placed! Delivery in progress."
-                return {
-                    "free": True,
-                    "direct_success": False,
-                    "order_id": order_id,
-                    "link": None,
-                    "message": warning_msg
-                }
+            msg = res.get("warning") or res.get("error") or "🎁 Gift order received! Delivery in progress."
+            logger.info(f"Free gift order #{order_id} processed with notice: {msg}")
+
+        return {
+            "free": True,
+            "direct_success": res.get("success", False),
+            "order_id": order_id,
+            "link": None,
+            "message": msg
+        }
 
     try:
         desc = f"Rare deleted Telegram gift → {body.recipient_id}"

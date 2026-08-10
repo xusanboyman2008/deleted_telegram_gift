@@ -12,30 +12,41 @@ logger = logging.getLogger(__name__)
 
 from io import BytesIO
 
-class SendStarGift(TLObject):
-    ID = 0x6574cf97
-    QUALNAME = "functions.payments.SendStarGift"
 
-    def __init__(self, *, user_id, gift_id: int, message: TextWithEntities = None, hide_name: bool = False):
-        self.user_id = user_id
+class InputInvoiceStarGift(TLObject):
+    """inputInvoiceStarGift#e8625e92 — Used to buy a Telegram Star Gift via payments flow.
+    
+    TL Schema (Layer 223):
+      inputInvoiceStarGift#e8625e92 flags:# hide_name:flags.0?true include_upgrade:flags.2?true
+          peer:InputPeer gift_id:long message:flags.1?TextWithEntities = InputInvoice;
+    """
+    ID = 0xe8625e92
+    QUALNAME = "types.InputInvoiceStarGift"
+
+    def __init__(self, *, peer, gift_id: int, message: TextWithEntities = None,
+                 hide_name: bool = False, include_upgrade: bool = False):
+        self.peer = peer
         self.gift_id = gift_id
         self.message = message
         self.hide_name = hide_name
+        self.include_upgrade = include_upgrade
 
     @staticmethod
-    def read(b: BytesIO, *args) -> "SendStarGift":
+    def read(b: BytesIO, *args) -> "InputInvoiceStarGift":
         return TLObject.read(b)
 
     def write(self, *args) -> bytes:
         b = BytesIO()
         b.write(Int(self.ID, False))
         flags = 0
-        if self.message and getattr(self.message, 'text', None):
-            flags |= (1 << 0)
         if self.hide_name:
+            flags |= (1 << 0)
+        if self.message and getattr(self.message, 'text', None):
             flags |= (1 << 1)
+        if self.include_upgrade:
+            flags |= (1 << 2)
         b.write(Int(flags))
-        b.write(self.user_id.write())
+        b.write(self.peer.write())
         b.write(Long(self.gift_id))
         if self.message and getattr(self.message, 'text', None):
             if not isinstance(getattr(self.message, 'entities', None), list):
@@ -299,14 +310,7 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
                 logger.warning(f"Rich text parse failed, falling back to plain text: {pe}")
                 formatted_message = TextWithEntities(text=gift_text, entities=[])
 
-        from hydrogram.raw.types import InputUser
-        input_user = None
-        if hasattr(peer, "user_id") and hasattr(peer, "access_hash"):
-            input_user = InputUser(user_id=peer.user_id, access_hash=peer.access_hash)
-        elif hasattr(user, "id") and hasattr(user, "access_hash"):
-            input_user = InputUser(user_id=user.id, access_hash=getattr(user, "access_hash", 0))
-        else:
-            input_user = peer
+        from hydrogram.raw.functions.payments import GetPaymentForm, SendStarsForm
 
         real_gift_map = {
             1: 5922558454332916696,
@@ -324,11 +328,13 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
         gift_id_val = real_gift_map.get(gift_id_num, gift_id_num)
 
         try:
-            cmd = SendStarGift(user_id=input_user, gift_id=gift_id_val, message=formatted_message)
-            await client.invoke(cmd)
+            invoice = InputInvoiceStarGift(peer=peer, gift_id=gift_id_val, message=formatted_message)
+            form_res = await client.invoke(GetPaymentForm(invoice=invoice))
+            form_id = getattr(form_res, "form_id", getattr(form_res, "id", 0))
+            await client.invoke(SendStarsForm(form_id=form_id, invoice=invoice))
         except Exception as invoke_err:
             import traceback
-            logger.error(f"SendStarGift invoke error traceback:\n{traceback.format_exc()}")
+            logger.error(f"Gift send via userbot invoke error traceback:\n{traceback.format_exc()}")
             raise invoke_err
 
         return {"success": True, "message": f"🎁 Gift sent successfully via Userbot {ub_name}!"}
