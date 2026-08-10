@@ -410,7 +410,7 @@ createApp({
       toastTimer = setTimeout(() => { toast.value = ''; }, 3200);
     };
 
-    const isAdmin = ref(true);
+    const isAdmin = ref(false);
     const showAdmin = ref(false);
     const aTab = ref('gifts');
     const adminGifts = ref([]);
@@ -1181,16 +1181,21 @@ createApp({
 
     // ── Boot ───────────────────────────────────
     onMounted(async () => {
-      isAdmin.value = true;
+      isAdmin.value = false;
       try {
         const cfg = await fetch('/api/config', { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
+        if (ME && Number(ME.id) === Number(cfg.admin_id)) {
+          isAdmin.value = true;
+        }
       } catch {}
 
       await loadPricing();
       await loadGifts();
       await loadUserbotAccounts();
-      await loadBotCommands();
-      await loadManagedBots();
+      if (isAdmin.value) {
+        await loadBotCommands();
+        await loadManagedBots();
+      }
       if (ME) loadHistory();
 
       pageLoading.value = false;

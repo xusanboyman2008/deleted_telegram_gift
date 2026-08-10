@@ -78,13 +78,13 @@ async def get_user(
 ) -> dict:
     user = verify_init_data(x_init_data) if x_init_data else None
     if user is None:
-        return {"id": ADMIN_ID, "username": "xusanboyman200", "first_name": "Admin"}
+        return {"id": 0, "username": "guest", "first_name": "Guest"}
     return user
 
 
 async def get_admin(user: dict = Depends(get_user)) -> dict:
-    if user.get("id") and int(user.get("id")) != ADMIN_ID and user.get("username") != "xusanboyman200":
-        raise HTTPException(status_code=403, detail="Forbidden")
+    if not user or not user.get("id") or int(user.get("id")) != ADMIN_ID:
+        raise HTTPException(status_code=403, detail="Forbidden: Admin access required")
     return user
 
 
