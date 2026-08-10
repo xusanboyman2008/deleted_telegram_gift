@@ -883,9 +883,9 @@ async def websocket_chat_endpoint(
     
     user = verify_init_data(init_data) if init_data else None
 
+    # Resolve real account_id
+    real_id = account_id
     try:
-        from userbot.userbot import get_running_client
-        real_id = account_id
         ub_obj = await db.get_userbot_by_id_or_hash(account_id)
         if ub_obj:
             real_id = ub_obj["id"]
@@ -894,22 +894,65 @@ async def websocket_chat_endpoint(
                 real_id = int(account_id)
             except ValueError:
                 real_id = 1
-        
+    except Exception:
+        try:
+            real_id = int(account_id)
+        except ValueError:
+            real_id = 1
+
+    # Start the userbot client so it can receive messages
+    try:
+        from userbot.userbot import get_running_client
         await get_running_client(real_id)
     except Exception as e:
         logger.error(f"WS failed to start userbot client {account_id}: {e}")
 
+    # Register connection for the recipient peer
     await ws_manager.connect(websocket, account_id, recipient)
+
+    # Also try to resolve the numeric chat_id for this peer and register that too
+    extra_key = None
+    try:
+        from userbot.userbot import get_running_client as grc2
+        client = await grc2(real_id)
+        if client:
+            chat = await client.get_chat(recipient)
+            if chat:
+                extra_key = str(chat.id)
+                await ws_manager.connect(websocket, account_id, extra_key)
+                # Also register by username if available
+                if chat.username:
+                    await ws_manager.connect(websocket, account_id, chat.username)
+    except Exception:
+        pass
+
     try:
         while True:
-            # Keep connection alive, listen for ping or client text
-            msg = await websocket.receive_text()
-            if msg == "ping":
+            raw = await websocket.receive_text()
+            if raw == "ping":
                 await websocket.send_text("pong")
+                continue
+
+            # Handle send message through WebSocket
+            try:
+                payload = json.loads(raw)
+                if payload.get("action") == "send" and payload.get("text"):
+                    from userbot.userbot import userbot_send_message
+                    result = await userbot_send_message(real_id, recipient, payload["text"])
+                    await websocket.send_json({"event": "send_ack", "success": result.get("success", False), "message_id": result.get("message_id"), "error": result.get("error")})
+            except json.JSONDecodeError:
+                pass
+            except Exception as send_err:
+                logger.error(f"WS send error: {send_err}")
+                await websocket.send_json({"event": "send_ack", "success": False, "error": str(send_err)})
     except WebSocketDisconnect:
-        ws_manager.disconnect(websocket, account_id, recipient)
+        pass
     except Exception:
+        pass
+    finally:
         ws_manager.disconnect(websocket, account_id, recipient)
+        if extra_key:
+            ws_manager.disconnect(websocket, account_id, extra_key)
 
 
 @app.get("/api/userbot/chat/profile")

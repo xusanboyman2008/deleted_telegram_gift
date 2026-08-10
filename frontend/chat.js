@@ -179,24 +179,58 @@ function setupChatState(Vue, api, showToast, tg) {
     ws.onmessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.event === 'message' && data.message) {
-          // Check if matches an optimistic/sending message
-          const optIdx = currentMessages.value.findIndex(m => m.sending && m.text === data.message.text);
-          if (optIdx >= 0) {
-            currentMessages.value[optIdx].id = data.message.id;
-            currentMessages.value[optIdx].sending = false;
-          } else {
-            const exists = currentMessages.value.some(m => m.id === data.message.id);
-            if (!exists) {
-              currentMessages.value.push(data.message);
-              await scrollToBottom();
+
+        // Handle send acknowledgement
+        if (data.event === 'send_ack') {
+          if (data.success && data.message_id) {
+            // Find the optimistic sending message and update its id
+            const optIdx = currentMessages.value.findIndex(m => m.sending);
+            if (optIdx >= 0) {
+              currentMessages.value[optIdx].id = data.message_id;
+              currentMessages.value[optIdx].sending = false;
+            }
+          } else if (!data.success) {
+            const optIdx = currentMessages.value.findIndex(m => m.sending);
+            if (optIdx >= 0) {
+              currentMessages.value[optIdx].failed = true;
+              currentMessages.value[optIdx].sending = false;
             }
           }
+          chatSending.value = false;
+          return;
+        }
 
-          // Also update contact's preview in the sidebar list!
+        if (data.event === 'message' && data.message) {
+          // Check if this is our own outgoing message echoed back
+          if (data.message.out) {
+            // Try to match with optimistic message by text content
+            const optIdx = currentMessages.value.findIndex(m => 
+              (m.sending || m.id === data.message.id) && m.text === data.message.text
+            );
+            if (optIdx >= 0) {
+              // Update the optimistic message with server data
+              currentMessages.value[optIdx].id = data.message.id;
+              currentMessages.value[optIdx].sending = false;
+              currentMessages.value[optIdx].photo = data.message.photo || null;
+              currentMessages.value[optIdx].voice = data.message.voice || null;
+              return; // Don't add duplicate
+            }
+            // Check if already exists by message id
+            const exists = currentMessages.value.some(m => m.id === data.message.id);
+            if (exists) return;
+          }
+
+          // For incoming messages, check for duplicates
+          const exists = currentMessages.value.some(m => m.id === data.message.id);
+          if (!exists) {
+            currentMessages.value.push(data.message);
+            await scrollToBottom();
+          }
+
+          // Update contact's preview in the sidebar
           const chat = chatList.value.find(c => c.peer.toLowerCase() === peer.toLowerCase());
           if (chat) {
-            chat.last_msg = data.message.text || '';
+            chat.last_msg = data.message.text || (data.message.photo ? '📷 Photo' : (data.message.voice ? '🎤 Voice' : ''));
             chat.last_time = data.message.date || '';
             chat.last_out = data.message.out;
           }
@@ -333,35 +367,57 @@ function setupChatState(Vue, api, showToast, tg) {
     await scrollToBottom();
 
     chatSending.value = true;
-    try {
-      const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
-      const res = await api('/api/userbot/chat/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          account_id: accountId,
-          recipient: currentChatPeer.value,
-          message: text,
-        }),
-      });
-      const data = await res.json();
-      // Mark as sent
-      const msgIdx = currentMessages.value.findIndex(m => m.id === tempId);
-      if (msgIdx >= 0) {
-        currentMessages.value[msgIdx].sending = false;
-        if (data.success) {
-          currentMessages.value[msgIdx].id = data.message_id || tempId;
-        } else {
-          currentMessages.value[msgIdx].failed = true;
-          showToast('❌ Failed to send: ' + (data.error || 'Unknown error'));
-        }
+
+    // Send through WebSocket if connected, fallback to HTTP
+    if (chatSocket && chatSocket.readyState === WebSocket.OPEN) {
+      try {
+        chatSocket.send(JSON.stringify({ action: 'send', text: text }));
+        // The WS onmessage handler will receive the send_ack and the broadcast message
+        // Mark as sent after a short timeout (server will confirm via broadcast)
+        setTimeout(() => {
+          const msgIdx = currentMessages.value.findIndex(m => m.id === tempId && m.sending);
+          if (msgIdx >= 0) {
+            currentMessages.value[msgIdx].sending = false;
+          }
+          chatSending.value = false;
+        }, 2000);
+      } catch (e) {
+        const msgIdx = currentMessages.value.findIndex(m => m.id === tempId);
+        if (msgIdx >= 0) currentMessages.value[msgIdx].failed = true;
+        showToast('❌ Send error: ' + e.message);
+        chatSending.value = false;
       }
-    } catch (e) {
-      const msgIdx = currentMessages.value.findIndex(m => m.id === tempId);
-      if (msgIdx >= 0) currentMessages.value[msgIdx].failed = true;
-      showToast('❌ Send error: ' + e.message);
-    } finally {
-      chatSending.value = false;
+    } else {
+      // Fallback: HTTP POST
+      try {
+        const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
+        const res = await api('/api/userbot/chat/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            account_id: accountId,
+            recipient: currentChatPeer.value,
+            message: text,
+          }),
+        });
+        const data = await res.json();
+        const msgIdx = currentMessages.value.findIndex(m => m.id === tempId);
+        if (msgIdx >= 0) {
+          currentMessages.value[msgIdx].sending = false;
+          if (data.success) {
+            currentMessages.value[msgIdx].id = data.message_id || tempId;
+          } else {
+            currentMessages.value[msgIdx].failed = true;
+            showToast('❌ Failed to send: ' + (data.error || 'Unknown error'));
+          }
+        }
+      } catch (e) {
+        const msgIdx = currentMessages.value.findIndex(m => m.id === tempId);
+        if (msgIdx >= 0) currentMessages.value[msgIdx].failed = true;
+        showToast('❌ Send error: ' + e.message);
+      } finally {
+        chatSending.value = false;
+      }
     }
 
     // Update contact preview
