@@ -1678,8 +1678,8 @@ async def admin_list_gifts(admin=Depends(get_admin)):
 
 class GiftPayload(BaseModel):
     emoji: str = "🧸"
-    date_label: str
-    gift_tg_id: str
+    date_label: str = "08/07/26"
+    gift_tg_id: str = "6012345678"
     base_stars: int = 50
     commission: int = 10
     display_name: str = ""

@@ -965,12 +965,31 @@ createApp({
       }
     };
     const saveGift = async () => {
-      const body = { emoji: form.emoji || '🧸', display_name: form.display_name, date_label: form.date_label, gift_tg_id: form.gift_tg_id, base_stars: form.base_stars, commission: form.commission, animation: form.animation };
+      const body = {
+        emoji: form.emoji || '🧸',
+        display_name: form.display_name || 'New Gift',
+        date_label: form.date_label || '08/07/26',
+        gift_tg_id: form.gift_tg_id ? String(form.gift_tg_id) : '6012345678',
+        base_stars: Number(form.base_stars) || 50,
+        commission: Number(form.commission) || 10,
+        animation: form.animation || ''
+      };
       const url = form.id ? `/api/admin/gifts/${form.id}` : '/api/admin/gifts';
       const method = form.id ? 'PATCH' : 'POST';
-      const r = await api(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (r.ok) { form.show = false; loadAdminGifts(); loadGifts(); showToast('✅ Saved'); }
-      else showToast('❌ Save failed');
+      try {
+        const r = await api(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (r.ok) {
+          form.show = false;
+          await loadAdminGifts();
+          await loadGifts();
+          showToast('✅ Gift Saved Successfully!');
+        } else {
+          const errData = await r.json().catch(() => ({}));
+          showToast(`❌ Save failed: ${errData.detail || 'Error'}`);
+        }
+      } catch (err) {
+        showToast(`❌ Save error: ${err.message}`);
+      }
     };
     const toggleActive = async g => {
       await api(`/api/admin/gifts/${g.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: g.active ? 0 : 1 }) });
