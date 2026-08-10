@@ -17,8 +17,9 @@ if BASE_DIR not in sys.path:
 ACCOUNT_FILE = os.path.join(os.path.dirname(__file__), "account.json")
 USER_ACCOUNTS_FILE = os.path.join(os.path.dirname(__file__), "user_accounts.json")
 
-DEFAULT_API_ID = 35251724
-DEFAULT_API_HASH = "b11e753959873b1df047454a8d816604"
+DEFAULT_API_ID = int(os.getenv("TG_API_ID", "0"))
+DEFAULT_API_HASH = os.getenv("TG_API_HASH", "")
+
 
 
 def load_file(filepath):

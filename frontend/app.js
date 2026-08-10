@@ -90,6 +90,8 @@ const I18N = {
     gift_i_love_u: "I Love U",
     gift_christmas_tree: "Christmas Tree",
     gift_hug_bear: "Hug Bear",
+    chats: "Chats",
+    botPanel: "Bot Panel",
   },
   uz: {
     gifts: "Sovg'alar",
@@ -144,6 +146,8 @@ const I18N = {
     gift_i_love_u: "Sevaman ❤️",
     gift_christmas_tree: "Rojdestvo daraxti",
     gift_hug_bear: "Quchoq ayiqcha",
+    chats: "Suhbatlar",
+    botPanel: "Bot Paneli",
   },
   ru: {
     gifts: "Подарки",
@@ -198,6 +202,8 @@ const I18N = {
     gift_i_love_u: "Люблю тебя ❤️",
     gift_christmas_tree: "Рождественская ёлка",
     gift_hug_bear: "Мишка-обнимашка",
+    chats: "Чаты",
+    botPanel: "Панель Бота",
   }
 };
 

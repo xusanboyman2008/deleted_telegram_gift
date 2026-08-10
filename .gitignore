@@ -14,4 +14,7 @@ userbot/*.json
 *.json
 !frontend/assets/*.json
 !animations/*.json
-frontend/assets/user_photos/
+*.session
+*.session-shm
+*.session-wal
+userbot/pending_sessions/
