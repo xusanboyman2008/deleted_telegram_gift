@@ -12,6 +12,9 @@ import hmac
 import hashlib
 import logging
 import httpx
+import asyncio
+import traceback
+from datetime import datetime
 from typing import Any, Optional, Union, Dict, List
 from contextlib import asynccontextmanager
 from urllib.parse import parse_qsl
@@ -19,6 +22,7 @@ from urllib.parse import parse_qsl
 user_last_invoice_time = {}
 
 from fastapi import FastAPI, Request, HTTPException, Depends, Header, BackgroundTasks, File, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -911,6 +915,119 @@ class NgrokMiddleware(BaseHTTPMiddleware):
         return response
 
 app.add_middleware(NgrokMiddleware)
+
+
+# ── Automatic Admin Error Reporting ──────────────────────────────────────────
+
+async def notify_admin_error(
+    action: str,
+    error: Exception | str,
+    user_info: dict | str = None,
+    details: dict | str = None
+):
+    """Sends a clear, detailed error report directly to @xusanboyman200 (ADMIN_ID: 6588631008) via Telegram bot."""
+    if not ptb_app or not ptb_app.bot:
+        logger.error(f"Cannot send error notification: ptb_app not ready. Action: {action}, Error: {error}")
+        return
+
+    try:
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        user_str = "Unknown / Guest"
+        if isinstance(user_info, dict):
+            username = user_info.get("username")
+            uid = user_info.get("id") or user_info.get("user_id")
+            first_name = user_info.get("first_name", "")
+            user_str = f"{first_name} (@{username})" if username else f"{first_name} (ID: {uid})"
+        elif user_info:
+            user_str = str(user_info)
+
+        err_msg = str(error)
+        tb_str = ""
+        if isinstance(error, Exception):
+            tb_str = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+            if len(tb_str) > 400:
+                tb_str = tb_str[-400:]
+
+        det_str = ""
+        if isinstance(details, dict):
+            det_str = json.dumps(details, indent=2, ensure_ascii=False)
+        elif details:
+            det_str = str(details)
+
+        message_text = (
+            f"🚨 <b>SYSTEM ERROR REPORT</b>\n\n"
+            f"👤 <b>User:</b> <code>{user_str}</code>\n"
+            f"🎯 <b>Action:</b> {action}\n"
+            f"⏰ <b>Time:</b> {now_str}\n"
+            f"⚠️ <b>Error:</b>\n<code>{err_msg}</code>\n"
+        )
+        if det_str:
+            if len(det_str) > 300:
+                det_str = det_str[:300] + "..."
+            message_text += f"\n📝 <b>Details / Context:</b>\n<pre>{det_str}</pre>\n"
+
+        if tb_str:
+            message_text += f"\n🔍 <b>Traceback Snippet:</b>\n<pre>{tb_str}</pre>"
+
+        await ptb_app.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=message_text,
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        logger.error(f"Failed to send admin error report to {ADMIN_ID}: {e}")
+
+
+@app.exception_handler(Exception)
+async def global_unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled Exception on {request.method} {request.url.path}: {exc}", exc_info=exc)
+    
+    init_data = request.headers.get("X-Init-Data") or request.query_params.get("init_data")
+    user_info = verify_init_data(init_data) if init_data else None
+    
+    details = {
+        "method": request.method,
+        "path": str(request.url.path),
+        "client_ip": request.client.host if request.client else "unknown",
+        "query_params": dict(request.query_params)
+    }
+    
+    asyncio.create_task(notify_admin_error(
+        action=f"HTTP {request.method} {request.url.path}",
+        error=exc,
+        user_info=user_info,
+        details=details
+    ))
+    
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error. Support has been notified."}
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    init_data = request.headers.get("X-Init-Data") or request.query_params.get("init_data")
+    user_info = verify_init_data(init_data) if init_data else None
+    
+    details = {
+        "method": request.method,
+        "path": str(request.url.path),
+        "errors": exc.errors()
+    }
+    
+    asyncio.create_task(notify_admin_error(
+        action=f"Validation Error on {request.method} {request.url.path}",
+        error=str(exc),
+        user_info=user_info,
+        details=details
+    ))
+    
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors()}
+    )
 
 
 @app.websocket("/api/ws/global")
