@@ -30,14 +30,16 @@ class SendStarGift(TLObject):
         b = BytesIO()
         b.write(Int(self.ID, False))
         flags = 0
-        if self.message:
+        if self.message and getattr(self.message, 'text', None):
             flags |= (1 << 0)
         if self.hide_name:
             flags |= (1 << 1)
         b.write(Int(flags))
         b.write(self.user_id.write())
         b.write(Long(self.gift_id))
-        if self.message:
+        if self.message and getattr(self.message, 'text', None):
+            if not isinstance(getattr(self.message, 'entities', None), list):
+                self.message.entities = []
             b.write(self.message.write())
         return b.getvalue()
 
@@ -246,13 +248,6 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
 
         stars = await get_userbot_stars_balance(client)
         update_userbot_account(account.get("id"), stars_balance=stars)
-        if stars > 0 and stars < 50:
-            return {
-                "success": False,
-                "error_type": "INSUFFICIENT_STARS",
-                "error": f"Userbot {ub_name} has only {stars} ⭐ Stars (minimum 50 ⭐ required).",
-                "warning": f"⚠️ Payment received! Userbot {ub_name} has only {stars} ⭐ Stars. Do not worry — your gift will be sent automatically via Main Bot or manually by our team shortly!"
-            }
 
         rec_target = recipient_id
         if isinstance(recipient_id, str):
@@ -295,9 +290,10 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
             try:
                 clean_text = re.sub(r'<tg-emoji\s+emoji-id=["\']?(\d+)["\']?>([^<]*)</tg-emoji>', r'<emoji id="\1">\2</emoji>', gift_text)
                 parsed = await HTML(client).parse(clean_text)
+                raw_entities = parsed.get("entities") if parsed else None
                 formatted_message = TextWithEntities(
-                    text=parsed.get("message", gift_text),
-                    entities=parsed.get("entities", [])
+                    text=parsed.get("message", gift_text) if parsed else gift_text,
+                    entities=raw_entities if isinstance(raw_entities, list) else []
                 )
             except Exception as pe:
                 logger.warning(f"Rich text parse failed, falling back to plain text: {pe}")
@@ -312,12 +308,28 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
         else:
             input_user = peer
 
-        gift_id_val = int(gift_tg_id)
+        real_gift_map = {
+            1: 5922558454332916696,
+            2: 5956217000635139069,
+            3: 5801108895304779062,
+            4: 5800655655995968830,
+            5: 5866352046986232958,
+            6: 5893356958802511476,
+            7: 5935895822435615975,
+            8: 5969796561943660080,
+            9: 6026193266406327981,
+            10: 5974210632977745012
+        }
+        gift_id_num = int(gift_tg_id) if (gift_tg_id and str(gift_tg_id).isdigit()) else 1
+        gift_id_val = real_gift_map.get(gift_id_num, gift_id_num)
+
         try:
             cmd = SendStarGift(user_id=input_user, gift_id=gift_id_val, message=formatted_message)
             await client.invoke(cmd)
         except Exception as invoke_err:
-            logger.info(f"SendStarGift invoke finished (res: {invoke_err})")
+            import traceback
+            logger.error(f"SendStarGift invoke error traceback:\n{traceback.format_exc()}")
+            raise invoke_err
 
         return {"success": True, "message": f"🎁 Gift sent successfully via Userbot {ub_name}!"}
 
