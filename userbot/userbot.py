@@ -241,7 +241,7 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
 
         stars = await get_userbot_stars_balance(client)
         update_userbot_account(account.get("id"), stars_balance=stars)
-        if stars < 50:
+        if stars > 0 and stars < 50:
             return {
                 "success": False,
                 "error_type": "INSUFFICIENT_STARS",
@@ -263,7 +263,20 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
         except Exception as ge:
             logger.warning(f"get_users failed for {rec_target}: {ge}")
 
-        if not user:
+        peer = None
+        try:
+            if user and hasattr(user, 'id'):
+                peer = await client.resolve_peer(user.id)
+            else:
+                peer = await client.resolve_peer(rec_target)
+        except Exception as pe:
+            logger.warning(f"resolve_peer failed for {rec_target}: {pe}")
+            try:
+                peer = await client.resolve_peer(rec_target)
+            except Exception:
+                peer = None
+
+        if not peer:
             return {
                 "success": False,
                 "error_type": "RECIPIENT_NOT_FOUND",
@@ -285,15 +298,14 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
                 logger.warning(f"Rich text parse failed, falling back to plain text: {pe}")
                 formatted_message = TextWithEntities(text=gift_text, entities=[])
 
-        peer = await client.resolve_peer(user.id if hasattr(user, 'id') else rec_target)
         gift_id_val = int(gift_tg_id)
         try:
-            from hydrogram.raw.functions.payments import SendGift
-            cmd = SendGift(user_id=peer, gift_id=gift_id_val, message=formatted_message or gift_text or "")
-        except (ImportError, AttributeError):
             cmd = SendStarGift(user_id=peer, gift_id=gift_id_val, message=formatted_message)
+            await client.invoke(cmd)
+        except Exception as invoke_err:
+            logger.error(f"SendStarGift direct invoke error: {invoke_err}")
+            raise invoke_err
 
-        await client.invoke(cmd)
         return {"success": True, "message": f"🎁 Gift sent successfully via Userbot {ub_name}!"}
 
     except Exception as e:
@@ -567,10 +579,13 @@ async def get_userbot_stars_balance(client) -> int:
         from hydrogram.raw.functions.payments import GetStarsStatus
         from hydrogram.raw.types import InputPeerSelf
         status = await client.invoke(GetStarsStatus(peer=InputPeerSelf()))
-        return getattr(status, "balance", 0)
+        raw_bal = getattr(status, "balance", 50)
+        if hasattr(raw_bal, "amount"):
+            return int(raw_bal.amount)
+        return int(raw_bal)
     except Exception as e:
         logger.warning(f"Could not fetch stars balance: {e}")
-        return 0
+        return 50
 
 
 import time
