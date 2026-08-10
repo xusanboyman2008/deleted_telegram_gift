@@ -83,6 +83,8 @@ function setupChatState(Vue, api, showToast, tg) {
       } catch (e) {}
       chatSocket = null;
     }
+    // Connect WebSocket ONLY when user chooses an account in Chats!
+    connectGlobalSocket();
     // Reload contacts for new account
     loadChatContacts();
   };
@@ -193,13 +195,16 @@ function setupChatState(Vue, api, showToast, tg) {
       }, 20000);
       ws.onclose = () => {
         globalSocket = null;
-        setTimeout(connectGlobalSocket, 5000);
+        if (activeChatAccount.value) {
+          setTimeout(connectGlobalSocket, 5000);
+        }
       };
     } catch (e) {}
   };
 
   onMounted(() => {
-    connectGlobalSocket();
+    // Intentionally empty: WebSocket is not opened on app launch.
+    // It opens ONLY when user opens Chats and selects an account!
   });
 
   const connectChatSocket = (peer) => {
