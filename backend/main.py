@@ -1672,14 +1672,36 @@ async def create_invoice(body: CreateInvoiceRequest, user: dict = Depends(get_us
                 "message": res.get("message") or "🎁 Gift sent successfully via connected account!"
             }
         else:
-            warning_msg = res.get("warning") or res.get("error") or "Order placed! Delivery in progress."
-            return {
-                "free": True,
-                "direct_success": False,
-                "order_id": order_id,
-                "link": None,
-                "message": warning_msg
-            }
+            logger.warning(f"Direct userbot transfer failed ({res.get('error')}). Creating 1-star invoice fallback...")
+            try:
+                desc = f"Gift delivery → {body.recipient_id}"
+                if body.gift_text:
+                    desc += f" ({body.gift_text})"
+                link = await ptb_app.bot.create_invoice_link(
+                    title=f"🎁 {name}",
+                    description=desc,
+                    payload=f"order_{order_id}",
+                    provider_token="",
+                    currency="XTR",
+                    prices=[LabeledPrice(label=name, amount=1)]
+                )
+                return {
+                    "free": False,
+                    "direct_success": False,
+                    "order_id": order_id,
+                    "link": link,
+                    "message": "Click the payment link below to complete gift delivery!"
+                }
+            except Exception as ie:
+                logger.error(f"Fallback invoice link creation failed: {ie}")
+                warning_msg = res.get("warning") or res.get("error") or "Order placed! Delivery in progress."
+                return {
+                    "free": True,
+                    "direct_success": False,
+                    "order_id": order_id,
+                    "link": None,
+                    "message": warning_msg
+                }
 
     try:
         desc = f"Rare deleted Telegram gift → {body.recipient_id}"
