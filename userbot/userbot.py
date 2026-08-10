@@ -3,8 +3,38 @@ import json
 import logging
 import httpx
 import re
+from hydrogram.raw.core import TLObject
+from hydrogram.raw.core.primitives import Int, Long
+from hydrogram.raw.types import TextWithEntities
+from hydrogram.parser.html import HTML
 
 logger = logging.getLogger(__name__)
+
+class SendStarGift(TLObject):
+    ID = 0x6574cf97
+    QUALNAME = "functions.payments.SendStarGift"
+
+    def __init__(self, *, user_id, gift_id: int, message: TextWithEntities = None, hide_name: bool = False):
+        self.user_id = user_id
+        self.gift_id = gift_id
+        self.message = message
+        self.hide_name = hide_name
+
+    def write(self, *args):
+        flags = 0
+        if self.message:
+            flags |= (1 << 0)
+        if self.hide_name:
+            flags |= (1 << 1)
+            
+        b = bytearray()
+        b.extend(Int(self.ID))
+        b.extend(Int(flags))
+        b.extend(self.user_id.write())
+        b.extend(Long(self.gift_id))
+        if self.message:
+            b.extend(self.message.write())
+        return bytes(b)
 
 ACCOUNT_FILE = os.path.join(os.path.dirname(__file__), "account.json")
 USER_ACCOUNTS_FILE = os.path.join(os.path.dirname(__file__), "user_accounts.json")
@@ -202,8 +232,6 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
 
     # Execute Hydrogram Client sending logic
     try:
-        from hydrogram.raw.functions.payments import SendGift
-
         client = await get_running_client(account.get("id"))
         if not client:
             return {
@@ -230,14 +258,28 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
                 "warning": f"⚠️ Payment received! Target recipient {recipient_id} not found by userbot. Admin will send your gift manually!"
             }
         
-        # Send gift call
-        await client.invoke(
-            SendGift(
-                user_id=await client.resolve_peer(user.id),
-                gift_id=int(gift_tg_id),
-                message=gift_text or ""
-            )
-        )
+        # Parse rich text and custom Telegram premium emojis into TextWithEntities
+        formatted_message = None
+        if gift_text:
+            try:
+                clean_text = re.sub(r'<tg-emoji\s+emoji-id=["\']?(\d+)["\']?>([^<]*)</tg-emoji>', r'<emoji id="\1">\2</emoji>', gift_text)
+                parsed = await HTML(client).parse(clean_text)
+                formatted_message = TextWithEntities(
+                    text=parsed.get("message", gift_text),
+                    entities=parsed.get("entities", [])
+                )
+            except Exception as pe:
+                logger.warning(f"Rich text parse failed, falling back to plain text: {pe}")
+                formatted_message = TextWithEntities(text=gift_text, entities=[])
+
+        peer = await client.resolve_peer(user.id)
+        try:
+            from hydrogram.raw.functions.payments import SendGift
+            cmd = SendGift(user_id=peer, gift_id=int(gift_tg_id), message=formatted_message or gift_text or "")
+        except (ImportError, AttributeError):
+            cmd = SendStarGift(user_id=peer, gift_id=int(gift_tg_id), message=formatted_message)
+
+        await client.invoke(cmd)
         return {"success": True, "message": f"🎁 Gift sent successfully via Userbot {ub_name}!"}
 
     except Exception as e:
