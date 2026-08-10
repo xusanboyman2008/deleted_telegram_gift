@@ -76,13 +76,8 @@
       <div class="gifts-grid" style="margin-top: 10px;">
         <div v-for="g in gifts" :key="g.id" class="gift-card" @click="openSheet(g)" @mouseenter="hoveredGiftId = g.id" @mouseleave="hoveredGiftId = null">
           <div class="card-media">
-            <template v-if="hoveredGiftId === g.id && g.animation">
-              <lottie-anim :filename="g.animation" :fallback-img="getFallbackPng(g.animation)"></lottie-anim>
-            </template>
-            <template v-else>
-              <img v-if="getFallbackPng(g.animation)" :src="getFallbackPng(g.animation)" class="card-img" alt="gift"/>
-              <span v-else class="card-emoji-fallback">{{ g.emoji }}</span>
-            </template>
+            <lottie-anim v-if="g.animation" :filename="g.animation"></lottie-anim>
+            <span v-else class="card-emoji-fallback">{{ g.emoji }}</span>
           </div>
           <div class="card-title">{{ giftName(g) }}</div>
           <div class="card-price-pill">
@@ -121,7 +116,7 @@
         <div v-for="o in myOrders" :key="o.id" class="order-item">
           <div class="oi-left">
             <div class="oi-media" style="width: 42px; height: 42px; flex-shrink: 0;">
-              <img v-if="getFallbackPng(o.animation)" :src="getFallbackPng(o.animation)" class="oi-img" style="width: 100%; height: 100%; object-fit: contain;" alt="gift"/>
+              <lottie-anim v-if="o.animation" :filename="o.animation"></lottie-anim>
               <span v-else class="oi-emoji">{{ o.emoji }}</span>
             </div>
             <div class="oi-info">
@@ -1036,7 +1031,7 @@
         <!-- ── Gift Circular Preview ── -->
         <div class="sheet-avatar-circle">
           <img v-if="getGiftImg(selected.animation)" :src="getGiftImg(selected.animation)" class="sheet-img-preview"/>
-          <lottie-anim v-else-if="selected.animation" :filename="selected.animation" :fallback-img="getFallbackPng(selected.animation)" class="sheet-lottie"></lottie-anim>
+          <lottie-anim v-else-if="selected.animation" :filename="selected.animation" class="sheet-lottie"></lottie-anim>
           <div v-else class="sheet-emoji">{{ selected.emoji }}</div>
         </div>
 
@@ -1267,7 +1262,7 @@
           <button class="add-btn" @click="openAddForm">+ Add Gift</button>
           <div v-for="g in sortedAdminGifts" :key="g.id" :class="['admin-row', g.active ? '' : 'deleted-gift-row']">
             <div class="ar-media" style="width: 36px; height: 36px; flex-shrink: 0;">
-              <img v-if="getFallbackPng(g.animation)" :src="getFallbackPng(g.animation)" class="ar-img" style="width: 100%; height: 100%; object-fit: contain;" alt="gift"/>
+              <lottie-anim v-if="g.animation" :filename="g.animation"></lottie-anim>
               <span v-else class="ar-em">{{ g.emoji }}</span>
             </div>
             <div class="ar-inf">
@@ -1294,7 +1289,7 @@
             <div class="ao-top"><span>#{{ o.id }}</span><span :class="['ao-st','st-'+o.status]">{{ o.status }}</span></div>
             <div class="ao-row-content" style="display: flex; align-items: center; gap: 10px; margin-top: 4px;">
               <div class="ao-media" style="width: 36px; height: 36px; flex-shrink: 0;">
-                <img v-if="getFallbackPng(o.animation)" :src="getFallbackPng(o.animation)" class="ao-img" style="width: 100%; height: 100%; object-fit: contain;" alt="gift"/>
+                <lottie-anim v-if="o.animation" :filename="o.animation"></lottie-anim>
                 <span v-else class="ao-em">{{ o.emoji }}</span>
               </div>
               <div class="ao-details">

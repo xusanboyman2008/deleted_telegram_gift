@@ -217,20 +217,7 @@ const GIFT_NAME_KEYS = {
 
 // ── Image & Fallback mapping ───────────────────
 const IMG_MAP = {};
-const FALLBACK_PNG_MAP = {
-  'pink_bear.json': 'assets/rose_bear.png',
-  'worker_bear.json': 'assets/worker_bear.png',
-  'football_bear.json': 'assets/football_bear.png',
-  'bunny_bear.json': 'assets/bunny_basket.png',
-  'joker_bear.json': 'assets/balloon_bear.png',
-  'santa_bear.json': 'assets/santa_teddy.png',
-  'gnome_bear.json': 'assets/gnome_bear.png',
-  'hear.json': 'assets/iloveu_bear.png',
-  'green_tree.json': 'assets/green_tree.png',
-  'hug_bear.json': 'assets/hug_bear.png',
-  'hugging_bear.json': 'assets/hug_bear.png',
-};
-const getFallbackPng = anim => FALLBACK_PNG_MAP[anim] || null;
+const getFallbackPng = anim => null;
 
 // ── Lottie Dash Fix ───────────────────────────
 function fixLottieDashes(obj) {
@@ -737,19 +724,22 @@ createApp({
 
     const checkRecipientNow = async () => {
       const q = recipient.value.trim();
-      if (!q) { verifiedUser.value = null; userCheckError.value = ''; return; }
+      if (!q) { verifiedUser.value = null; userCheckError.value = ''; checkingUser.value = false; return; }
       checkingUser.value = true; userCheckError.value = ''; verifiedUser.value = null;
+
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Search timeout')), 10000));
       try {
-        const res = await api(`/api/check-user?query=${encodeURIComponent(q)}`).then(r => r.json());
+        const fetchPromise = api(`/api/check-user?query=${encodeURIComponent(q)}`).then(r => r.json());
+        const res = await Promise.race([fetchPromise, timeoutPromise]);
         checkingUser.value = false;
         if (res.found) {
           verifiedUser.value = res;
         } else {
-          userCheckError.value = res.error || 'Recipient profile could not be verified.';
+          userCheckError.value = res.error || 'User not found on Telegram.';
         }
       } catch (e) {
         checkingUser.value = false;
-        userCheckError.value = 'Failed to verify recipient.';
+        userCheckError.value = e.message === 'Search timeout' ? 'Verification timed out. Try again.' : 'Failed to verify recipient.';
       }
     };
 
@@ -757,8 +747,17 @@ createApp({
       verifiedUser.value = null; userCheckError.value = '';
       clearTimeout(checkTimeout);
       const q = recipient.value.trim();
-      if (!q) return;
-      checkTimeout = setTimeout(() => { checkRecipientNow(); }, 700);
+      if (!q) {
+        checkingUser.value = false;
+        return;
+      }
+      const cleanQ = q.replace(/^@/, '');
+      if (!isNumeric(q) && cleanQ.length < 3) {
+        checkingUser.value = false;
+        return;
+      }
+      checkingUser.value = true;
+      checkTimeout = setTimeout(() => { checkRecipientNow(); }, 500);
     };
 
     const clearRecipient = () => {

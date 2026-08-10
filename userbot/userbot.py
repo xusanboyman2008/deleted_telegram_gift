@@ -129,8 +129,8 @@ async def sync_userbot_telegram_profile(account: dict):
     account_id = account.get("id")
 
     try:
-        from hydrogram import Client
-        async with Client(f"userbot_sync_{account_id}", api_id=api_id, api_hash=api_hash, session_string=session_string, in_memory=True) as client:
+        client = await get_running_client(account_id)
+        if client:
             first_name = account.get("first_name", "") or ""
             last_name = account.get("last_name", "") or ""
             bio = account.get("bio", "") or ""
@@ -202,41 +202,43 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
 
     # Execute Hydrogram Client sending logic
     try:
-        from hydrogram import Client
         from hydrogram.raw.functions.payments import SendGift
 
-        api_id = account.get("api_id")
-        api_hash = account.get("api_hash")
+        client = await get_running_client(account.get("id"))
+        if not client:
+            return {
+                "success": False,
+                "error": "Failed to connect Userbot sender account."
+            }
 
-        async with Client(f"userbot_{account.get('id', 1)}", api_id=api_id, api_hash=api_hash, session_string=session_string, in_memory=True) as client:
-            stars = await get_userbot_stars_balance(client)
-            update_userbot_account(account.get("id"), stars_balance=stars)
-            if stars < 55:
-                return {
-                    "success": False,
-                    "error_type": "INSUFFICIENT_STARS",
-                    "error": f"Userbot {ub_name} has only {stars} ⭐ Stars (minimum 55 ⭐ required).",
-                    "warning": f"⚠️ Payment received! Userbot {ub_name} has only {stars} ⭐ Stars. Do not worry — your gift will be sent automatically via Main Bot or manually by our team shortly!"
-                }
+        stars = await get_userbot_stars_balance(client)
+        update_userbot_account(account.get("id"), stars_balance=stars)
+        if stars < 55:
+            return {
+                "success": False,
+                "error_type": "INSUFFICIENT_STARS",
+                "error": f"Userbot {ub_name} has only {stars} ⭐ Stars (minimum 55 ⭐ required).",
+                "warning": f"⚠️ Payment received! Userbot {ub_name} has only {stars} ⭐ Stars. Do not worry — your gift will be sent automatically via Main Bot or manually by our team shortly!"
+            }
 
-            user = await client.get_users(recipient_id)
-            if not user:
-                return {
-                    "success": False,
-                    "error_type": "RECIPIENT_NOT_FOUND",
-                    "error": f"Target recipient {recipient_id} not found by userbot.",
-                    "warning": f"⚠️ Payment received! Target recipient {recipient_id} not found by userbot. Admin will send your gift manually!"
-                }
-            
-            # Send gift call
-            await client.invoke(
-                SendGift(
-                    user_id=await client.resolve_peer(user.id),
-                    gift_id=int(gift_tg_id),
-                    message=gift_text or ""
-                )
+        user = await client.get_users(recipient_id)
+        if not user:
+            return {
+                "success": False,
+                "error_type": "RECIPIENT_NOT_FOUND",
+                "error": f"Target recipient {recipient_id} not found by userbot.",
+                "warning": f"⚠️ Payment received! Target recipient {recipient_id} not found by userbot. Admin will send your gift manually!"
+            }
+        
+        # Send gift call
+        await client.invoke(
+            SendGift(
+                user_id=await client.resolve_peer(user.id),
+                gift_id=int(gift_tg_id),
+                message=gift_text or ""
             )
-            return {"success": True, "message": f"🎁 Gift sent successfully via Userbot {ub_name}!"}
+        )
+        return {"success": True, "message": f"🎁 Gift sent successfully via Userbot {ub_name}!"}
 
     except Exception as e:
         err_msg = str(e)
@@ -275,13 +277,13 @@ async def verify_telegram_user(bot_token: str, query: str) -> dict:
         return {"exists": False, "found": False, "error": "Invalid query"}
 
     is_id = clean_query.isdigit()
-    target = int(clean_query) if is_id else clean_query
-    bot_target = target if is_id else "@" + clean_query
+    target = int(clean_query) if is_id else ("@" + clean_query)
+    bot_target = target if is_id else ("@" + clean_query)
 
     photos_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "assets", "user_photos"))
     os.makedirs(photos_dir, exist_ok=True)
 
-    # 1. Try Telegram Bot API getChat first (fast & reliable for numeric IDs)
+    # 1. Try Telegram Bot API getChat first (fast for numeric IDs or bot-interacted users)
     async with httpx.AsyncClient(timeout=6.0) as http_client:
         try:
             res = await http_client.post(
@@ -331,65 +333,37 @@ async def verify_telegram_user(bot_token: str, query: str) -> dict:
         except Exception as e:
             logger.warning(f"Bot API getChat check failed for {bot_target}: {e}")
 
-    # 2. Try Hydrogram Userbot resolution (resolves any username or peer on Telegram MTProto)
+    # 2. Hydrogram Userbot resolution (resolves any Telegram username or peer on MTProto)
     accounts = get_all_userbot_accounts()
-    active_acc = next((a for a in accounts if a.get("active") and a.get("session_string")), None)
+    active_accs = [a for a in accounts if a.get("active") and a.get("session_string")]
 
-    if active_acc:
+    for active_acc in active_accs:
         try:
-            ub_client = None
-            try:
-                ub_client = await get_running_client(active_acc['id'])
-            except Exception as client_err:
-                logger.warning(f"Could not get running client for verify: {client_err}")
+            ub_client = await get_running_client(active_acc['id'])
+            if not ub_client:
+                continue
 
             user = None
-            if ub_client:
-                # Try getting user from active client
+            # Try getting user from active client
+            try:
+                user = await ub_client.get_users(target)
+            except Exception as e:
+                logger.warning(f"Active client get_users failed for {target}: {e}")
+                if isinstance(target, str) and not target.startswith("@"):
+                    try:
+                        user = await ub_client.get_users("@" + target)
+                    except Exception:
+                        pass
+
+            if not user:
                 try:
-                    user = await ub_client.get_users(target)
-                except Exception as e:
-                    logger.warning(f"Active client get_users failed for {target}: {e}")
-                    if isinstance(target, str):
+                    user = await ub_client.get_chat(target)
+                except Exception:
+                    if isinstance(target, str) and not target.startswith("@"):
                         try:
-                            user = await ub_client.get_users("@" + target)
+                            user = await ub_client.get_chat("@" + target)
                         except Exception:
                             pass
-                if not user:
-                    try:
-                        user = await ub_client.get_chat(target)
-                    except Exception:
-                        if isinstance(target, str):
-                            try:
-                                user = await ub_client.get_chat("@" + target)
-                            except Exception:
-                                pass
-
-            # Fallback if no user or no active client
-            if not user:
-                from hydrogram import Client
-                api_id = active_acc.get("api_id")
-                api_hash = active_acc.get("api_hash")
-                session_string = active_acc.get("session_string")
-
-                async with Client(f"verify_user_{active_acc['id']}", api_id=api_id, api_hash=api_hash, session_string=session_string, in_memory=True) as temp_client:
-                    try:
-                        user = await temp_client.get_users(target)
-                    except Exception:
-                        if isinstance(target, str):
-                            try:
-                                user = await temp_client.get_users("@" + target)
-                            except Exception:
-                                pass
-                    if not user:
-                        try:
-                            user = await temp_client.get_chat(target)
-                        except Exception:
-                            if isinstance(target, str):
-                                try:
-                                    user = await temp_client.get_chat("@" + target)
-                                except Exception:
-                                    pass
 
             if user:
                 user_id = user.id
@@ -403,18 +377,10 @@ async def verify_telegram_user(bot_token: str, query: str) -> dict:
                     try:
                         photo_path = os.path.join(photos_dir, f"{user_id}.jpg")
                         if not os.path.exists(photo_path):
-                            client_to_use = ub_client if ub_client else None
-                            if client_to_use:
-                                try:
-                                    await client_to_use.download_media(user.photo.big_file_id or user.photo.small_file_id, file_name=photo_path)
-                                except Exception:
-                                    await client_to_use.download_media(user.photo, file_name=photo_path)
-                            else:
-                                async with Client(f"verify_user_photo_{active_acc['id']}", api_id=api_id, api_hash=api_hash, session_string=session_string, in_memory=True) as photo_client:
-                                    try:
-                                        await photo_client.download_media(user.photo.big_file_id or user.photo.small_file_id, file_name=photo_path)
-                                    except Exception:
-                                        await photo_client.download_media(user.photo, file_name=photo_path)
+                            try:
+                                await ub_client.download_media(user.photo.big_file_id or user.photo.small_file_id, file_name=photo_path)
+                            except Exception:
+                                await ub_client.download_media(user.photo, file_name=photo_path)
                         if os.path.exists(photo_path):
                             photo_url = f"assets/user_photos/{user_id}.jpg"
                     except Exception as p_err:
@@ -430,11 +396,8 @@ async def verify_telegram_user(bot_token: str, query: str) -> dict:
                     "full_name": full_name,
                     "photo_url": photo_url
                 }
-            else:
-                return {"exists": False, "found": False, "error": "User does not exist on Telegram"}
-
         except Exception as ub_err:
-            logger.error(f"Userbot verify_telegram_user exception: {ub_err}")
+            logger.warning(f"Userbot verify failed for account {active_acc.get('id')}: {ub_err}")
 
     return {"exists": False, "found": False, "error": "User does not exist on Telegram"}
 
