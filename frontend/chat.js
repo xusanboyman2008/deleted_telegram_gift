@@ -498,7 +498,79 @@ function setupChatState(Vue, api, showToast, tg) {
 
   // ── Attachment / File handling ─────────────────
   const triggerAttachment = () => {
-    showToast('📎 File sharing coming soon!');
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*,video/*,audio/*,.pdf,.doc,.docx,.zip';
+    fileInput.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (!activeChat.value || !activeChatAccount.value) {
+        showToast('⚠️ Select account and chat first');
+        return;
+      }
+
+      showToast('⏳ Uploading media...');
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const uploadRes = await api('/api/upload-media', {
+          method: 'POST',
+          body: formData
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadData.success) {
+          showToast('❌ Upload failed: ' + (uploadData.error || 'Error'));
+          return;
+        }
+
+        const mediaUrl = uploadData.url;
+        const mediaType = uploadData.media_type;
+
+        // Optimistic UI for outgoing media
+        const tempId = Date.now();
+        const now = new Date();
+        const timeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+        const optMsg = {
+          id: tempId,
+          text: '',
+          out: true,
+          date: timeStr,
+          sending: true,
+        };
+        if (mediaType === 'photo') optMsg.photo = mediaUrl;
+        else if (mediaType === 'video') optMsg.video = mediaUrl;
+        else if (mediaType === 'audio') optMsg.voice = mediaUrl;
+        else optMsg.text = `📄 ${file.name}`;
+
+        currentMessages.value.push(optMsg);
+        await scrollToBottom();
+
+        // Send media via WS or HTTP
+        const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
+        const res = await api('/api/userbot/chat/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            account_id: accountId,
+            recipient: currentChatPeer.value,
+            message: mediaUrl,
+          })
+        });
+        const data = await res.json();
+        const idx = currentMessages.value.findIndex(m => m.id === tempId);
+        if (idx >= 0) {
+          currentMessages.value[idx].sending = false;
+          if (data.success) {
+            currentMessages.value[idx].id = data.message_id || tempId;
+          }
+        }
+        showToast('✅ Media sent!');
+      } catch (err) {
+        showToast('❌ Media send error: ' + err.message);
+      }
+    };
+    fileInput.click();
   };
 
   // ── Start Chat With Query (Usernames or numeric Telegram IDs) ──────────

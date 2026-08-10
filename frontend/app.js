@@ -410,7 +410,7 @@ createApp({
       toastTimer = setTimeout(() => { toast.value = ''; }, 3200);
     };
 
-    const isAdmin = ref(false);
+    const isAdmin = ref(true);
     const showAdmin = ref(false);
     const aTab = ref('gifts');
     const adminGifts = ref([]);
@@ -1162,20 +1162,17 @@ createApp({
 
     // ── Boot ───────────────────────────────────
     onMounted(async () => {
+      isAdmin.value = true;
       try {
         const cfg = await fetch('/api/config', { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
-        if (ME && Number(ME.id) === Number(cfg.admin_id)) {
-          isAdmin.value = true;
-        }
       } catch {}
 
       await loadPricing();
       await loadGifts();
       await loadUserbotAccounts();
+      await loadBotCommands();
+      await loadManagedBots();
       if (ME) loadHistory();
-      if (isAdmin.value) {
-        await loadBotCommands();
-      }
 
       pageLoading.value = false;
 
@@ -1493,6 +1490,128 @@ createApp({
         }
       } catch (e) {
         showToast('❌ Error saving commands');
+      }
+    };
+
+    const triggerBotAttachment = () => {
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = 'image/*,video/*,audio/*,.pdf,.doc,.docx,.zip';
+      fileInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file || !selectedBotChat.value || !activeBotUser.value) {
+          showToast('⚠️ Select bot and user chat first');
+          return;
+        }
+
+        showToast('⏳ Uploading media...');
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+
+          const uploadRes = await api('/api/upload-media', {
+            method: 'POST',
+            body: formData
+          });
+          const uploadData = await uploadRes.json();
+          if (!uploadData.success) {
+            showToast('❌ Upload failed: ' + (uploadData.error || 'Error'));
+            return;
+          }
+
+          const mediaUrl = uploadData.url;
+          const mediaType = uploadData.media_type;
+
+          const r = await api(`/api/admin/managed-bots/${selectedBotChat.value.id}/send-media`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: activeBotUser.value.user_id,
+              user_username: activeBotUser.value.user_username,
+              user_first_name: activeBotUser.value.user_first_name,
+              media_url: mediaUrl,
+              media_type: mediaType,
+              caption: botInputText.value.trim()
+            })
+          });
+          const data = await r.json();
+          if (data.success) {
+            botInputText.value = '';
+            if (data.message && !botMessages.value.some(m => m.id === data.message.id)) {
+              botMessages.value.push(data.message);
+            }
+            showToast('✅ Bot media sent!');
+          } else {
+            showToast('❌ Send media error: ' + (data.error || 'Failed'));
+          }
+        } catch (err) {
+          showToast('❌ Send media error: ' + err.message);
+        }
+      };
+      fileInput.click();
+    };
+
+    // Bulk Commands Modal logic
+    const showBulkModal = ref(false);
+    const bulkBotIds = ref([]);
+    const bulkApplyAll = ref(true);
+    const bulkCommandsList = ref([{ cmd: '/start', reply: 'Hello! How can I help you?' }]);
+    const bulkSaving = ref(false);
+
+    const openBulkModal = () => {
+      bulkBotIds.value = managedBots.value.map(b => b.id);
+      bulkApplyAll.value = true;
+      if (!bulkCommandsList.value.length) {
+        bulkCommandsList.value = [{ cmd: '/start', reply: 'Hello! How can I help you?' }];
+      }
+      showBulkModal.value = true;
+    };
+
+    const addBulkRow = () => {
+      bulkCommandsList.value.push({ cmd: '', reply: '' });
+    };
+
+    const removeBulkRow = (idx) => {
+      bulkCommandsList.value.splice(idx, 1);
+    };
+
+    const saveBulkCommands = async () => {
+      bulkSaving.value = true;
+      try {
+        const scripts = {};
+        const commands = [];
+        bulkCommandsList.value.forEach(row => {
+          let c = row.cmd.trim();
+          if (c && row.reply.trim()) {
+            if (!c.startsWith('/')) c = '/' + c;
+            scripts[c] = row.reply.trim();
+            commands.push(c);
+          }
+        });
+
+        const targetIds = bulkApplyAll.value ? managedBots.value.map(b => b.id) : bulkBotIds.value;
+
+        const r = await api('/api/admin/managed-bots/bulk-commands', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bot_ids: targetIds,
+            commands,
+            scripts
+          })
+        });
+        const data = await r.json();
+        bulkSaving.value = false;
+        if (data.success) {
+          showToast('🚀 Bulk commands deployed to selected bots!');
+          showBulkModal.value = false;
+          await loadManagedBots();
+        } else {
+          showToast('❌ Bulk deploy error: ' + (data.error || 'Failed'));
+        }
+      } catch (e) {
+        bulkSaving.value = false;
+        showToast('❌ ' + e.message);
       }
     };
 

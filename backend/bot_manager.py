@@ -50,6 +50,45 @@ async def send_bot_api_message(token: str, chat_id: int, text: str):
         r = await client.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"})
         return r.json()
 
+async def send_bot_api_media(token: str, chat_id: int, file_path_or_url: str, caption: str = "", media_type: str = "photo"):
+    """Sends media (photo, video, audio, document) from Bot API to a user."""
+    method_map = {
+        "photo": "sendPhoto",
+        "video": "sendVideo",
+        "audio": "sendAudio",
+        "voice": "sendAudio",
+        "music": "sendAudio",
+        "document": "sendDocument"
+    }
+    method = method_map.get(media_type, "sendDocument")
+    field_map = {
+        "sendPhoto": "photo",
+        "sendVideo": "video",
+        "sendAudio": "audio",
+        "sendDocument": "document"
+    }
+    field_name = field_map[method]
+    url = f"https://api.telegram.org/bot{token}/{method}"
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        if file_path_or_url.startswith("http://") or file_path_or_url.startswith("https://"):
+            # URL attachment
+            payload = {"chat_id": chat_id, field_name: file_path_or_url, "caption": caption or "", "parse_mode": "HTML"}
+            r = await client.post(url, json=payload)
+            return r.json()
+        elif os.path.exists(file_path_or_url):
+            # Local file upload
+            data = {"chat_id": str(chat_id), "caption": caption or "", "parse_mode": "HTML"}
+            with open(file_path_or_url, "rb") as f:
+                files = {field_name: (os.path.basename(file_path_or_url), f)}
+                r = await client.post(url, data=data, files=files)
+                return r.json()
+        else:
+            # Fallback URL string or asset path
+            payload = {"chat_id": chat_id, field_name: file_path_or_url, "caption": caption or "", "parse_mode": "HTML"}
+            r = await client.post(url, json=payload)
+            return r.json()
+
 async def poll_bot_updates(bot_data: dict):
     """Long-polling loop for a single managed bot instance."""
     token = bot_data["token"]

@@ -880,18 +880,9 @@ async def get_bot_user_chat_history(bot_token: str, user_id: int):
                 return [dict(r) for r in rows]
 
 async def get_bot_chat_contacts(bot_token: str):
-    sql = """
-    SELECT user_id, user_username, user_first_name, text as last_msg, date as last_time, out as last_out
-    FROM bot_user_messages
-    WHERE id IN (
-        SELECT MAX(id) FROM bot_user_messages WHERE bot_token GROUP BY user_id
-    )
-    ORDER BY id DESC
-    """
     if IS_POSTGRES and pool:
         async with pool.acquire() as conn:
             rows = await conn.fetch("SELECT user_id, user_username, user_first_name, text as last_msg, date as last_time, out as last_out FROM bot_user_messages WHERE bot_token=$1 ORDER BY id DESC", bot_token)
-            # Group by user_id preserving latest
             seen = set()
             contacts = []
             for r in rows:
@@ -913,4 +904,69 @@ async def get_bot_chat_contacts(bot_token: str):
                         seen.add(uid)
                         contacts.append(dict(r))
                 return contacts
+
+
+async def get_managed_bot_user_count(bot_token: str) -> int:
+    """Returns the count of distinct users who messaged this bot."""
+    if IS_POSTGRES and pool:
+        async with pool.acquire() as conn:
+            count = await conn.fetchval("SELECT COUNT(DISTINCT user_id) FROM bot_user_messages WHERE bot_token=$1", bot_token)
+            return count or 0
+    else:
+        async with aiosqlite.connect(DB_PATH) as db:
+            async with db.execute("SELECT COUNT(DISTINCT user_id) FROM bot_user_messages WHERE bot_token=?", (bot_token,)) as cursor:
+                row = await cursor.fetchone()
+                return row[0] if row else 0
+
+
+async def get_managed_bot_users_with_info(bot_token: str) -> list:
+    """Returns user directory for a bot: user_id, username, first_name, message_count, last_message, last_active."""
+    sql_pg = """
+        SELECT user_id, 
+               MAX(user_username) as user_username,
+               MAX(user_first_name) as user_first_name,
+               COUNT(*) as message_count,
+               (SELECT text FROM bot_user_messages b2 WHERE b2.bot_token=$1 AND b2.user_id=b1.user_id ORDER BY b2.id DESC LIMIT 1) as last_message,
+               MAX(date) as last_active
+        FROM bot_user_messages b1
+        WHERE bot_token=$1
+        GROUP BY user_id
+        ORDER BY MAX(id) DESC
+    """
+    sql_sqlite = """
+        SELECT user_id, 
+               MAX(user_username) as user_username,
+               MAX(user_first_name) as user_first_name,
+               COUNT(*) as message_count,
+               (SELECT text FROM bot_user_messages b2 WHERE b2.bot_token=b1.bot_token AND b2.user_id=b1.user_id ORDER BY b2.id DESC LIMIT 1) as last_message,
+               MAX(date) as last_active
+        FROM bot_user_messages b1
+        WHERE bot_token=?
+        GROUP BY user_id
+        ORDER BY MAX(id) DESC
+    """
+    if IS_POSTGRES and pool:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(sql_pg, bot_token)
+            return [dict(r) for r in rows]
+    else:
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(sql_sqlite, (bot_token,)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+
+async def get_all_managed_bot_user_counts() -> dict:
+    """Returns {bot_token: user_count} for all managed bots."""
+    if IS_POSTGRES and pool:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("SELECT bot_token, COUNT(DISTINCT user_id) as cnt FROM bot_user_messages GROUP BY bot_token")
+            return {r["bot_token"]: r["cnt"] for r in rows}
+    else:
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT bot_token, COUNT(DISTINCT user_id) as cnt FROM bot_user_messages GROUP BY bot_token") as cursor:
+                rows = await cursor.fetchall()
+                return {r["bot_token"]: r["cnt"] for r in rows}
 

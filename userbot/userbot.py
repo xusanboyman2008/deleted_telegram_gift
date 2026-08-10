@@ -450,7 +450,7 @@ async def userbot_send_message(account_id: int, recipient: str, message_text: st
     if not account:
         return {"success": False, "error": "Userbot account not found"}
     clean_target = recipient.strip()
-    if clean_target.isdigit():
+    if clean_target.lstrip('-').isdigit():
         target = int(clean_target)
     else:
         target = "@" + clean_target.lstrip("@")
@@ -459,7 +459,18 @@ async def userbot_send_message(account_id: int, recipient: str, message_text: st
         client = await get_running_client(account_id)
         if not client:
             return {"success": False, "error": "Could not connect userbot client"}
-        sent = await client.send_message(chat_id=target, text=message_text)
+
+        # Attempt sending directly; if peer is not cached in MTProto, resolve peer first via get_chat
+        try:
+            sent = await client.send_message(chat_id=target, text=message_text)
+        except Exception as first_e:
+            logger.info(f"Direct send_message failed ({first_e}), resolving peer {target}...")
+            resolved_chat = await client.get_chat(target)
+            if resolved_chat:
+                sent = await client.send_message(chat_id=resolved_chat.id, text=message_text)
+            else:
+                raise first_e
+
         if _MESSAGE_CALLBACK:
             try:
                 await _MESSAGE_CALLBACK(account_id, sent)
@@ -472,6 +483,56 @@ async def userbot_send_message(account_id: int, recipient: str, message_text: st
         }
     except Exception as e:
         logger.error(f"userbot_send_message failed for account {account_id}: {e}")
+        return {"success": False, "error": str(e)}
+
+
+async def userbot_send_media(account_id: int, recipient: str, file_path: str, caption: str = "", media_type: str = "photo") -> dict:
+    """Sends media (photo, video, audio, document) via userbot session."""
+    account = get_userbot_by_id(account_id)
+    if not account:
+        return {"success": False, "error": "Userbot account not found"}
+    clean_target = recipient.strip()
+    if clean_target.lstrip('-').isdigit():
+        target = int(clean_target)
+    else:
+        target = "@" + clean_target.lstrip("@")
+
+    try:
+        client = await get_running_client(account_id)
+        if not client:
+            return {"success": False, "error": "Could not connect userbot client"}
+
+        # Ensure peer resolution
+        chat_id = target
+        try:
+            resolved = await client.get_chat(target)
+            if resolved:
+                chat_id = resolved.id
+        except Exception:
+            pass
+
+        if media_type == "photo":
+            sent = await client.send_photo(chat_id=chat_id, photo=file_path, caption=caption or None)
+        elif media_type == "video":
+            sent = await client.send_video(chat_id=chat_id, video=file_path, caption=caption or None)
+        elif media_type in ("audio", "voice", "music"):
+            sent = await client.send_audio(chat_id=chat_id, audio=file_path, caption=caption or None)
+        else:
+            sent = await client.send_document(chat_id=chat_id, document=file_path, caption=caption or None)
+
+        if _MESSAGE_CALLBACK:
+            try:
+                await _MESSAGE_CALLBACK(account_id, sent)
+            except Exception:
+                pass
+
+        return {
+            "success": True,
+            "message_id": sent.id,
+            "chat_id": sent.chat.id
+        }
+    except Exception as e:
+        logger.error(f"userbot_send_media failed for account {account_id}: {e}")
         return {"success": False, "error": str(e)}
 
 
