@@ -17,7 +17,7 @@
     }
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css?v=1.0.3"/>
+  <link rel="stylesheet" href="style.css?v=1.0.5"/>
 </head>
 <body>
 <div id="app" v-cloak>
@@ -713,9 +713,11 @@
 
             <!-- Message stream -->
             <div class="tg-messages-stream" ref="messagesStreamEl" @click="handleMessageStreamClick">
-              <div v-if="chatLoading" class="tg-chat-loading" style="flex-direction: column; gap: 8px; align-items: center; justify-content: center; padding: 30px;">
-                <span class="tg-spinner" style="width: 24px; height: 24px; border-width: 2px; display: inline-block;"></span>
-                <div style="font-size: 0.8rem; color: rgba(255,255,255,0.5);">Loading messages...</div>
+              <div v-if="chatLoading" class="tg-skeleton-container" style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+                <div class="tg-skeleton-bubble left" style="width: 60%; height: 48px; background: rgba(255,255,255,0.05); border-radius: 14px; animation: pulseSkeleton 1.2s infinite ease-in-out;"></div>
+                <div class="tg-skeleton-bubble right" style="width: 45%; height: 38px; align-self: flex-end; background: rgba(51, 144, 236, 0.2); border-radius: 14px; animation: pulseSkeleton 1.2s infinite ease-in-out 0.2s;"></div>
+                <div class="tg-skeleton-bubble left" style="width: 75%; height: 54px; background: rgba(255,255,255,0.05); border-radius: 14px; animation: pulseSkeleton 1.2s infinite ease-in-out 0.4s;"></div>
+                <div class="tg-skeleton-bubble right" style="width: 50%; height: 42px; align-self: flex-end; background: rgba(51, 144, 236, 0.2); border-radius: 14px; animation: pulseSkeleton 1.2s infinite ease-in-out 0.6s;"></div>
               </div>
 
               <div v-if="!chatLoading && currentMessages.length === 0" style="text-align:center;padding:30px 20px;color:rgba(255,255,255,0.3);font-size:0.85rem;">
@@ -1449,7 +1451,7 @@
 <script src="vue.min.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
-<script src="chat.js?v=1.0.3"></script>
-<script src="app.js?v=1.0.3"></script>
+<script src="chat.js?v=1.0.5"></script>
+<script src="app.js?v=1.0.5"></script>
 </body>
 </html>

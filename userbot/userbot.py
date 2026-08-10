@@ -455,6 +455,11 @@ async def userbot_send_message(account_id: int, recipient: str, message_text: st
         if not client:
             return {"success": False, "error": "Could not connect userbot client"}
         sent = await client.send_message(chat_id=target, text=message_text)
+        if _MESSAGE_CALLBACK:
+            try:
+                await _MESSAGE_CALLBACK(account_id, sent)
+            except Exception as cb_err:
+                logger.error(f"Error in message callback for outgoing userbot msg: {cb_err}")
         return {
             "success": True,
             "message_id": sent.id,
