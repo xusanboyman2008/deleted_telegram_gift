@@ -83,12 +83,18 @@ async def get_user(
 
 
 async def get_admin(user: dict = Depends(get_user)) -> dict:
-    ALLOWED_ADMINS = {ADMIN_ID, 6588631008, 6333413425}
     uid = int(user.get("id", 0)) if user.get("id") else 0
     uname = user.get("username", "")
-    if uid in ALLOWED_ADMINS or uname in ["xusanboyman200", "sardor248"] or uid == ADMIN_ID or uid == 0:
+    
+    # 6588631008 is the owner. ADMIN_ID is owner.
+    # We dynamically fetch allowed admins.
+    allowed_admins = await db.get_allowed_admins()
+    
+    if uid == 6588631008 or uid in allowed_admins or uname in ["xusanboyman200", "sardor248"] or uid == ADMIN_ID or uid == 0:
         return user
-    return user
+        
+    raise HTTPException(status_code=403, detail="Not authorized as admin")
+
 
 
 # ── Bot handlers ───────────────────────────────────────────────────────────────
@@ -1501,6 +1507,34 @@ class AdminPricingUpdatePayload(BaseModel):
 async def admin_update_pricing(body: AdminPricingUpdatePayload, admin=Depends(get_admin)):
     success = await db.set_pricing_settings(body.model_dump())
     return {"ok": success}
+
+
+@app.get("/api/admin/allowed-admins")
+async def get_allowed_admins_endpoint(admin=Depends(get_admin)):
+    uid = int(admin.get("id", 0)) if admin.get("id") else 0
+    if uid != 6588631008 and uid != ADMIN_ID:
+        raise HTTPException(status_code=403, detail="Only the owner can view the admin list")
+    return await db.get_allowed_admins()
+
+
+class AdminListUpdatePayload(BaseModel):
+    admin_ids: list[int]
+
+
+@app.post("/api/admin/allowed-admins")
+async def update_allowed_admins_endpoint(body: AdminListUpdatePayload, admin=Depends(get_admin)):
+    uid = int(admin.get("id", 0)) if admin.get("id") else 0
+    if uid != 6588631008 and uid != ADMIN_ID:
+        raise HTTPException(status_code=403, detail="Only the owner can manage the admin list")
+        
+    ids = list(set(body.admin_ids))
+    if 6588631008 not in ids:
+        ids.append(6588631008)
+    if ADMIN_ID not in ids:
+        ids.append(ADMIN_ID)
+        
+    success = await db.set_allowed_admins(ids)
+    return {"ok": success, "admin_ids": ids}
 
 
 @app.get("/api/userbot-accounts")

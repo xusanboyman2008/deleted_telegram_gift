@@ -328,13 +328,84 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
         gift_id_val = real_gift_map.get(gift_id_num, gift_id_num)
 
         try:
-            invoice = InputInvoiceStarGift(peer=peer, gift_id=gift_id_val, message=formatted_message)
-            form_res = await client.invoke(GetPaymentForm(invoice=invoice))
-            form_id = getattr(form_res, "form_id", getattr(form_res, "id", 0))
-            await client.invoke(SendStarsForm(form_id=form_id, invoice=invoice))
+            from telethon import TelegramClient
+            from telethon.sessions import StringSession
+            from telethon.tl.functions.payments import GetPaymentFormRequest, SendStarsFormRequest
+            from telethon.tl.types import InputInvoiceStarGift as TelethonInputInvoiceStarGift
+            from telethon.tl.types import TextWithEntities as TelethonTextWithEntities
+            from telethon.tl.types import InputPeerUser, InputPeerChannel, InputPeerChat
+            import base64
+            import struct
+            import ipaddress
+
+            api_id = account.get("api_id") or 35251724
+            api_hash = account.get("api_hash") or "b11e753959873b1df047454a8d816604"
+
+            # Convert Hydrogram session to Telethon session
+            padding = '=' * (4 - (len(session_string) % 4))
+            decoded = base64.urlsafe_b64decode(session_string + padding)
+            unpacked = struct.unpack('>BI?256sQ?', decoded)
+            dc_id = unpacked[0]
+            auth_key_bytes = unpacked[3]
+            
+            dc_ips = {
+                1: "149.154.175.50",
+                2: "149.154.167.51",
+                3: "149.154.175.100",
+                4: "149.154.167.91",
+                5: "91.108.56.130",
+            }
+            ip_str = dc_ips.get(dc_id, "149.154.167.51")
+            ip_bytes = ipaddress.ip_address(ip_str).packed
+            
+            telethon_session_str = '1' + base64.urlsafe_b64encode(
+                struct.pack(f'>B{len(ip_bytes)}sH256s', dc_id, ip_bytes, 443, auth_key_bytes)
+            ).decode('ascii')
+
+            tele_client = TelegramClient(StringSession(telethon_session_str), api_id, api_hash)
+            await tele_client.connect()
+            
+            try:
+                if not await tele_client.is_user_authorized():
+                    raise Exception("Telethon user session is not authorized.")
+
+                # Convert Hydrogram resolved peer to Telethon peer
+                peer_class = peer.__class__.__name__
+                if peer_class == "InputPeerUser":
+                    tele_peer = InputPeerUser(user_id=peer.user_id, access_hash=peer.access_hash)
+                elif peer_class == "InputPeerChannel":
+                    tele_peer = InputPeerChannel(channel_id=peer.channel_id, access_hash=peer.access_hash)
+                elif peer_class == "InputPeerChat":
+                    tele_peer = InputPeerChat(chat_id=peer.chat_id)
+                else:
+                    tele_peer = await tele_client.get_input_entity(rec_target)
+
+                # Format message for Telethon
+                tele_message = None
+                if gift_text:
+                    tele_message = TelethonTextWithEntities(text=gift_text, entities=[])
+
+                # Construct invoice
+                tele_invoice = TelethonInputInvoiceStarGift(
+                    peer=tele_peer,
+                    gift_id=gift_id_val,
+                    message=tele_message,
+                    hide_name=False
+                )
+
+                # Request payment form
+                form_res = await tele_client(GetPaymentFormRequest(invoice=tele_invoice))
+                form_id = getattr(form_res, "form_id", getattr(form_res, "id", 0))
+
+                # Finalize payment
+                await tele_client(SendStarsFormRequest(form_id=form_id, invoice=tele_invoice))
+                logger.info(f"Gift sent successfully via Telethon for account {account_id}")
+            finally:
+                await tele_client.disconnect()
+
         except Exception as invoke_err:
             import traceback
-            logger.error(f"Gift send via userbot invoke error traceback:\n{traceback.format_exc()}")
+            logger.error(f"Gift send via Telethon userbot invoke error traceback:\n{traceback.format_exc()}")
             raise invoke_err
 
         return {"success": True, "message": f"🎁 Gift sent successfully via Userbot {ub_name}!"}

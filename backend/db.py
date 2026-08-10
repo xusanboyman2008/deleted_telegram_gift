@@ -978,3 +978,41 @@ async def get_all_managed_bot_user_counts() -> dict:
                 rows = await cursor.fetchall()
                 return {r["bot_token"]: r["cnt"] for r in rows}
 
+
+async def get_allowed_admins() -> list:
+    """Returns list of allowed admin user IDs."""
+    defaults = [6588631008, 6333413425]
+    try:
+        if IS_POSTGRES and pool:
+            async with pool.acquire() as conn:
+                val = await conn.fetchval("SELECT value FROM settings WHERE key = 'allowed_admins'")
+                if val:
+                    return json.loads(val)
+        else:
+            async with aiosqlite.connect(DB_PATH) as db:
+                async with db.execute("SELECT value FROM settings WHERE key = 'allowed_admins'") as cur:
+                    row = await cur.fetchone()
+                    if row:
+                        return json.loads(row[0])
+    except Exception as e:
+        logger.error(f"get_allowed_admins error: {e}")
+    return defaults
+
+
+async def set_allowed_admins(admin_ids: list) -> bool:
+    """Saves list of allowed admin user IDs."""
+    try:
+        val_str = json.dumps(admin_ids)
+        if IS_POSTGRES and pool:
+            async with pool.acquire() as conn:
+                await conn.execute("INSERT INTO settings (key, value) VALUES ('allowed_admins', $1) ON CONFLICT (key) DO UPDATE SET value=$1", val_str)
+        else:
+            async with aiosqlite.connect(DB_PATH) as db:
+                await db.execute("INSERT INTO settings (key, value) VALUES ('allowed_admins', ?) ON CONFLICT(key) DO UPDATE SET value=?", (val_str, val_str))
+                await db.commit()
+        return True
+    except Exception as e:
+        logger.error(f"set_allowed_admins error: {e}")
+        return False
+
+
