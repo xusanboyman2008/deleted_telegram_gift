@@ -133,7 +133,7 @@ def get_gift_image_url(gift: dict) -> str:
 
 
 async def build_main_keyboard():
-    web_url = f"{BASE_URL}/index.html?ngrok-skip-browser-warning=69420"
+    web_url = f"{BASE_URL}?ngrok-skip-browser-warning=ngrok-skip-browser-warning"
     keyboard = [
         [InlineKeyboardButton("🚀 Launch Mini App", web_app=WebAppInfo(url=web_url))],
         [
