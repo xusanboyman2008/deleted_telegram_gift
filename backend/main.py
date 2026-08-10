@@ -1492,9 +1492,9 @@ async def admin_get_pricing(admin=Depends(get_admin)):
 
 
 class AdminPricingUpdatePayload(BaseModel):
-    bot_stars: int = 53
-    userbot_stars: int = 55
-    myaccount_stars: int = 1
+    bot_stars: float = 53
+    userbot_stars: float = 55
+    myaccount_stars: float = 0
 
 
 @app.post("/api/admin/pricing")

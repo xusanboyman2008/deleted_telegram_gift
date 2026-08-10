@@ -690,13 +690,13 @@
               <h3 style="margin-top:0; margin-bottom:16px;">💰 Star Prices Settings</h3>
               <div class="admin-pricing-box" style="padding: 20px; border-radius:12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); max-width:500px;">
                 <label class="fi-lbl" style="display:block; margin-bottom:6px; color:rgba(255,255,255,0.6);">{{ t('botPriceLabel') }}:</label>
-                <input v-model.number="pricing.bot_stars" type="number" class="fi" style="width:100%; margin-bottom:16px; padding:10px; border-radius:8px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff;" />
+                <input v-model.number="pricing.bot_stars" type="number" step="any" min="0" class="fi" style="width:100%; margin-bottom:16px; padding:10px; border-radius:8px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff;" />
 
                 <label class="fi-lbl" style="display:block; margin-bottom:6px; color:rgba(255,255,255,0.6);">{{ t('userbotPriceLabel') }}:</label>
-                <input v-model.number="pricing.userbot_stars" type="number" class="fi" style="width:100%; margin-bottom:16px; padding:10px; border-radius:8px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff;" />
+                <input v-model.number="pricing.userbot_stars" type="number" step="any" min="0" class="fi" style="width:100%; margin-bottom:16px; padding:10px; border-radius:8px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff;" />
 
                 <label class="fi-lbl" style="display:block; margin-bottom:6px; color:rgba(255,255,255,0.6);">{{ t('myAccountPriceLabel') }}:</label>
-                <input v-model.number="pricing.myaccount_stars" type="number" class="fi" style="width:100%; margin-bottom:20px; padding:10px; border-radius:8px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff;" />
+                <input v-model.number="pricing.myaccount_stars" type="number" step="any" min="0" class="fi" style="width:100%; margin-bottom:20px; padding:10px; border-radius:8px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff;" />
 
                 <button class="fsave" style="width:100%; padding:12px; font-weight:600; border-radius:8px;" @click="savePricing">
                   💾 {{ t('savePricingBtn') }}
@@ -1503,13 +1503,13 @@
           <h3>💰 Pricing Settings (Stars)</h3>
           <div class="admin-pricing-box">
             <label class="fi-lbl">{{ t('botPriceLabel') }}:</label>
-            <input v-model.number="pricing.bot_stars" type="number" class="fi" placeholder="53"/>
+            <input v-model.number="pricing.bot_stars" type="number" step="any" min="0" class="fi" placeholder="53"/>
 
             <label class="fi-lbl">{{ t('userbotPriceLabel') }}:</label>
-            <input v-model.number="pricing.userbot_stars" type="number" class="fi" placeholder="55"/>
+            <input v-model.number="pricing.userbot_stars" type="number" step="any" min="0" class="fi" placeholder="55"/>
 
             <label class="fi-lbl">{{ t('myAccountPriceLabel') }}:</label>
-            <input v-model.number="pricing.myaccount_stars" type="number" class="fi" placeholder="60"/>
+            <input v-model.number="pricing.myaccount_stars" type="number" step="any" min="0" class="fi" placeholder="0"/>
 
             <button class="fsave" style="margin-top: 12px;" @click="savePricing">
               💾 {{ t('savePricingBtn') }}
