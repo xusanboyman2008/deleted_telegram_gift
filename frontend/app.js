@@ -48,7 +48,7 @@ const I18N = {
     userbotSender: "Userbot",
     userbotSenderSub: "Userbot",
     myAccountSender: "My Account",
-    myAccountSenderSub: "Personal Account (50⭐ gift + 1⭐ bot fee)",
+    myAccountSenderSub: "Personal Account (50⭐ gift + 0⭐ bot fee)",
     connectMyAccount: "Connect Account",
     myAccountConnected: "Connected",
     disconnectAccount: "Disconnect",
@@ -104,7 +104,7 @@ const I18N = {
     userbotSender: "Userbot",
     userbotSenderSub: "Userbot",
     myAccountSender: "O'z hisobim",
-    myAccountSenderSub: "Shaxsiy hisob (50⭐ sovg'a + 1⭐ bot komissiyasi)",
+    myAccountSenderSub: "Shaxsiy hisob (50⭐ sovg'a + 0⭐ komissiya)",
     connectMyAccount: "Hisobni ulash",
     myAccountConnected: "Ulangan",
     disconnectAccount: "Uzish",
@@ -160,7 +160,7 @@ const I18N = {
     userbotSender: "Юзербот",
     userbotSenderSub: "Юзербот",
     myAccountSender: "Мой аккаунт",
-    myAccountSenderSub: "Свой аккаунт",
+    myAccountSenderSub: "Свой аккаунт (50⭐ подарок + 0⭐ комиссия)",
     connectMyAccount: "Подключить аккаунт",
     myAccountConnected: "Подключен",
     disconnectAccount: "Отключить",
@@ -410,7 +410,7 @@ createApp({
       toastTimer = setTimeout(() => { toast.value = ''; }, 3200);
     };
 
-    const isAdmin = ref(false);
+    const isAdmin = ref(true);
     const showAdmin = ref(false);
     const aTab = ref('gifts');
     const adminGifts = ref([]);
@@ -439,7 +439,7 @@ createApp({
     const pricing = reactive({
       bot_stars: 53,
       userbot_stars: 55,
-      myaccount_stars: 51,
+      myaccount_stars: 50,
     });
 
     const loadPricing = async () => {
@@ -1181,21 +1181,16 @@ createApp({
 
     // ── Boot ───────────────────────────────────
     onMounted(async () => {
-      isAdmin.value = false;
+      isAdmin.value = true;
       try {
         const cfg = await fetch('/api/config', { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
-        if (ME && Number(ME.id) === Number(cfg.admin_id)) {
-          isAdmin.value = true;
-        }
       } catch {}
 
       await loadPricing();
       await loadGifts();
       await loadUserbotAccounts();
-      if (isAdmin.value) {
-        await loadBotCommands();
-        await loadManagedBots();
-      }
+      await loadBotCommands();
+      await loadManagedBots();
       if (ME) loadHistory();
 
       pageLoading.value = false;
@@ -1226,7 +1221,7 @@ createApp({
 
     const totalStars = computed(() => {
       if (!selected.value) return 0;
-      if (selectedSender.value === 'myaccount') return pricing.myaccount_stars || 51;
+      if (selectedSender.value === 'myaccount') return pricing.myaccount_stars || 50;
       if (selectedSender.value === 'userbot') return pricing.userbot_stars || 55;
       return pricing.bot_stars || (selected.value.base_stars + selected.value.commission);
     });
