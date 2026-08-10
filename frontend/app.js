@@ -413,7 +413,7 @@ createApp({
     const user = ref(ME);
 
     // ── Bot Panel State ──
-    const botMenuTab = ref('main');
+    const botMenuTab = ref('managed');
     const botPanelUsers = ref([]);
     const broadcastShow = ref(false);
     const broadcastText = ref('');

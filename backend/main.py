@@ -21,7 +21,7 @@ from urllib.parse import parse_qsl
 
 user_last_invoice_time = {}
 
-from fastapi import FastAPI, Request, HTTPException, Depends, Header, BackgroundTasks, File, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, HTTPException, Depends, Header, BackgroundTasks, File, UploadFile, WebSocket, WebSocketDisconnect, Body
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
