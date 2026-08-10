@@ -16,10 +16,6 @@
       };
     }
   </script>
-  <script src="lottie.min.js"></script>
-  <script src="vue.min.js"></script>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="style.css?v=1.0.3"/>
 </head>
@@ -78,11 +74,15 @@
 
       <!-- 3-Column Grid -->
       <div class="gifts-grid" style="margin-top: 10px;">
-        <div v-for="g in gifts" :key="g.id" class="gift-card" @click="openSheet(g)">
+        <div v-for="g in gifts" :key="g.id" class="gift-card" @click="openSheet(g)" @mouseenter="hoveredGiftId = g.id" @mouseleave="hoveredGiftId = null">
           <div class="card-media">
-            <img v-if="getGiftImg(g.animation)" :src="getGiftImg(g.animation)" class="card-img" alt="gift"/>
-            <lottie-anim v-else-if="g.animation" :filename="g.animation" :fallback-img="getFallbackPng(g.animation)"></lottie-anim>
-            <span v-else class="card-emoji-fallback">{{ g.emoji }}</span>
+            <template v-if="hoveredGiftId === g.id && g.animation">
+              <lottie-anim :filename="g.animation" :fallback-img="getFallbackPng(g.animation)"></lottie-anim>
+            </template>
+            <template v-else>
+              <img v-if="getFallbackPng(g.animation)" :src="getFallbackPng(g.animation)" class="card-img" alt="gift"/>
+              <span v-else class="card-emoji-fallback">{{ g.emoji }}</span>
+            </template>
           </div>
           <div class="card-title">{{ giftName(g) }}</div>
           <div class="card-price-pill">
@@ -121,8 +121,7 @@
         <div v-for="o in myOrders" :key="o.id" class="order-item">
           <div class="oi-left">
             <div class="oi-media" style="width: 42px; height: 42px; flex-shrink: 0;">
-              <img v-if="getGiftImg(o.animation)" :src="getGiftImg(o.animation)" class="oi-img" style="width: 100%; height: 100%; object-fit: contain;" alt="gift"/>
-              <lottie-anim v-else-if="o.animation" :filename="o.animation" :fallback-img="getFallbackPng(o.animation)"></lottie-anim>
+              <img v-if="getFallbackPng(o.animation)" :src="getFallbackPng(o.animation)" class="oi-img" style="width: 100%; height: 100%; object-fit: contain;" alt="gift"/>
               <span v-else class="oi-emoji">{{ o.emoji }}</span>
             </div>
             <div class="oi-info">
@@ -708,7 +707,6 @@
                 <div class="tg-ch-status">{{ activeChat.is_bot ? 'bot' : 'online' }}</div>
               </div>
               <div class="tg-ch-actions">
-                <button class="tg-ch-act-btn" @click="loadChatHistory(currentChatPeer)" title="Refresh">🔄</button>
                 <button class="tg-ch-act-btn" @click="openTelegramLink(activeChat.peer)" title="Open in Telegram">📞</button>
               </div>
             </div>
@@ -732,7 +730,18 @@
                 :class="['tg-msg-bubble', msg.out ? 'outgoing' : 'incoming', msg.sending ? 'sending' : '', msg.failed ? 'failed' : '']"
               >
                 <div v-if="!msg.out && activeChat.is_bot" class="tg-msg-author">{{ activeChat.title }}</div>
-                <div class="tg-msg-text" v-html="formatTelegramMessageText(msg.text)"></div>
+                
+                <!-- Media photo attachment -->
+                <div v-if="msg.photo" class="tg-msg-photo-wrap" style="margin-bottom: 6px;">
+                  <img :src="msg.photo" style="max-width: 100%; max-height: 280px; border-radius: 12px; display: block; object-fit: contain;" alt="photo" />
+                </div>
+                
+                <!-- Media voice note attachment -->
+                <div v-if="msg.voice" class="tg-msg-voice-wrap" style="margin-bottom: 6px;">
+                  <audio controls :src="msg.voice" style="max-width: 100%; height: 36px; border-radius: 18px; outline: none;"></audio>
+                </div>
+                
+                <div v-if="msg.text" class="tg-msg-text" v-html="formatTelegramMessageText(msg.text)"></div>
 
                 <!-- Inline keyboard buttons -->
                 <div v-if="msg.buttons && msg.buttons.length" class="tg-inline-keyboard">
@@ -840,54 +849,77 @@
   </nav>
 
 
-  <!-- ── Telegram 1-to-1 User Profile Info Modal ──────────── -->
+  <!-- ── 1-to-1 Replica Telegram Desktop Profile Dialog ──────────── -->
   <transition name="sheet">
-    <div class="modal-backdrop" v-if="profileModal.show" @click.self="profileModal.show=false">
-      <div class="modal-card" style="max-width: 420px; text-align: center;">
-        <div class="modal-header">
-          <h3>👤 Profile Info</h3>
-          <button class="close-modal-btn" @click="profileModal.show=false">✕</button>
+    <div class="tg-profile-overlay" v-if="profileModal.show" @click.self="profileModal.show=false">
+      <div class="tg-profile-dialog">
+        <button class="tg-profile-close" @click="profileModal.show=false">✕</button>
+
+        <div v-if="profileModal.loading" style="padding: 40px 20px; text-align: center;">
+          <span class="spin" style="font-size: 2rem; display: block; margin-bottom: 12px;">⏳</span>
+          <p style="color: rgba(255,255,255,0.6); font-size: 0.9rem;">Loading profile info...</p>
         </div>
 
-        <div v-if="profileModal.loading" style="padding: 30px; text-align: center;">
-          <span class="spin" style="font-size: 2rem; display: block; margin-bottom: 10px;">⏳</span>
-          <p style="color: rgba(255,255,255,0.6);">Fetching Telegram profile details...</p>
-        </div>
-
-        <div v-else-if="profileModal.data" style="padding: 10px 0;">
-          <!-- Avatar Picture -->
-          <div style="position: relative; display: inline-block; margin-bottom: 14px;">
-            <img v-if="profileModal.data.photo" :src="profileModal.data.photo" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid rgba(168, 85, 247, 0.5);" alt="profile"/>
-            <div v-else style="width: 100px; height: 100px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #8b5cf6); display: flex; align-items: center; justify-content: center; font-size: 2.5rem; margin: 0 auto; border: 3px solid rgba(255,255,255,0.1);">
-              {{ (profileModal.data.first_name || profileModal.data.title || 'U')[0] }}
+        <div v-else-if="profileModal.data" class="tg-profile-body">
+          <!-- Top Avatar Header -->
+          <div class="tg-prof-top-header">
+            <div class="tg-prof-avatar-wrap">
+              <img v-if="profileModal.data.photo" :src="profileModal.data.photo" class="tg-prof-avatar-img" alt="avatar" />
+              <div v-else class="tg-prof-avatar-fallback">{{ (profileModal.data.first_name || profileModal.data.title || 'U')[0] }}</div>
             </div>
-            <span style="position: absolute; bottom: 4px; right: 4px; width: 16px; height: 16px; background: #10B981; border: 3px solid #181920; border-radius: 50%;"></span>
-          </div>
-
-          <!-- Name & Username -->
-          <h2 style="margin: 0 0 4px 0; color: #fff; font-size: 1.3rem;">{{ profileModal.data.title }}</h2>
-          <p style="color: #a855f7; margin: 0 0 16px 0; font-weight: 500;">
-            {{ profileModal.data.username ? '@' + profileModal.data.username : 'User ID: ' + profileModal.data.id }}
-          </p>
-
-          <!-- Bio / Description Box -->
-          <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px; text-align: left; margin-bottom: 20px;">
-            <div style="font-size: 0.75rem; text-transform: uppercase; color: rgba(255,255,255,0.4); letter-spacing: 0.8px; margin-bottom: 6px;">
-              About / Bio
-            </div>
-            <div style="color: #e2e8f0; font-size: 0.95rem; line-height: 1.4; word-break: break-word;">
-              {{ profileModal.data.bio || 'No bio specified.' }}
+            <h3 class="tg-prof-display-name">{{ profileModal.data.title }}</h3>
+            <div class="tg-prof-status-sub">
+              <span v-if="profileModal.data.status === 'online'" class="tg-online-badge">● online</span>
+              <span v-else class="tg-offline-badge">{{ profileModal.data.status || 'last seen recently' }}</span>
             </div>
           </div>
 
-          <!-- Quick Action Buttons -->
-          <div style="display: flex; gap: 10px;">
-            <button class="fsave" style="flex: 1; padding: 10px;" @click="profileModal.show=false; openChatWindow(activeChat);">
-              💬 Send Message
+          <!-- Quick Action Buttons: Message & More -->
+          <div class="tg-prof-action-bar">
+            <button class="tg-prof-action-btn" @click="profileModal.show=false; openChatWindow(activeChat);">
+              <span class="tg-pact-icon">💬</span>
+              <span class="tg-pact-text">Message</span>
             </button>
-            <button class="fcancel" style="flex: 1; padding: 10px; background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4);" @click="openTelegramLink(profileModal.data.username || profileModal.data.id)">
-              ↗️ Telegram App
+            <button class="tg-prof-action-btn" @click="openTelegramLink(profileModal.data.username || profileModal.data.id)">
+              <span class="tg-pact-icon">•••</span>
+              <span class="tg-pact-text">More</span>
             </button>
+          </div>
+
+          <!-- Info Details List -->
+          <div class="tg-prof-details-box">
+            <!-- Mobile Phone -->
+            <div v-if="profileModal.data.phone" class="tg-pdetail-item">
+              <div class="tg-pdetail-left">
+                <div class="tg-pdetail-val">{{ profileModal.data.phone }}</div>
+                <div class="tg-pdetail-lbl">Mobile</div>
+              </div>
+            </div>
+
+            <!-- Bio -->
+            <div v-if="profileModal.data.bio" class="tg-pdetail-item">
+              <div class="tg-pdetail-left">
+                <div class="tg-pdetail-val">{{ profileModal.data.bio }}</div>
+                <div class="tg-pdetail-lbl">Bio</div>
+              </div>
+            </div>
+
+            <!-- Username -->
+            <div v-if="profileModal.data.username" class="tg-pdetail-item">
+              <div class="tg-pdetail-left">
+                <div class="tg-pdetail-val" style="color: #60a5fa;">@{{ profileModal.data.username }}</div>
+                <div class="tg-pdetail-lbl">Username</div>
+              </div>
+              <div class="tg-pdetail-qr" title="QR Code">⊞</div>
+            </div>
+
+            <!-- Telegram ID -->
+            <div class="tg-pdetail-item">
+              <div class="tg-pdetail-left">
+                <div class="tg-pdetail-val" style="color: #93c5fd; font-style: italic;">id: {{ profileModal.data.id }}</div>
+                <div class="tg-pdetail-lbl">ID</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1186,10 +1218,6 @@
 
         <!-- ── Action Buttons Stack ── -->
         <div class="sheet-action-stack">
-          <a href="https://t.me/xusanboyman200" target="_blank" class="sheet-direct-btn">
-            👤 {{ t('buyDirectBtn') }}
-          </a>
-
           <button class="sheet-pay-btn" :disabled="paying || !recipient.trim() || checkingUser || !!userCheckError || !verifiedUser || !selectedSender" @click="pay">
             <span v-if="!paying">{{ t('payBtn') }} {{ totalStars }} ⭐</span>
             <span v-else class="spin">⏳</span>
@@ -1237,8 +1265,7 @@
           <button class="add-btn" @click="openAddForm">+ Add Gift</button>
           <div v-for="g in sortedAdminGifts" :key="g.id" :class="['admin-row', g.active ? '' : 'deleted-gift-row']">
             <div class="ar-media" style="width: 36px; height: 36px; flex-shrink: 0;">
-              <img v-if="getGiftImg(g.animation)" :src="getGiftImg(g.animation)" class="ar-img" style="width: 100%; height: 100%; object-fit: contain;" alt="gift"/>
-              <lottie-anim v-else-if="g.animation" :filename="g.animation" :fallback-img="getFallbackPng(g.animation)"></lottie-anim>
+              <img v-if="getFallbackPng(g.animation)" :src="getFallbackPng(g.animation)" class="ar-img" style="width: 100%; height: 100%; object-fit: contain;" alt="gift"/>
               <span v-else class="ar-em">{{ g.emoji }}</span>
             </div>
             <div class="ar-inf">
@@ -1265,8 +1292,7 @@
             <div class="ao-top"><span>#{{ o.id }}</span><span :class="['ao-st','st-'+o.status]">{{ o.status }}</span></div>
             <div class="ao-row-content" style="display: flex; align-items: center; gap: 10px; margin-top: 4px;">
               <div class="ao-media" style="width: 36px; height: 36px; flex-shrink: 0;">
-                <img v-if="getGiftImg(o.animation)" :src="getGiftImg(o.animation)" class="ao-img" style="width: 100%; height: 100%; object-fit: contain;" alt="gift"/>
-                <lottie-anim v-else-if="o.animation" :filename="o.animation" :fallback-img="getFallbackPng(o.animation)"></lottie-anim>
+                <img v-if="getFallbackPng(o.animation)" :src="getFallbackPng(o.animation)" class="ao-img" style="width: 100%; height: 100%; object-fit: contain;" alt="gift"/>
                 <span v-else class="ao-em">{{ o.emoji }}</span>
               </div>
               <div class="ao-details">
@@ -1419,6 +1445,10 @@
   <canvas id="confettiCanvas" style="position:fixed;inset:0;z-index:999;pointer-events:none"></canvas>
 </div>
 
+<script src="lottie.min.js"></script>
+<script src="vue.min.js"></script>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
 <script src="chat.js?v=1.0.3"></script>
 <script src="app.js?v=1.0.3"></script>
 </body>

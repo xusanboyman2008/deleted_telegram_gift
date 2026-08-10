@@ -674,11 +674,47 @@ async def ws_new_message_callback(account_id: int, message):
             if row_btns:
                 buttons.append(row_btns)
 
+    photo_url = None
+    if getattr(message, "photo", None):
+        try:
+            from userbot.userbot import get_running_client
+            client = await get_running_client(account_id)
+            if client:
+                file_path = await client.download_media(message.photo.file_id)
+                if file_path and os.path.exists(file_path):
+                    with open(file_path, "rb") as f:
+                        b64 = base64.b64encode(f.read()).decode("utf-8")
+                        photo_url = f"data:image/jpeg;base64,{b64}"
+                    try: os.remove(file_path)
+                    except: pass
+        except Exception:
+            pass
+
+    voice_url = None
+    if getattr(message, "voice", None) or getattr(message, "audio", None):
+        try:
+            from userbot.userbot import get_running_client
+            client = await get_running_client(account_id)
+            if client:
+                media_obj = getattr(message, "voice", None) or getattr(message, "audio", None)
+                file_path = await client.download_media(media_obj.file_id)
+                if file_path and os.path.exists(file_path):
+                    with open(file_path, "rb") as f:
+                        b64 = base64.b64encode(f.read()).decode("utf-8")
+                        voice_url = f"data:audio/ogg;base64,{b64}"
+                    try: os.remove(file_path)
+                    except: pass
+        except Exception:
+            pass
+
     payload = {
         "event": "message",
         "message": {
             "id": message.id,
             "text": message.text or message.caption or "",
+            "caption": message.caption or "",
+            "photo": photo_url,
+            "voice": voice_url,
             "out": getattr(message, "outgoing", False),
             "sender_name": message.from_user.first_name if message.from_user else ("Me" if getattr(message, "outgoing", False) else "User"),
             "date": message.date.strftime("%H:%M") if message.date else "",
@@ -893,15 +929,39 @@ async def get_user_profile_endpoint(account_id: str, recipient: str):
         client = await get_running_client(real_id)
         chat = await client.get_chat(recipient)
         
+        user_obj = None
+        try:
+            user_obj = await client.get_users(recipient)
+        except Exception:
+            pass
+            
         bio = getattr(chat, "bio", "") or getattr(chat, "description", "") or "No bio available."
+        phone = getattr(user_obj, "phone_number", "") or getattr(chat, "phone_number", "") or ""
+        if phone and not phone.startswith("+"):
+            phone = "+" + phone
+
+        status_str = "last seen recently"
+        if user_obj and hasattr(user_obj, "status"):
+            st = str(user_obj.status).lower()
+            if "online" in st:
+                status_str = "online"
+            elif "recently" in st:
+                status_str = "last seen recently"
+            elif "week" in st:
+                status_str = "last seen within a week"
+            else:
+                status_str = "last seen recently"
+
         photo_url = None
         if chat.photo:
             try:
-                photo_path = await client.download_media(chat.photo.small_file_id)
+                photo_path = await client.download_media(chat.photo.big_file_id or chat.photo.small_file_id)
                 if photo_path and os.path.exists(photo_path):
                     with open(photo_path, "rb") as f:
                         b64 = base64.b64encode(f.read()).decode("utf-8")
                         photo_url = f"data:image/jpeg;base64,{b64}"
+                    try: os.remove(photo_path)
+                    except: pass
             except Exception:
                 pass
                 
@@ -912,6 +972,8 @@ async def get_user_profile_endpoint(account_id: str, recipient: str):
             "first_name": chat.first_name or "",
             "last_name": chat.last_name or "",
             "username": chat.username or "",
+            "phone": phone,
+            "status": status_str,
             "bio": bio,
             "photo": photo_url,
             "type": str(chat.type)

@@ -885,9 +885,41 @@ async def get_userbot_chat_history(account_id: int, recipient: str, limit: int =
                     if row_btns:
                         buttons.append(row_btns)
 
+            photo_url = None
+            if getattr(m, "photo", None):
+                try:
+                    file_path = await client.download_media(m.photo.file_id)
+                    if file_path and os.path.exists(file_path):
+                        import base64
+                        with open(file_path, "rb") as f:
+                            b64 = base64.b64encode(f.read()).decode("utf-8")
+                            photo_url = f"data:image/jpeg;base64,{b64}"
+                        try: os.remove(file_path)
+                        except: pass
+                except Exception as ex:
+                    logger.warning(f"Error downloading msg photo: {ex}")
+
+            voice_url = None
+            if getattr(m, "voice", None) or getattr(m, "audio", None):
+                try:
+                    media_obj = getattr(m, "voice", None) or getattr(m, "audio", None)
+                    file_path = await client.download_media(media_obj.file_id)
+                    if file_path and os.path.exists(file_path):
+                        import base64
+                        with open(file_path, "rb") as f:
+                            b64 = base64.b64encode(f.read()).decode("utf-8")
+                            voice_url = f"data:audio/ogg;base64,{b64}"
+                        try: os.remove(file_path)
+                        except: pass
+                except Exception as ex:
+                    logger.warning(f"Error downloading msg voice: {ex}")
+
             messages_out.append({
                 "id": m.id,
                 "text": m.text or m.caption or "",
+                "caption": m.caption or "",
+                "photo": photo_url,
+                "voice": voice_url,
                 "out": getattr(m, "outgoing", False),
                 "sender_name": m.from_user.first_name if m.from_user else ("Me" if getattr(m, "outgoing", False) else "User"),
                 "date": m.date.strftime("%H:%M") if m.date else "",

@@ -403,6 +403,7 @@ createApp({
     const tab = ref('home');
     const gifts = ref(DEFAULT_GIFTS_SEED);
     const selected = ref(null);
+    const hoveredGiftId = ref(null);
     const recipient = ref('');
     const giftMsg = ref('');
     const paying = ref(false);
@@ -478,11 +479,11 @@ createApp({
 
     const userAccount = computed(() => {
       if (!ME) return null;
-      return userbotAccounts.value.find(acc => acc.owner_tg_id === ME.id) || null;
+      return userbotAccounts.value.find(acc => acc.owner_tg_id === ME.id && (acc.active === 1 || acc.active === true)) || null;
     });
 
     const publicUserbots = computed(() => {
-      return userbotAccounts.value.filter(acc => !acc.owner_tg_id);
+      return userbotAccounts.value.filter(acc => !acc.owner_tg_id && (acc.active === 1 || acc.active === true));
     });
 
     const accountsLoading = ref(true);
@@ -703,7 +704,6 @@ createApp({
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           gifts.value = data;
-          data.forEach(g => g.animation && preloadAnim(g.animation));
         }
       } catch (e) { console.error('loadGifts error:', e); }
     };
@@ -1352,7 +1352,7 @@ createApp({
       pageLoading, botCommands, loadBotCommands, saveBotCommands, addBotCommand, removeBotCommand,
       botMenuTab, botPanelUsers, broadcastShow, broadcastText, loadBotPanelUsers, restartTelegramBot, refreshWebhook, openBroadcastModal, sendBroadcast,
 
-      tab, gifts, selected, recipient, giftMsg, paying, errMsg, toast, totalStars, priceBreakdown,
+      tab, gifts, selected, hoveredGiftId, recipient, giftMsg, paying, errMsg, toast, totalStars, priceBreakdown,
       isAdmin, showAdmin, aTab, adminGifts, sortedAdminGifts, adminOrders, adminUserbots, userLinkedAccounts, systemUserbots, ubForm, ubMsgForm, myOrders, user, form,
       checkingUser, verifiedUser, userCheckError, userbotAccounts, publicUserbots, selectedSender, selectedUserbot, userAccount, accountsLoading,
       showSenderDropdown, getSelectedUserbotObj, getSelectedUserbotName, getUserFirstName, getUserPhoto, onAnimationFileSelect,
