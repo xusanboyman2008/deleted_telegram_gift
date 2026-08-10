@@ -1256,7 +1256,9 @@ body::after {
 
 .modal-card {
   width: 100%;
-  max-width: 360px;
+  max-width: 380px;
+  max-height: 90vh;
+  overflow-y: auto;
   background: linear-gradient(165deg, rgba(24, 20, 48, 0.95) 0%, rgba(12, 11, 26, 0.98) 100%);
   border: 1px solid rgba(168, 85, 247, 0.35);
   border-radius: 24px;
@@ -1267,6 +1269,7 @@ body::after {
   gap: 14px;
   animation: modalPopIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   backdrop-filter: blur(20px);
+  scrollbar-width: none;
 }
 .modal-header {
   display: flex;
