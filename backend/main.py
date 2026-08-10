@@ -1616,7 +1616,7 @@ async def create_invoice(body: CreateInvoiceRequest, user: dict = Depends(get_us
     pricing = await db.get_pricing_settings()
     user_acc = None
     if body.sender_type == "myaccount":
-        total = pricing.get("myaccount_stars", 1)
+        total = pricing.get("myaccount_stars", 0)
         # Verify user has connected account with at least 50 stars
         raw_accs = await db.async_get_userbot_accounts(active_only=True, user_tg_id=user_id, is_admin=False)
         user_acc = next((a for a in raw_accs if a.get("owner_tg_id") == user_id), None)
@@ -1624,7 +1624,7 @@ async def create_invoice(body: CreateInvoiceRequest, user: dict = Depends(get_us
             raise HTTPException(status_code=400, detail="Please connect your Telegram account first to use 'My Account' sender option.")
         stars = user_acc.get("stars_balance", 0)
         if stars > 0 and stars < 50:
-            raise HTTPException(status_code=400, detail=f"Your connected account has only {stars} ⭐ Telegram Stars. Minimum 50 ⭐ Stars balance required on your connected account to purchase gifts (+ 1 ⭐ bot fee).")
+            raise HTTPException(status_code=400, detail=f"Your connected account has only {stars} ⭐ Telegram Stars. Minimum 50 ⭐ Stars balance required on your connected account to purchase gifts.")
     elif body.sender_type == "userbot":
         total = pricing.get("userbot_stars", 55)
     else:
@@ -1650,6 +1650,37 @@ async def create_invoice(body: CreateInvoiceRequest, user: dict = Depends(get_us
         sender_type=body.sender_type or "bot",
         userbot_id=target_ub_id
     )
+
+    if total <= 0:
+        # Free order: Skip Telegram Stars invoice (requires amount > 0) and deliver gift immediately!
+        await db.update_order_status(order_id, "paid", "free_order")
+        gift_tg_id = gift.get("gift_tg_id")
+        gift_text = body.gift_text
+        try:
+            from userbot.userbot import attempt_send_gift_via_userbot
+        except ImportError:
+            from userbot import attempt_send_gift_via_userbot
+
+        res = await attempt_send_gift_via_userbot(target_ub_id or 1, body.recipient_id, gift_tg_id, gift_text=gift_text)
+        if res.get("success"):
+            await db.update_order_status(order_id, "delivered", "free_order")
+            return {
+                "free": True,
+                "direct_success": True,
+                "order_id": order_id,
+                "link": None,
+                "message": res.get("message") or "🎁 Gift sent successfully via connected account!"
+            }
+        else:
+            warning_msg = res.get("warning") or res.get("error") or "Order placed! Delivery in progress."
+            return {
+                "free": True,
+                "direct_success": False,
+                "order_id": order_id,
+                "link": None,
+                "message": warning_msg
+            }
+
     try:
         desc = f"Rare deleted Telegram gift → {body.recipient_id}"
         if body.gift_text:
@@ -1658,6 +1689,7 @@ async def create_invoice(body: CreateInvoiceRequest, user: dict = Depends(get_us
             title=f"🎁 {name}",
             description=desc,
             payload=f"order_{order_id}",
+            provider_token="",
             currency="XTR",
             prices=[LabeledPrice(label=name, amount=total)],
         )

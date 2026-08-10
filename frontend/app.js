@@ -846,6 +846,15 @@ createApp({
         const data = await r.json();
         if (!r.ok) throw new Error(data.detail || 'Failed');
 
+        if (data.free || data.direct_success || !data.link) {
+          paying.value = false;
+          closeSheet();
+          confetti();
+          showToast(data.message || '🎁 Gift sent successfully via connected account!');
+          loadHistory();
+          return;
+        }
+
         if (tg?.openInvoice) {
           tg.openInvoice(data.link, status => {
             paying.value = false;
