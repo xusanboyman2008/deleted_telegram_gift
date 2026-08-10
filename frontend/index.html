@@ -17,7 +17,7 @@
     }
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css?v=1.0.7"/>
+  <link rel="stylesheet" href="style.css?v=1.0.9"/>
 </head>
 <body>
 <div id="app" v-cloak>
@@ -684,6 +684,7 @@
           </div>
         </div>
       </div>
+    </div> <!-- /tg-app-container (bot_control tab) -->
 
 
     <!-- ── 1-TO-1 TELEGRAM CHAT TAB ────────────────── -->
@@ -755,6 +756,7 @@
             </template>
           </div>
         </transition>
+      </div> <!-- /tg-account-header -->
 
       <!-- ② Two-column Telegram Body -->
       <div class="tg-body-split">
@@ -977,6 +979,10 @@
           </template>
 
         </div>
+      </div> <!-- /tg-body-split -->
+    </div> <!-- /tg-app-container (chat tab) -->
+
+  </div> <!-- /view-wrap -->
 
     <!-- ── Add Bot Token Modal ────────────────────────────── -->
     <div v-if="showAddBotModal" class="sheet-backdrop" @click.self="showAddBotModal=false">
@@ -1451,6 +1457,8 @@
             <span v-else class="spin">⏳</span>
           </button>
         </div>
+      </div> <!-- /sheet -->
+    </div> <!-- /sheet-backdrop -->
   </transition>
 
   <!-- ── Admin Panel ────────────────────────── -->
@@ -1620,7 +1628,7 @@
 <script src="vue.min.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
-<script src="chat.js?v=1.0.7"></script>
-<script src="app.js?v=1.0.7"></script>
+<script src="chat.js?v=1.0.9"></script>
+<script src="app.js?v=1.0.9"></script>
 </body>
 </html>
