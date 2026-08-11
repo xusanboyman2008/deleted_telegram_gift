@@ -795,6 +795,7 @@ function setupChatState(Vue, api, showToast, tg) {
     sendStartCommand,
     handleMessageStreamClick,
     profileModal,
+    openProfileModal,
     disconnectAllSockets,
   };
 }
