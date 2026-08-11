@@ -265,6 +265,38 @@ async function preloadAnim(filename) {
   }
 }
 
+// Global Lottie Animation Queue for smooth mounting and parsing
+const lottieQueue = [];
+let lottieProcessing = false;
+
+async function processLottieQueue() {
+  if (lottieProcessing || lottieQueue.length === 0) return;
+  lottieProcessing = true;
+  const task = lottieQueue.shift();
+  try {
+    await task();
+  } catch (e) {
+    console.error('Queue task error:', e);
+  }
+  
+  if (window.requestIdleCallback) {
+    window.requestIdleCallback(() => {
+      lottieProcessing = false;
+      processLottieQueue();
+    });
+  } else {
+    setTimeout(() => {
+      lottieProcessing = false;
+      processLottieQueue();
+    }, 50);
+  }
+}
+
+function enqueueLottieInit(task) {
+  lottieQueue.push(task);
+  processLottieQueue();
+}
+
 const LottieAnim = {
   props: { filename: String, fallbackImg: String },
   setup(props) {
@@ -272,6 +304,7 @@ const LottieAnim = {
     const failed = ref(false);
     let inst = null;
     const pageLoading = Vue.inject('pageLoading', ref(false));
+    const activeTab = Vue.inject('activeTab', ref('home'));
 
     const destroy = () => {
       if (inst) {
@@ -288,41 +321,59 @@ const LottieAnim = {
       }
     };
 
-    const init = async () => {
+    const init = () => {
       destroy();
       failed.value = false;
       if (!props.filename) return;
 
-      const data = await preloadAnim(props.filename);
-      if (!data) { failed.value = true; return; }
+      // Enqueue Lottie loading to prevent CPU congestion on mount
+      enqueueLottieInit(async () => {
+        if (!props.filename) return;
+        const data = await preloadAnim(props.filename);
+        if (!data) { failed.value = true; return; }
 
-      await nextTick();
-      if (!el.value) return;
+        await nextTick();
+        if (!el.value) return;
 
-      try {
-        inst = lottie.loadAnimation({
-          container: el.value,
-          renderer: 'svg',
-          loop: false,
-          autoplay: !pageLoading.value,
-          animationData: data,
-        });
-      } catch (e) {
-        console.error('Lottie setup error:', e);
-        failed.value = true;
-      }
+        try {
+          inst = lottie.loadAnimation({
+            container: el.value,
+            renderer: 'svg',
+            loop: false,
+            autoplay: !pageLoading.value && activeTab.value === 'home',
+            animationData: data,
+          });
+        } catch (e) {
+          console.error('Lottie setup error:', e);
+          failed.value = true;
+        }
+      });
     };
 
     onMounted(init);
     watch(() => props.filename, init);
     watch(pageLoading, (loading) => {
-      if (!loading && inst) {
+      if (!loading && inst && activeTab.value === 'home') {
         playOnce();
       }
     });
 
+    watch(activeTab, (newTab) => {
+      if (newTab !== 'home') {
+        if (inst) {
+          try { inst.pause(); } catch {}
+        }
+      } else {
+        if (inst && !pageLoading.value) {
+          try { inst.play(); } catch {}
+        }
+      }
+    });
+
     const onHover = () => {
-      playOnce();
+      if (activeTab.value === 'home') {
+        playOnce();
+      }
     };
 
     return () => {
@@ -403,6 +454,7 @@ createApp({
     const pageLoading = ref(false);
     Vue.provide('pageLoading', pageLoading);
     const tab = ref('home');
+    Vue.provide('activeTab', tab);
     const gifts = ref(DEFAULT_GIFTS_SEED);
     const selected = ref(null);
     const hoveredGiftId = ref(null);
@@ -1262,19 +1314,71 @@ createApp({
       tab.value = 'chat';
     };
 
+    // Helper to preload all gift animations sequentially in the background
+    const preloadAllAnimations = async () => {
+      const animationList = gifts.value
+        .map(g => g.animation)
+        .filter(anim => anim && !animCache[anim]);
+
+      for (const anim of animationList) {
+        try {
+          await preloadAnim(anim);
+          // Wait 150ms between files to avoid saturating network/CPU threads
+          await new Promise(resolve => setTimeout(resolve, 150));
+        } catch (e) {
+          console.error('Preload animation error:', anim, e);
+        }
+      }
+    };
+
+    const loadUserData = async () => {
+      try {
+        await Promise.all([
+          loadUserbotAccounts(),
+          ME ? loadHistory() : Promise.resolve()
+        ]);
+      } catch (e) {
+        console.error('User data load error:', e);
+      }
+    };
+
+    const loadAdminData = async () => {
+      try {
+        await Promise.all([
+          loadUserbotAccounts(),
+          loadManagedBots(),
+          loadAdminGifts(),
+          loadAdminOrders(),
+          loadAdminUserbots(),
+          loadBotPanelUsers(),
+          loadBotCommands()
+        ]);
+      } catch (e) {
+        console.error('Admin data load error:', e);
+      }
+    };
+
     // ── Boot ───────────────────────────────────
     onMounted(async () => {
       try {
+        // Step 1: Load menu items (Pricing and Gifts) first to render UI immediately
         await Promise.all([
           loadPricing(),
           loadGifts(),
-          loadUserbotAccounts(),
-          loadManagedBots(),
         ]);
       } catch (e) {
-        console.error('Boot error:', e);
+        console.error('Boot menu load error:', e);
       }
-      if (ME) loadHistory();
+
+      // Step 2: Kick off background role-based data loading
+      if (isAdmin.value) {
+        loadAdminData();
+      } else {
+        loadUserData();
+      }
+
+      // Step 3: Prefetch Lottie files sequentially in the background
+      preloadAllAnimations();
 
       if (tg) {
         tg.BackButton.onClick(() => {

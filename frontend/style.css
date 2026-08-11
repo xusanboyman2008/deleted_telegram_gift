@@ -248,7 +248,7 @@ body::after {
 
 /* ── Gift Card ───────────────────────────────── */
 .gift-card {
-  background: rgba(20, 21, 39, 0.8);
+  background: rgba(20, 21, 39, 0.93);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 18px;
   padding: 10px 4px 10px;
@@ -260,7 +260,6 @@ body::after {
   user-select: none;
   overflow: hidden;
   animation: cardFloat 0.5s ease-out both;
-  backdrop-filter: blur(8px);
   position: relative;
 }
 .gift-card::before {
@@ -450,7 +449,7 @@ body::after {
   width: 100%;
   max-width: 500px;
   margin: 0 auto;
-  background: linear-gradient(180deg, rgba(22, 20, 48, 0.97) 0%, rgba(10, 9, 22, 0.99) 100%);
+  background: linear-gradient(180deg, #161430 0%, #0a0916 100%);
   border-radius: 28px 28px 0 0;
   border-top: 1px solid rgba(168, 85, 247, 0.3);
   padding: 12px 18px calc(24px + env(safe-area-inset-bottom));
@@ -462,7 +461,6 @@ body::after {
   max-height: 92vh;
   overflow-y: auto;
   scrollbar-width: none;
-  backdrop-filter: blur(24px);
 }
 .sheet-handle {
   width: 42px;
@@ -1259,7 +1257,7 @@ body::after {
   max-width: 380px;
   max-height: 90vh;
   overflow-y: auto;
-  background: linear-gradient(165deg, rgba(24, 20, 48, 0.95) 0%, rgba(12, 11, 26, 0.98) 100%);
+  background: linear-gradient(165deg, #181430 0%, #0c0b1a 100%);
   border: 1px solid rgba(168, 85, 247, 0.35);
   border-radius: 24px;
   padding: 24px;
@@ -1268,7 +1266,6 @@ body::after {
   flex-direction: column;
   gap: 14px;
   animation: modalPopIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  backdrop-filter: blur(20px);
   scrollbar-width: none;
 }
 .modal-header {
