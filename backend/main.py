@@ -1629,7 +1629,7 @@ async def user_delete_account(account_id: int, user: dict = Depends(get_optional
 class CreateInvoiceRequest(BaseModel):
     recipient_id: str
     gift_id: int
-    gift_text: str = None
+    gift_text: Optional[str] = None
     sender_type: str = "bot"
     userbot_id: Any = None
 

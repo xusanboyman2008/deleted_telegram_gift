@@ -391,7 +391,7 @@ createApp({
   components: { 'lottie-anim': LottieAnim },
 
   setup() {
-    const pageLoading = ref(true);
+    const pageLoading = ref(false);
     Vue.provide('pageLoading', pageLoading);
     const tab = ref('home');
     const gifts = ref(DEFAULT_GIFTS_SEED);
@@ -410,7 +410,7 @@ createApp({
       toastTimer = setTimeout(() => { toast.value = ''; }, 3200);
     };
 
-    const isAdmin = ref(true);
+    const isAdmin = ref(false);
     const showAdmin = ref(false);
     const aTab = ref('gifts');
     const adminGifts = ref([]);
@@ -424,6 +424,23 @@ createApp({
     const broadcastShow = ref(false);
     const broadcastText = ref('');
     const botCommands = ref([]);
+
+    // ── Multi-Bot Management State & Logic ────────────────
+    const managedBots = ref([]);
+    const botLoading = ref(false);
+    const showAddBotModal = ref(false);
+    const newBotToken = ref('');
+    const addingBot = ref(false);
+    const showCommandModal = ref(false);
+    const selectedBotForConfig = ref(null);
+    const botCommandsList = ref([]);
+    const activeBotNav = ref('bots'); // 'bots' or 'bot_chat'
+    const selectedBotChat = ref(null);
+    const botChatContacts = ref([]);
+    const activeBotUser = ref(null);
+    const botMessages = ref([]);
+    const botInputText = ref('');
+    const botSending = ref(false);
 
 
     // ── Language i18n State ─────────────────────
@@ -498,13 +515,27 @@ createApp({
 
     // ── Chat State Module ───────────────────────
     const chatState = setupChatState(Vue, api, showToast, tg);
-    watch(userbotAccounts, (accs) => {
-      chatState.allAvailableAccounts.value = accs;
-      if (!chatState.activeChatAccount.value && accs.length > 0) {
-        const myAcc = accs.find(a => a.owner_tg_id === ME?.id);
-        chatState.selectChatAccount(myAcc || accs[0]);
+    watch([userbotAccounts, managedBots], ([accs, bots]) => {
+      const botAccounts = (bots || [])
+        .filter(b => b.active)
+        .map(b => ({
+          id: 'bot_' + b.id,
+          managed_bot_id: b.id,
+          is_managed_bot: true,
+          first_name: b.bot_name || 'Bot',
+          username: b.bot_username || '',
+          photo: '',
+          active: true,
+          token: b.token,
+          owner_tg_id: null,
+        }));
+      chatState.allAvailableAccounts.value = [...(accs || []), ...botAccounts];
+
+      if (!chatState.activeChatAccount.value && chatState.allAvailableAccounts.value.length > 0) {
+        const myAcc = (accs || []).find(a => a.owner_tg_id === ME?.id);
+        chatState.selectChatAccount(myAcc || chatState.allAvailableAccounts.value[0]);
       }
-    }, { immediate: true });
+    }, { immediate: true, deep: true });
 
     // ── Phone Auth Modal State for "Use My Account" ─
     const phoneModal = reactive({
@@ -712,7 +743,7 @@ createApp({
     const openSheet = g => {
       selected.value = g; recipient.value = ''; giftMsg.value = ''; errMsg.value = '';
       verifiedUser.value = null; userCheckError.value = '';
-      selectedSender.value = null; showSenderDropdown.value = false;
+      selectedSender.value = 'bot'; showSenderDropdown.value = false;
       if (tg) { tg.BackButton.show(); tg.BackButton.onClick(closeSheet); }
     };
     const closeSheet = () => {
@@ -1196,28 +1227,39 @@ createApp({
 
     // ── Boot ───────────────────────────────────
     onMounted(async () => {
-      isAdmin.value = true;
       try {
-        const cfg = await fetch('/api/config', { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
-      } catch {}
-
-      await loadPricing();
-      await loadGifts();
-      await loadUserbotAccounts();
-      await loadBotCommands();
-      await loadManagedBots();
+        await Promise.all([
+          loadPricing(),
+          loadGifts(),
+          loadUserbotAccounts(),
+          loadManagedBots(),
+        ]);
+      } catch (e) {
+        console.error('Boot error:', e);
+      }
       if (ME) loadHistory();
-
-      pageLoading.value = false;
 
       if (tg) {
         tg.BackButton.onClick(() => {
-          if (showAdmin.value) showAdmin.value = false;
-          else if (phoneModal.show) phoneModal.show = false;
+          if (phoneModal.show) phoneModal.show = false;
           else if (selected.value) closeSheet();
           else if (tab.value !== 'home') tab.value = 'home';
           else tg.BackButton.hide();
         });
+      }
+    });
+
+    // Watch tab changes for WebSocket lifecycle
+    watch(tab, (newTab, oldTab) => {
+      if (oldTab === 'chat' && newTab !== 'chat') {
+        // Disconnect WebSockets when leaving Chats
+        if (chatState.disconnectAllSockets) chatState.disconnectAllSockets();
+      }
+      if (newTab === 'chat' && oldTab !== 'chat') {
+        // Reconnect when returning to Chats
+        if (chatState.activeChatAccount.value) {
+          chatState.selectChatAccount(chatState.activeChatAccount.value);
+        }
       }
     });
 
@@ -1415,7 +1457,8 @@ createApp({
           managedBots.value = data.bots;
         }
       } catch (e) {
-        console.error('loadManagedBots error:', e);
+        // Silently fail for non-admin users
+        managedBots.value = [];
       } finally {
         botLoading.value = false;
       }
@@ -1719,9 +1762,7 @@ createApp({
       }
     };
 
-    onMounted(() => {
-      loadManagedBots();
-    });
+    // Managed bots already loaded in main boot sequence
 
     return {
       pageLoading, botCommands, loadBotCommands, saveBotCommands, addBotCommand, removeBotCommand,

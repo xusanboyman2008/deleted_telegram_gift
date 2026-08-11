@@ -187,6 +187,34 @@ function setupChatState(Vue, api, showToast, tg) {
             if (typeof window.handleGlobalBotMessage === 'function') {
               window.handleGlobalBotMessage(data);
             }
+            // Direct handle in chatState if active account is the bot
+            if (activeChatAccount.value?.is_managed_bot && activeChatAccount.value.token === data.bot_token) {
+              const incomingUserId = String(data.user_id);
+              if (currentChatPeer.value === incomingUserId) {
+                const exists = currentMessages.value.some(m => m.id === data.message.id);
+                if (!exists) {
+                  currentMessages.value.push({
+                    id: data.message.id,
+                    text: data.message.text || '',
+                    photo: data.message.photo || null,
+                    voice: data.message.voice || null,
+                    video: data.message.video || null,
+                    out: !!data.message.out,
+                    sender_name: data.message.out ? 'Bot' : (data.message.user_first_name || 'User'),
+                    date: data.message.date || '',
+                  });
+                  scrollToBottom();
+                }
+              }
+              const chat = chatList.value.find(c => c.peer === incomingUserId);
+              if (chat) {
+                chat.last_msg = data.message.text || '';
+                chat.last_time = data.message.date || '';
+                chat.last_out = !!data.message.out;
+              } else {
+                loadChatContacts();
+              }
+            }
           }
         } catch (e) {}
       };
@@ -322,15 +350,19 @@ function setupChatState(Vue, api, showToast, tg) {
 
     // Load real messages & read chat history if account available
     if (activeChatAccount.value?.id) {
-      const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
-      api('/api/userbot/chat/read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ account_id: accountId, recipient: chat.peer })
-      }).catch(() => {});
+      if (activeChatAccount.value.is_managed_bot) {
+        await loadChatHistory(chat.peer);
+      } else {
+        const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
+        api('/api/userbot/chat/read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ account_id: accountId, recipient: chat.peer })
+        }).catch(() => {});
 
-      await loadChatHistory(chat.peer);
-      connectChatSocket(chat.peer);
+        await loadChatHistory(chat.peer);
+        connectChatSocket(chat.peer);
+      }
     }
   };
 
@@ -338,18 +370,36 @@ function setupChatState(Vue, api, showToast, tg) {
     if (!activeChatAccount.value?.id) return;
     chatLoading.value = true;
     try {
-      const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
-      const res = await api(`/api/userbot/chat/history?account_id=${encodeURIComponent(accountId)}&recipient=${encodeURIComponent(peer)}`);
-      const data = await res.json();
-      if (data.success && Array.isArray(data.messages)) {
-        currentMessages.value = data.messages;
-        // Update contact's last_msg
-        const chat = chatList.value.find(c => c.peer === peer);
-        if (chat && data.messages.length > 0) {
-          const last = data.messages[data.messages.length - 1];
-          chat.last_msg = last.text || '';
-          chat.last_time = last.date || '';
-          chat.last_out = last.out;
+      if (activeChatAccount.value.is_managed_bot) {
+        const botId = activeChatAccount.value.managed_bot_id;
+        const res = await api(`/api/admin/managed-bots/${botId}/history/${encodeURIComponent(peer)}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.messages)) {
+          currentMessages.value = data.messages.map(m => ({
+            id: m.id || m.message_id,
+            text: m.text || '',
+            photo: m.photo || null,
+            voice: m.voice || null,
+            video: m.video || null,
+            out: !!m.out,
+            sender_name: m.out ? 'Bot' : (m.user_first_name || 'User'),
+            date: m.date || '',
+          }));
+        }
+      } else {
+        const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
+        const res = await api(`/api/userbot/chat/history?account_id=${encodeURIComponent(accountId)}&recipient=${encodeURIComponent(peer)}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.messages)) {
+          currentMessages.value = data.messages;
+          // Update contact's last_msg
+          const chat = chatList.value.find(c => c.peer === peer);
+          if (chat && data.messages.length > 0) {
+            const last = data.messages[data.messages.length - 1];
+            chat.last_msg = last.text || '';
+            chat.last_time = last.date || '';
+            chat.last_out = last.out;
+          }
         }
       }
     } catch (e) {
@@ -370,17 +420,41 @@ function setupChatState(Vue, api, showToast, tg) {
     }
     chatContactsLoading.value = true;
     try {
-      const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
-      const res = await api(`/api/userbot/chat/contacts?account_id=${encodeURIComponent(accountId)}&limit=30`);
-      const data = await res.json();
-      if (data.success && Array.isArray(data.contacts) && data.contacts.length > 0) {
-        chatList.value = data.contacts;
+      if (activeChatAccount.value.is_managed_bot) {
+        const botId = activeChatAccount.value.managed_bot_id;
+        const res = await api(`/api/admin/managed-bots/${botId}/contacts`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.contacts)) {
+          chatList.value = data.contacts.map(c => ({
+            peer: String(c.user_id),
+            title: c.user_first_name || (c.user_username ? '@' + c.user_username : 'User'),
+            is_bot: false,
+            photo: null,
+            last_msg: c.last_msg || '',
+            last_time: c.last_time || '',
+            last_out: !!c.last_out,
+            unread: 0,
+            online: false,
+            user_id: c.user_id,
+            user_username: c.user_username,
+            user_first_name: c.user_first_name
+          }));
+        } else {
+          chatList.value = [];
+        }
       } else {
-        chatList.value = [...DEFAULT_CHAT_CONTACTS];
+        const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
+        const res = await api(`/api/userbot/chat/contacts?account_id=${encodeURIComponent(accountId)}&limit=30`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.contacts) && data.contacts.length > 0) {
+          chatList.value = data.contacts;
+        } else {
+          chatList.value = [...DEFAULT_CHAT_CONTACTS];
+        }
       }
     } catch (e) {
       console.error('loadChatContacts error:', e);
-      chatList.value = [...DEFAULT_CHAT_CONTACTS];
+      chatList.value = activeChatAccount.value?.is_managed_bot ? [] : [...DEFAULT_CHAT_CONTACTS];
     } finally {
       chatContactsLoading.value = false;
     }
@@ -418,44 +492,25 @@ function setupChatState(Vue, api, showToast, tg) {
 
     chatSending.value = true;
 
-    // Send through WebSocket if connected, fallback to HTTP
-    if (chatSocket && chatSocket.readyState === WebSocket.OPEN) {
+    if (activeChatAccount.value.is_managed_bot) {
       try {
-        chatSocket.send(JSON.stringify({ action: 'send', text: text }));
-        // The WS onmessage handler will receive the send_ack and the broadcast message
-        // Mark as sent after a short timeout (server will confirm via broadcast)
-        setTimeout(() => {
-          const msgIdx = currentMessages.value.findIndex(m => m.id === tempId && m.sending);
-          if (msgIdx >= 0) {
-            currentMessages.value[msgIdx].sending = false;
-          }
-          chatSending.value = false;
-        }, 2000);
-      } catch (e) {
-        const msgIdx = currentMessages.value.findIndex(m => m.id === tempId);
-        if (msgIdx >= 0) currentMessages.value[msgIdx].failed = true;
-        showToast('❌ Send error: ' + e.message);
-        chatSending.value = false;
-      }
-    } else {
-      // Fallback: HTTP POST
-      try {
-        const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
-        const res = await api('/api/userbot/chat/send', {
+        const botId = activeChatAccount.value.managed_bot_id;
+        const res = await api(`/api/admin/managed-bots/${botId}/send`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            account_id: accountId,
-            recipient: currentChatPeer.value,
-            message: text,
-          }),
+            user_id: parseInt(activeChat.value.peer),
+            text: text,
+            user_username: activeChat.value.user_username || '',
+            user_first_name: activeChat.value.user_first_name || 'User',
+          })
         });
         const data = await res.json();
         const msgIdx = currentMessages.value.findIndex(m => m.id === tempId);
         if (msgIdx >= 0) {
           currentMessages.value[msgIdx].sending = false;
           if (data.success) {
-            currentMessages.value[msgIdx].id = data.message_id || tempId;
+            currentMessages.value[msgIdx].id = data.message?.id || tempId;
           } else {
             currentMessages.value[msgIdx].failed = true;
             showToast('❌ Failed to send: ' + (data.error || 'Unknown error'));
@@ -467,6 +522,58 @@ function setupChatState(Vue, api, showToast, tg) {
         showToast('❌ Send error: ' + e.message);
       } finally {
         chatSending.value = false;
+      }
+    } else {
+      // Send through WebSocket if connected, fallback to HTTP
+      if (chatSocket && chatSocket.readyState === WebSocket.OPEN) {
+        try {
+          chatSocket.send(JSON.stringify({ action: 'send', text: text }));
+          // The WS onmessage handler will receive the send_ack and the broadcast message
+          // Mark as sent after a short timeout (server will confirm via broadcast)
+          setTimeout(() => {
+            const msgIdx = currentMessages.value.findIndex(m => m.id === tempId && m.sending);
+            if (msgIdx >= 0) {
+              currentMessages.value[msgIdx].sending = false;
+            }
+            chatSending.value = false;
+          }, 2000);
+        } catch (e) {
+          const msgIdx = currentMessages.value.findIndex(m => m.id === tempId);
+          if (msgIdx >= 0) currentMessages.value[msgIdx].failed = true;
+          showToast('❌ Send error: ' + e.message);
+          chatSending.value = false;
+        }
+      } else {
+        // Fallback: HTTP POST
+        try {
+          const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
+          const res = await api('/api/userbot/chat/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              account_id: accountId,
+              recipient: currentChatPeer.value,
+              message: text,
+            }),
+          });
+          const data = await res.json();
+          const msgIdx = currentMessages.value.findIndex(m => m.id === tempId);
+          if (msgIdx >= 0) {
+            currentMessages.value[msgIdx].sending = false;
+            if (data.success) {
+              currentMessages.value[msgIdx].id = data.message_id || tempId;
+            } else {
+              currentMessages.value[msgIdx].failed = true;
+              showToast('❌ Failed to send: ' + (data.error || 'Unknown error'));
+            }
+          }
+        } catch (e) {
+          const msgIdx = currentMessages.value.findIndex(m => m.id === tempId);
+          if (msgIdx >= 0) currentMessages.value[msgIdx].failed = true;
+          showToast('❌ Send error: ' + e.message);
+        } finally {
+          chatSending.value = false;
+        }
       }
     }
 
@@ -551,23 +658,47 @@ function setupChatState(Vue, api, showToast, tg) {
         currentMessages.value.push(optMsg);
         await scrollToBottom();
 
-        // Send media via WS or HTTP
-        const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
-        const res = await api('/api/userbot/chat/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            account_id: accountId,
-            recipient: currentChatPeer.value,
-            message: mediaUrl,
-          })
-        });
-        const data = await res.json();
-        const idx = currentMessages.value.findIndex(m => m.id === tempId);
-        if (idx >= 0) {
-          currentMessages.value[idx].sending = false;
-          if (data.success) {
-            currentMessages.value[idx].id = data.message_id || tempId;
+        if (activeChatAccount.value.is_managed_bot) {
+          const botId = activeChatAccount.value.managed_bot_id;
+          const res = await api(`/api/admin/managed-bots/${botId}/send-media`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: parseInt(activeChat.value.peer),
+              media_url: mediaUrl,
+              media_type: mediaType === 'audio' ? 'voice' : mediaType,
+              caption: '',
+              user_username: activeChat.value.user_username || '',
+              user_first_name: activeChat.value.user_first_name || 'User',
+            })
+          });
+          const data = await res.json();
+          const idx = currentMessages.value.findIndex(m => m.id === tempId);
+          if (idx >= 0) {
+            currentMessages.value[idx].sending = false;
+            if (data.success) {
+              currentMessages.value[idx].id = data.message?.id || tempId;
+            }
+          }
+        } else {
+          // Send media via WS or HTTP
+          const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
+          const res = await api('/api/userbot/chat/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              account_id: accountId,
+              recipient: currentChatPeer.value,
+              message: mediaUrl,
+            })
+          });
+          const data = await res.json();
+          const idx = currentMessages.value.findIndex(m => m.id === tempId);
+          if (idx >= 0) {
+            currentMessages.value[idx].sending = false;
+            if (data.success) {
+              currentMessages.value[idx].id = data.message_id || tempId;
+            }
           }
         }
         showToast('✅ Media sent!');
@@ -664,6 +795,6 @@ function setupChatState(Vue, api, showToast, tg) {
     sendStartCommand,
     handleMessageStreamClick,
     profileModal,
-    openProfileModal,
+    disconnectAllSockets,
   };
 }
