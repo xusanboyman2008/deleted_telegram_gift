@@ -1695,20 +1695,24 @@ async def create_invoice(body: CreateInvoiceRequest, user: dict = Depends(get_us
 
     pricing = await db.get_pricing_settings()
     user_acc = None
+    base_stars = int(gift.get("base_stars", 50))
     if body.sender_type == "myaccount":
-        total = pricing.get("myaccount_stars", 0)
-        # Verify user has connected account with at least 50 stars
+        fee = pricing.get("myaccount_stars", 0)
+        total = base_stars + fee
+        # Verify user has connected account with at least gift base stars
         raw_accs = await db.async_get_userbot_accounts(active_only=True, user_tg_id=user_id, is_admin=False)
         user_acc = next((a for a in raw_accs if a.get("owner_tg_id") == user_id), None)
         if not user_acc:
             raise HTTPException(status_code=400, detail="Please connect your Telegram account first to use 'My Account' sender option.")
         stars = user_acc.get("stars_balance", 0)
-        if stars > 0 and stars < 50:
-            raise HTTPException(status_code=400, detail=f"Your connected account has only {stars} ⭐ Telegram Stars. Minimum 50 ⭐ Stars balance required on your connected account to purchase gifts.")
+        if stars > 0 and stars < base_stars:
+            raise HTTPException(status_code=400, detail=f"Your connected account has only {stars} ⭐ Telegram Stars. Minimum {base_stars} ⭐ Stars balance required on your connected account to purchase this gift.")
     elif body.sender_type == "userbot":
-        total = pricing.get("userbot_stars", 55)
+        fee = pricing.get("userbot_stars", 5)
+        total = base_stars + fee
     else:
-        total = pricing.get("bot_stars", gift["base_stars"] + gift["commission"])
+        fee = pricing.get("bot_stars", 3)
+        total = base_stars + fee
 
     target_ub_id = None
     if body.sender_type == "myaccount" and user_acc:

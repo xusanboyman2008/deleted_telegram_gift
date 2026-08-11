@@ -66,10 +66,10 @@ const I18N = {
     somethingWentWrong: "Error! Support: @xusanboyman200",
     adminPanel: "Admin Panel",
     pricingSettings: "Pricing (⭐)",
-    botPriceLabel: "Bot Stars",
-    userbotPriceLabel: "Userbot Stars",
-    myAccountPriceLabel: "My Account Stars",
-    savePricingBtn: "Save Prices",
+    botPriceLabel: "Official Bot Sender Fee (⭐)",
+    userbotPriceLabel: "Premium Userbot Sender Fee (⭐)",
+    myAccountPriceLabel: "Personal Account Sender Fee (⭐)",
+    savePricingBtn: "Save Fees",
     payBtn: "Pay",
     buyDirectBtn: "Buy Direct",
     chooseSender: "Choose Sender...",
@@ -122,10 +122,10 @@ const I18N = {
     somethingWentWrong: "Xato! Admin: @xusanboyman200",
     adminPanel: "Admin Panel",
     pricingSettings: "Narxlar (⭐)",
-    botPriceLabel: "Bot Stars",
-    userbotPriceLabel: "Userbot Stars",
-    myAccountPriceLabel: "Hisobim Stars",
-    savePricingBtn: "Saqlash",
+    botPriceLabel: "Bot komissiyasi (⭐)",
+    userbotPriceLabel: "Userbot komissiyasi (⭐)",
+    myAccountPriceLabel: "Shaxsiy hisob komissiyasi (⭐)",
+    savePricingBtn: "Komissiyani saqlash",
     payBtn: "To'lash",
     buyDirectBtn: "Sotib olish",
     chooseSender: "Yuboruvchini tanlang...",
@@ -178,10 +178,10 @@ const I18N = {
     somethingWentWrong: "Ошибка! Поддержка: @xusanboyman200",
     adminPanel: "Панель",
     pricingSettings: "Цены (⭐)",
-    botPriceLabel: "Цена Бот (Stars)",
-    userbotPriceLabel: "Цена Юзербот (Stars)",
-    myAccountPriceLabel: "Цена Аккаунт (Stars)",
-    savePricingBtn: "Сохранить",
+    botPriceLabel: "Комиссия Бота (⭐)",
+    userbotPriceLabel: "Комиссия Юзербота (⭐)",
+    myAccountPriceLabel: "Комиссия Личного аккаунта (⭐)",
+    savePricingBtn: "Сохранить комиссии",
     payBtn: "Оплатить",
     buyDirectBtn: "Купить напрямую",
     chooseSender: "Выберите отправителя...",
@@ -1281,13 +1281,17 @@ createApp({
 
     const totalStars = computed(() => {
       if (!selected.value) return 0;
+      const base = Number(selected.value.base_stars || 50);
       if (selectedSender.value === 'myaccount') {
-        return (pricing.myaccount_stars !== undefined && pricing.myaccount_stars !== null) ? Number(pricing.myaccount_stars) : 0;
+        const fee = (pricing.myaccount_stars !== undefined && pricing.myaccount_stars !== null) ? Number(pricing.myaccount_stars) : 0;
+        return base + fee;
       }
       if (selectedSender.value === 'userbot') {
-        return (pricing.userbot_stars !== undefined && pricing.userbot_stars !== null) ? Number(pricing.userbot_stars) : 55;
+        const fee = (pricing.userbot_stars !== undefined && pricing.userbot_stars !== null) ? Number(pricing.userbot_stars) : 5;
+        return base + fee;
       }
-      return (pricing.bot_stars !== undefined && pricing.bot_stars !== null) ? Number(pricing.bot_stars) : (selected.value.base_stars + selected.value.commission);
+      const fee = (pricing.bot_stars !== undefined && pricing.bot_stars !== null) ? Number(pricing.bot_stars) : 3;
+      return base + fee;
     });
 
     const priceBreakdown = computed(() => {

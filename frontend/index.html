@@ -1427,14 +1427,14 @@
               <img src="assets/bot_photo.png" class="ub-avatar" alt="bot" />
               <div class="ub-info">
                 <div class="ub-name">{{ t('officialBot') }}</div>
-                <div class="ub-uname">{{ pricing.bot_stars }} ⭐ · {{ t('officialBotSub') }}</div>
+                <div class="ub-uname">{{ selected ? (selected.base_stars + (pricing.bot_stars || 0)) : 53 }} ⭐ · {{ t('officialBotSub') }}</div>
               </div>
             </template>
             <template v-else-if="selectedSender === 'userbot'">
               <img :src="getSelectedUserbotObj()?.photo || 'assets/bot_photo.png'" class="ub-avatar" alt="userbot" />
               <div class="ub-info">
                 <div class="ub-name">{{ getSelectedUserbotName() }}</div>
-                <div class="ub-uname">{{ pricing.userbot_stars }} ⭐ · Userbot</div>
+                <div class="ub-uname">{{ selected ? (selected.base_stars + (pricing.userbot_stars || 0)) : 55 }} ⭐ · Userbot</div>
               </div>
             </template>
             <template v-else-if="selectedSender === 'myaccount'">
@@ -1443,7 +1443,7 @@
               <div class="ub-info">
                 <div class="ub-name">{{ getUserFirstName() }}</div>
                 <div class="ub-uname" @click.stop="!userAccount ? openPhoneAuth() : null" style="cursor: pointer;">
-                  {{ pricing.myaccount_stars }} ⭐ · {{ userAccount ? getUserFirstName() : t('connectMyAccount') }}
+                  {{ selected ? (selected.base_stars + (pricing.myaccount_stars || 0)) : 50 }} ⭐ · {{ userAccount ? getUserFirstName() : t('connectMyAccount') }}
                 </div>
               </div>
             </template>
@@ -1477,7 +1477,7 @@
               <img src="assets/bot_photo.png" class="ub-avatar" alt="bot" />
               <div class="ub-info">
                 <div class="ub-name">{{ t('officialBot') }}</div>
-                <div class="ub-uname">{{ pricing.bot_stars }} ⭐ · {{ t('officialBotSub') }}</div>
+                <div class="ub-uname">{{ selected ? (selected.base_stars + (pricing.bot_stars || 0)) : 53 }} ⭐ · {{ t('officialBotSub') }}</div>
               </div>
               <span v-if="selectedSender === 'bot'" class="ub-check">✓</span>
             </div>
@@ -1497,7 +1497,7 @@
               <img :src="acc.photo || 'assets/bot_photo.png'" class="ub-avatar" alt="userbot" />
               <div class="ub-info">
                 <div class="ub-name">{{ (acc.first_name || 'Userbot').trim().split(' ')[0] }}</div>
-                <div class="ub-uname">{{ pricing.userbot_stars }} ⭐ · {{ acc.username ? '@' + acc.username : t('userbotSenderSub') }}</div>
+                <div class="ub-uname">{{ selected ? (selected.base_stars + (pricing.userbot_stars || 0)) : 55 }} ⭐ · {{ acc.username ? '@' + acc.username : t('userbotSenderSub') }}</div>
               </div>
               <span v-if="selectedSender === 'userbot' && selectedUserbot === acc.id" class="ub-check">✓</span>
             </div>
@@ -1512,7 +1512,7 @@
               <div class="ub-info">
                 <div class="ub-name">{{ getUserFirstName() }}</div>
                 <div class="ub-uname">
-                  {{ pricing.myaccount_stars }} ⭐ · {{ userAccount ? getUserFirstName() + ' (' + (userAccount.stars_balance || 0) + '⭐)' : t('connectMyAccount') }}
+                  {{ selected ? (selected.base_stars + (pricing.myaccount_stars || 0)) : 50 }} ⭐ · {{ userAccount ? getUserFirstName() + ' (' + (userAccount.stars_balance || 0) + '⭐)' : t('connectMyAccount') }}
                 </div>
               </div>
               <button v-if="!userAccount" class="ub-connect-btn" @click.stop="openPhoneAuth">
@@ -1553,13 +1553,13 @@
 
         <!-- ── Admin Pricing Tab ─────────────────── -->
         <div v-if="aTab==='pricing'" class="admin-scroll">
-          <h3>💰 Pricing Settings (Stars)</h3>
+          <h3>💰 Pricing Settings (Fee Stars Added to Gift Price)</h3>
           <div class="admin-pricing-box">
             <label class="fi-lbl">{{ t('botPriceLabel') }}:</label>
-            <input v-model.number="pricing.bot_stars" type="number" step="any" min="0" class="fi" placeholder="53"/>
+            <input v-model.number="pricing.bot_stars" type="number" step="any" min="0" class="fi" placeholder="3"/>
 
             <label class="fi-lbl">{{ t('userbotPriceLabel') }}:</label>
-            <input v-model.number="pricing.userbot_stars" type="number" step="any" min="0" class="fi" placeholder="55"/>
+            <input v-model.number="pricing.userbot_stars" type="number" step="any" min="0" class="fi" placeholder="5"/>
 
             <label class="fi-lbl">{{ t('myAccountPriceLabel') }}:</label>
             <input v-model.number="pricing.myaccount_stars" type="number" step="any" min="0" class="fi" placeholder="0"/>

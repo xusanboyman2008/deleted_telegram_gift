@@ -775,14 +775,18 @@ async def set_userbot_active_status(account_id: int, active: bool) -> bool:
 
 async def get_pricing_settings() -> dict:
     """Returns dynamic pricing settings for Bot, Userbot, and My Account senders."""
-    defaults = {"bot_stars": 53, "userbot_stars": 55, "myaccount_stars": 0}
+    defaults = {"bot_stars": 3, "userbot_stars": 5, "myaccount_stars": 0}
     try:
         if IS_POSTGRES:
             async with pool.acquire() as conn:
                 rows = await conn.fetch("SELECT key, value FROM settings WHERE key LIKE '%_stars'")
                 for r in rows:
                     if r["key"] in defaults:
-                        try: defaults[r["key"]] = float(r["value"])
+                        try:
+                            val = float(r["value"])
+                            if val >= 30:
+                                val = val - 50
+                            defaults[r["key"]] = max(0.0, val)
                         except ValueError: pass
         else:
             async with aiosqlite.connect(DB_PATH) as db:
@@ -791,7 +795,11 @@ async def get_pricing_settings() -> dict:
                 rows = await cur.fetchall()
                 for r in rows:
                     if r["key"] in defaults:
-                        try: defaults[r["key"]] = float(r["value"])
+                        try:
+                            val = float(r["value"])
+                            if val >= 30:
+                                val = val - 50
+                            defaults[r["key"]] = max(0.0, val)
                         except ValueError: pass
     except Exception as e:
         logger.error(f"get_pricing_settings error: {e}")
