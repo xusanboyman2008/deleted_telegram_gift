@@ -81,10 +81,7 @@
           </div>
           <div class="card-title">{{ giftName(g) }}</div>
           <div class="card-price-pill">
-            <span class="star-icon">⭐</span> {{ getSmallestPriceCombination(g).price }}
-          </div>
-          <div class="card-combo-label" style="font-size: 0.65rem; color: rgba(255,255,255,0.45); margin-top: 4px; font-weight: 500;">
-            via {{ getSmallestPriceCombination(g).label }}
+            <span class="star-icon">⭐</span> {{ g.base_stars + (pricing.bot_stars || 3) }}
           </div>
         </div>
       </div>
