@@ -35,8 +35,12 @@ rm -rf "$ROOT/.venv" 2>/dev/null || true
 PY=$(which python3)
 
 echo "  📦  Checking dependencies…"
-pip3 install --break-system-packages -q -r "$BACKEND/requirements.txt" 2>/dev/null || \
-  pip3 install -q -r "$BACKEND/requirements.txt" 2>/dev/null || true
+if command -v npx &>/dev/null; then
+  echo "  ⚡  Minifying frontend JS & CSS bundles…"
+  npx terser "$ROOT/frontend/app.js" -o "$ROOT/frontend/app.min.js" --compress --mangle 2>/dev/null || true
+  npx terser "$ROOT/frontend/chat.js" -o "$ROOT/frontend/chat.min.js" --compress --mangle 2>/dev/null || true
+  npx clean-css-cli -o "$ROOT/frontend/style.min.css" "$ROOT/frontend/style.css" 2>/dev/null || true
+fi
 
 # ── 3. ngrok ───────────────────────────────────────────
 if ! command -v ngrok &>/dev/null; then

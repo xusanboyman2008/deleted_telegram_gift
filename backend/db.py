@@ -14,16 +14,16 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 IS_POSTGRES = DATABASE_URL.startswith("postgres://") or DATABASE_URL.startswith("postgresql://")
 
 GIFTS_SEED = [
-    ("🧸", "Bunny Basket",  "03/08/26", "5866352046986232958", 50, DEFAULT_COMMISSION, "bunny_bear.json"),
-    ("🧸", "Balloon Bear",  "03/17/26", "5893356958802511476", 50, DEFAULT_COMMISSION, "joker_bear.json"),
-    ("🧸", "Rose Bear",     "02/14/26", "5801108895304779062", 50, DEFAULT_COMMISSION, "pink_bear.json"),
-    ("🧸", "Worker Bear",   "04/01/26", "5935895822435615975", 50, DEFAULT_COMMISSION, "worker_bear.json"),
-    ("🧸", "Football Bear", "05/01/26", "6026193266406327981", 50, DEFAULT_COMMISSION, "football_bear.json"),
-    ("🧸", "Santa Teddy",   "12/25/25", "5922558454332916696", 50, DEFAULT_COMMISSION, "santa_bear.json"),
-    ("🧸", "Gnome Bear",    "07/20/26", "5974210632977745012", 50, DEFAULT_COMMISSION, "gnome_bear.json"),
-    ("💖", "I Love U",      "02/14/26", "5800655655995968839", 50, DEFAULT_COMMISSION, "hear.json"),
-    ("🎄", "Christmas Tree","12/31/25", "5956217000635139069", 50, DEFAULT_COMMISSION, "green_tree.json"),
-    ("🧸", "Hug Bear",      "05/10/26", "5800655655995968830", 50, DEFAULT_COMMISSION, "hug_bear.json"),
+    ("🧸", "Bunny Basket",  "03/08/26", "5866352046986232958", 50, DEFAULT_COMMISSION, "bunny_bear.lottie"),
+    ("🧸", "Balloon Bear",  "03/17/26", "5893356958802511476", 50, DEFAULT_COMMISSION, "joker_bear.lottie"),
+    ("🧸", "Rose Bear",     "02/14/26", "5801108895304779062", 50, DEFAULT_COMMISSION, "pink_bear.lottie"),
+    ("🧸", "Worker Bear",   "04/01/26", "5935895822435615975", 50, DEFAULT_COMMISSION, "worker_bear.lottie"),
+    ("🧸", "Football Bear", "05/01/26", "6026193266406327981", 50, DEFAULT_COMMISSION, "football_bear.lottie"),
+    ("🧸", "Santa Teddy",   "12/25/25", "5922558454332916696", 50, DEFAULT_COMMISSION, "santa_bear.lottie"),
+    ("🧸", "Gnome Bear",    "07/20/26", "5974210632977745012", 50, DEFAULT_COMMISSION, "gnome_bear.lottie"),
+    ("💖", "I Love U",      "02/14/26", "5800655655995968839", 50, DEFAULT_COMMISSION, "hear.lottie"),
+    ("🎄", "Christmas Tree","12/31/25", "5956217000635139069", 50, DEFAULT_COMMISSION, "green_tree.lottie"),
+    ("🧸", "Hug Bear",      "05/10/26", "5800655655995968830", 50, DEFAULT_COMMISSION, "hug_bear.lottie"),
 ]
 
 
@@ -292,10 +292,11 @@ async def init_db():
             except Exception as e:
                 logger.warning(f"Failed to seed userbots to PG: {e}")
 
-            # Legacy cleanup: fix Worker Bear animation, Hug Bear gift_tg_id mapping, and remove duplicate rows
+            # Legacy cleanup: fix Worker Bear animation, Hug Bear gift_tg_id mapping, update json to lottie, and remove duplicate rows
             try:
-                await conn.execute("UPDATE gifts SET animation='worker_bear.json' WHERE display_name='Worker Bear' OR animation='plumber_bear.json'")
-                await conn.execute("UPDATE gifts SET display_name='Hug Bear', emoji='🧸', animation='hug_bear.json' WHERE gift_tg_id='5800655655995968830'")
+                await conn.execute("UPDATE gifts SET animation='worker_bear.lottie' WHERE display_name='Worker Bear' OR animation='plumber_bear.json' OR animation='worker_bear.json'")
+                await conn.execute("UPDATE gifts SET display_name='Hug Bear', emoji='🧸', animation='hug_bear.lottie' WHERE gift_tg_id='5800655655995968830'")
+                await conn.execute("UPDATE gifts SET animation = REPLACE(animation, '.json', '.lottie') WHERE animation LIKE '%.json'")
                 await conn.execute("DELETE FROM gifts WHERE id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER(PARTITION BY gift_tg_id ORDER BY id) as row_num FROM gifts) t WHERE t.row_num > 1)")
             except Exception: pass
 
@@ -333,10 +334,11 @@ async def init_db():
             try: await db.execute("ALTER TABLE userbot_accounts ADD COLUMN stars_balance INTEGER DEFAULT 0")
             except Exception: pass
             
-            # Legacy cleanup: fix Worker Bear animation, Hug Bear gift_tg_id mapping, and remove duplicate rows
+            # Legacy cleanup: fix Worker Bear animation, Hug Bear gift_tg_id mapping, update json to lottie, and remove duplicate rows
             try:
-                await db.execute("UPDATE gifts SET animation='worker_bear.json' WHERE display_name='Worker Bear' OR animation='plumber_bear.json'")
-                await db.execute("UPDATE gifts SET display_name='Hug Bear', emoji='🧸', animation='hug_bear.json' WHERE gift_tg_id='5800655655995968830'")
+                await db.execute("UPDATE gifts SET animation='worker_bear.lottie' WHERE display_name='Worker Bear' OR animation='plumber_bear.json' OR animation='worker_bear.json'")
+                await db.execute("UPDATE gifts SET display_name='Hug Bear', emoji='🧸', animation='hug_bear.lottie' WHERE gift_tg_id='5800655655995968830'")
+                await db.execute("UPDATE gifts SET animation = REPLACE(animation, '.json', '.lottie') WHERE animation LIKE '%.json'")
                 await db.execute("DELETE FROM gifts WHERE id NOT IN (SELECT MIN(id) FROM gifts GROUP BY gift_tg_id)")
                 await db.commit()
             except Exception: pass

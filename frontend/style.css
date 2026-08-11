@@ -2674,17 +2674,22 @@ body::after {
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  position: relative;
 }
 
 .skeleton-gift-media {
   width: 100%;
   aspect-ratio: 1;
   border-radius: 12px;
+  box-sizing: border-box;
 }
 
 .skeleton-gift-title {
-  width: 70%;
-  height: 11px;
+  width: 68%;
+  height: 14px;
   border-radius: 6px;
   margin-top: 8px;
   margin-bottom: 6px;
@@ -2692,8 +2697,18 @@ body::after {
 
 .skeleton-gift-price {
   width: 86%;
-  height: 26px;
+  height: 25px;
   border-radius: 20px;
+  border: 1px solid rgba(123, 97, 255, 0.15);
+  box-sizing: border-box;
+  background: linear-gradient(
+    90deg,
+    rgba(123, 97, 255, 0.1) 25%,
+    rgba(168, 85, 247, 0.22) 37%,
+    rgba(123, 97, 255, 0.1) 63%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.4s infinite linear;
 }
 
 /* History Order Skeletons */

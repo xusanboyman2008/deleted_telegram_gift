@@ -249,52 +249,6 @@ function getRenderer(filename) {
 }
 
 const animCache = {};
-async function preloadAnim(filename) {
-  if (!filename) return null;
-  const filenameLottie = filename.replace('.json', '.lottie');
-  if (animCache[filenameLottie]) return animCache[filenameLottie];
-  try {
-    const r = await fetch(`assets/${filenameLottie}`, { headers: { 'ngrok-skip-browser-warning': '69420' } });
-    if (!r.ok) return null;
-    animCache[filenameLottie] = true;
-    return true;
-  } catch (e) {
-    console.error('Failed to fetch anim:', filenameLottie, e);
-    return null;
-  }
-}
-
-// Global Lottie Animation Queue for smooth mounting and parsing
-const lottieQueue = [];
-let lottieProcessing = false;
-
-async function processLottieQueue() {
-  if (lottieProcessing || lottieQueue.length === 0) return;
-  lottieProcessing = true;
-  const task = lottieQueue.shift();
-  try {
-    await task();
-  } catch (e) {
-    console.error('Queue task error:', e);
-  }
-  
-  if (window.requestIdleCallback) {
-    window.requestIdleCallback(() => {
-      lottieProcessing = false;
-      processLottieQueue();
-    }, { timeout: 50 });
-  } else {
-    setTimeout(() => {
-      lottieProcessing = false;
-      processLottieQueue();
-    }, 16);
-  }
-}
-
-function enqueueLottieInit(task) {
-  lottieQueue.push(task);
-  processLottieQueue();
-}
 
 const LottieAnim = {
   props: { filename: String, fallbackImg: String },
@@ -313,9 +267,7 @@ const LottieAnim = {
         try {
           el.value.seek(0);
           el.value.play();
-        } catch (e) {
-          console.error('dotlottie play error:', e);
-        }
+        } catch (e) {}
       }
     };
 
@@ -334,16 +286,11 @@ const LottieAnim = {
       failed.value = false;
       if (!props.filename) return;
 
-      // Enqueue Lottie loading to prevent CPU congestion on mount
-      enqueueLottieInit(async () => {
-        if (!props.filename) return;
-        const ok = await preloadAnim(props.filename);
-        if (!ok) {
-          failed.value = true;
-          return;
-        }
-        srcVal.value = 'assets/' + props.filename.replace('.json', '.lottie');
-      });
+      let name = props.filename;
+      if (!name.endsWith('.lottie')) {
+        name = name.replace('.json', '.lottie');
+      }
+      srcVal.value = 'assets/' + name;
     };
 
     onMounted(init);
@@ -368,6 +315,10 @@ const LottieAnim = {
       }
     });
 
+    const onError = () => {
+      failed.value = true;
+    };
+
     const onHover = () => {
       if (el.value && el.value.offsetParent !== null) {
         playOnce();
@@ -384,6 +335,7 @@ const LottieAnim = {
         background: 'transparent',
         speed: '1',
         autoplay: !pageLoading.value,
+        onError: onError,
         onMouseenter: onHover,
         onTouchstart: onHover,
         style: { width: '100%', height: '100%', display: 'block' }
@@ -436,16 +388,16 @@ function confetti() {
 }
 
 const DEFAULT_GIFTS_SEED = [
-  { id: 1, emoji: "🧸", display_name: "Bunny Basket", date_label: "03/08/26", gift_tg_id: "5866352046986232958", base_stars: 50, commission: 10, active: 1, animation: "bunny_bear.json" },
-  { id: 2, emoji: "🧸", display_name: "Balloon Bear", date_label: "03/17/26", gift_tg_id: "5893356958802511476", base_stars: 50, commission: 10, active: 1, animation: "joker_bear.json" },
-  { id: 3, emoji: "🧸", display_name: "Rose Bear", date_label: "02/14/26", gift_tg_id: "5801108895304779062", base_stars: 50, commission: 10, active: 1, animation: "pink_bear.json" },
-  { id: 4, emoji: "🧸", display_name: "Worker Bear", date_label: "04/01/26", gift_tg_id: "5935895822435615975", base_stars: 50, commission: 10, active: 1, animation: "worker_bear.json" },
-  { id: 5, emoji: "🧸", display_name: "Football Bear", date_label: "05/01/26", gift_tg_id: "6026193266406327981", base_stars: 50, commission: 10, active: 1, animation: "football_bear.json" },
-  { id: 6, emoji: "🧸", display_name: "Santa Teddy", date_label: "12/25/25", gift_tg_id: "5922558454332916696", base_stars: 50, commission: 10, active: 1, animation: "santa_bear.json" },
-  { id: 7, emoji: "🧸", display_name: "Gnome Bear", date_label: "07/20/26", gift_tg_id: "5974210632977745012", base_stars: 50, commission: 10, active: 1, animation: "gnome_bear.json" },
-  { id: 8, emoji: "💖", display_name: "I Love U", date_label: "02/14/26", gift_tg_id: "5800655655995968839", base_stars: 50, commission: 10, active: 1, animation: "hear.json" },
-  { id: 9, emoji: "🎄", display_name: "Christmas Tree", date_label: "12/31/25", gift_tg_id: "5956217000635139069", base_stars: 50, commission: 10, active: 1, animation: "green_tree.json" },
-  { id: 10, emoji: "🧸", display_name: "Hug Bear", date_label: "05/10/26", gift_tg_id: "5800655655995968830", base_stars: 50, commission: 10, active: 1, animation: "hug_bear.json" }
+  { id: 1, emoji: "🧸", display_name: "Bunny Basket", date_label: "03/08/26", gift_tg_id: "5866352046986232958", base_stars: 50, commission: 10, active: 1, animation: "bunny_bear.lottie" },
+  { id: 2, emoji: "🧸", display_name: "Balloon Bear", date_label: "03/17/26", gift_tg_id: "5893356958802511476", base_stars: 50, commission: 10, active: 1, animation: "joker_bear.lottie" },
+  { id: 3, emoji: "🧸", display_name: "Rose Bear", date_label: "02/14/26", gift_tg_id: "5801108895304779062", base_stars: 50, commission: 10, active: 1, animation: "pink_bear.lottie" },
+  { id: 4, emoji: "🧸", display_name: "Worker Bear", date_label: "04/01/26", gift_tg_id: "5935895822435615975", base_stars: 50, commission: 10, active: 1, animation: "worker_bear.lottie" },
+  { id: 5, emoji: "🧸", display_name: "Football Bear", date_label: "05/01/26", gift_tg_id: "6026193266406327981", base_stars: 50, commission: 10, active: 1, animation: "football_bear.lottie" },
+  { id: 6, emoji: "🧸", display_name: "Santa Teddy", date_label: "12/25/25", gift_tg_id: "5922558454332916696", base_stars: 50, commission: 10, active: 1, animation: "santa_bear.lottie" },
+  { id: 7, emoji: "🧸", display_name: "Gnome Bear", date_label: "07/20/26", gift_tg_id: "5974210632977745012", base_stars: 50, commission: 10, active: 1, animation: "gnome_bear.lottie" },
+  { id: 8, emoji: "💖", display_name: "I Love U", date_label: "02/14/26", gift_tg_id: "5800655655995968839", base_stars: 50, commission: 10, active: 1, animation: "hear.lottie" },
+  { id: 9, emoji: "🎄", display_name: "Christmas Tree", date_label: "12/31/25", gift_tg_id: "5956217000635139069", base_stars: 50, commission: 10, active: 1, animation: "green_tree.lottie" },
+  { id: 10, emoji: "🧸", display_name: "Hug Bear", date_label: "05/10/26", gift_tg_id: "5800655655995968830", base_stars: 50, commission: 10, active: 1, animation: "hug_bear.lottie" }
 ];
 
 // ── Main App ───────────────────────────────────

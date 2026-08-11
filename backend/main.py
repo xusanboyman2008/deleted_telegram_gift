@@ -913,13 +913,19 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan, title="Deleted Gifts Bot")
 
 
-class NgrokMiddleware(BaseHTTPMiddleware):
+from starlette.middleware.gzip import GZipMiddleware
+
+class AssetCacheMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
         response.headers["ngrok-skip-browser-warning"] = "69420"
+        path = request.url.path
+        if path.startswith("/assets/") or path.endswith((".js", ".css", ".png", ".jpg", ".webp", ".lottie", ".woff2", ".ttf")):
+            response.headers["Cache-Control"] = "public, max-age=86400, immutable"
         return response
 
-app.add_middleware(NgrokMiddleware)
+app.add_middleware(GZipMiddleware, minimum_size=500)
+app.add_middleware(AssetCacheMiddleware)
 
 
 # ── Automatic Admin Error Reporting ──────────────────────────────────────────

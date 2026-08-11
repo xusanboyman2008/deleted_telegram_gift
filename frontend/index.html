@@ -17,7 +17,7 @@
     }
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css?v=1.0.9"/>
+  <link rel="stylesheet" href="style.min.css?v=1.1.0"/>
 </head>
 <body>
 <div id="app" v-cloak>
@@ -75,10 +75,10 @@
 
         <!-- 🦴 Ultimate Skeleton Loader for Gifts Grid -->
         <div v-if="giftsLoading" class="skeleton-gifts-grid">
-          <div v-for="n in 6" :key="n" class="skeleton-gift-card">
+          <div v-for="n in (gifts.length || 10)" :key="n" class="skeleton-gift-card">
             <div class="skeleton-gift-media shimmer-skeleton"></div>
-            <div class="skeleton-gift-title shimmer-skeleton"></div>
-            <div class="skeleton-gift-price shimmer-skeleton"></div>
+            <div class="skeleton-gift-title shimmer-skeleton" :style="{ width: (55 + ((n-1) % 4) * 8) + '%' }"></div>
+            <div class="skeleton-gift-price"></div>
           </div>
         </div>
 
@@ -1873,11 +1873,10 @@
   <canvas id="confettiCanvas" style="position:fixed;inset:0;z-index:999;pointer-events:none"></canvas>
 </div>
 
-<script src="lottie.min.js"></script>
 <script src="vue.min.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
-<script src="chat.js?v=1.0.9"></script>
-<script src="app.js?v=1.0.9"></script>
+<script src="chat.min.js?v=1.1.0"></script>
+<script src="app.min.js?v=1.1.0"></script>
 </body>
 </html>
