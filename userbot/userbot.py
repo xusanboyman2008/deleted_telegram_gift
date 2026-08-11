@@ -999,9 +999,16 @@ def set_message_callback(callback):
 async def get_running_client(account_id: int):
     account_id = int(account_id)
     client = _RUNNING_USERBOTS.get(account_id)
-    if client and client.is_connected:
-        client.last_used_time = time.time()
-        return client
+    if client:
+        if client.is_connected:
+            client.last_used_time = time.time()
+            return client
+        else:
+            try:
+                await client.stop()
+            except Exception:
+                pass
+            _RUNNING_USERBOTS.pop(account_id, None)
 
     account = get_userbot_by_id(account_id)
     if not account or not account.get("session_string"):

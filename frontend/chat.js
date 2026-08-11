@@ -301,6 +301,7 @@ function setupChatState(Vue, api, showToast, tg) {
               currentMessages.value[optIdx].failed = true;
               currentMessages.value[optIdx].sending = false;
             }
+            showToast('❌ Send failed: ' + (data.error || 'Unknown error'));
           }
           chatSending.value = false;
           return;
@@ -334,7 +335,7 @@ function setupChatState(Vue, api, showToast, tg) {
           }
 
           // Update contact's preview in the sidebar
-          const chat = chatList.value.find(c => c.peer.toLowerCase() === peer.toLowerCase());
+          const chat = chatList.value.find(c => c.peer.toLowerCase().replace('@','') === peer.toLowerCase().replace('@',''));
           if (chat) {
             chat.last_msg = data.message.text || (data.message.photo ? '📷 Photo' : (data.message.voice ? '🎤 Voice' : ''));
             chat.last_time = data.message.date || '';
@@ -645,7 +646,7 @@ function setupChatState(Vue, api, showToast, tg) {
     }
 
     // Update contact preview
-    const chat = chatList.value.find(c => c.peer === currentChatPeer.value);
+    const chat = chatList.value.find(c => c.peer.toLowerCase().replace('@','') === currentChatPeer.value.toLowerCase().replace('@',''));
     if (chat) {
       chat.last_msg = text;
       chat.last_time = timeStr;

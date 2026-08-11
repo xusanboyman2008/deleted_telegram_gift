@@ -760,9 +760,12 @@ async def ws_new_message_callback(account_id: int, message):
         }
     }
     
+    hashed_acc_id = db.hash_userbot_id(account_id)
     await ws_manager.broadcast_to_chat(str(account_id), chat_id, payload)
+    await ws_manager.broadcast_to_chat(hashed_acc_id, chat_id, payload)
     if username:
         await ws_manager.broadcast_to_chat(str(account_id), username, payload)
+        await ws_manager.broadcast_to_chat(hashed_acc_id, username, payload)
     await ws_manager.broadcast_global(payload)
 
 
@@ -1093,11 +1096,14 @@ async def websocket_chat_endpoint(
     except Exception as e:
         logger.error(f"WS failed to start userbot client {account_id}: {e}")
 
-    # Register connection for the recipient peer
+    # Register connection for the recipient peer using BOTH account_id (hash) and str(real_id)
     await ws_manager.connect(websocket, account_id, recipient)
+    if str(real_id) != str(account_id):
+        await ws_manager.connect(websocket, str(real_id), recipient)
 
     # Also try to resolve the numeric chat_id for this peer and register that too
     extra_key = None
+    extra_username = None
     try:
         from userbot.userbot import get_running_client as grc2
         client = await grc2(real_id)
@@ -1110,8 +1116,11 @@ async def websocket_chat_endpoint(
             if chat:
                 extra_key = str(chat.id)
                 await ws_manager.connect(websocket, account_id, extra_key)
+                await ws_manager.connect(websocket, str(real_id), extra_key)
                 if chat.username:
-                    await ws_manager.connect(websocket, account_id, chat.username.lower())
+                    extra_username = chat.username.lower()
+                    await ws_manager.connect(websocket, account_id, extra_username)
+                    await ws_manager.connect(websocket, str(real_id), extra_username)
     except Exception as e:
         logger.warning(f"WS get_chat resolve failed for {recipient}: {e}")
 
@@ -1140,8 +1149,13 @@ async def websocket_chat_endpoint(
         pass
     finally:
         ws_manager.disconnect(websocket, account_id, recipient)
+        ws_manager.disconnect(websocket, str(real_id), recipient)
         if extra_key:
             ws_manager.disconnect(websocket, account_id, extra_key)
+            ws_manager.disconnect(websocket, str(real_id), extra_key)
+        if extra_username:
+            ws_manager.disconnect(websocket, account_id, extra_username)
+            ws_manager.disconnect(websocket, str(real_id), extra_username)
 
 
 # ── Managed Bots Admin APIs ────────────────────────────────────────────────
