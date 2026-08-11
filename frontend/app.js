@@ -264,15 +264,17 @@ function resolveAnimUrl(filename) {
   return name;
 }
 
-function preloadAllLottieAnimations(items) {
+async function preloadAllLottieAnimations(items) {
   if (!Array.isArray(items)) return;
-  items.forEach(item => {
+  const fetches = items.map(item => {
     const fn = typeof item === 'string' ? item : item.animation;
     if (fn) {
       const url = resolveAnimUrl(fn);
-      fetch(url, { headers: { 'ngrok-skip-browser-warning': '69420' } }).catch(() => {});
+      return fetch(url, { headers: { 'ngrok-skip-browser-warning': '69420' } }).catch(() => {});
     }
+    return Promise.resolve();
   });
+  await Promise.all(fetches);
 }
 
 const LottieAnim = {
@@ -280,9 +282,16 @@ const LottieAnim = {
   setup(props) {
     const el = ref(null);
     const failed = ref(false);
+    const isReady = ref(false);
     const srcVal = ref('');
     const pageLoading = Vue.inject('pageLoading', ref(false));
     const activeTab = Vue.inject('activeTab', ref('home'));
+
+    const markReady = async () => {
+      isReady.value = true;
+      await nextTick();
+      playOnce();
+    };
 
     const playOnce = async () => {
       if (el.value) {
@@ -309,11 +318,23 @@ const LottieAnim = {
 
     const init = () => {
       failed.value = false;
+      isReady.value = false;
       if (!props.filename) return;
       srcVal.value = resolveAnimUrl(props.filename);
     };
 
-    onMounted(init);
+    onMounted(() => {
+      init();
+      nextTick(() => {
+        if (el.value) {
+          el.value.addEventListener('ready', markReady);
+          el.value.addEventListener('load', markReady);
+          el.value.addEventListener('error', onError);
+        }
+      });
+      setTimeout(markReady, 600);
+    });
+
     watch(() => props.filename, init);
 
     watch(pageLoading, (loading) => {
@@ -337,6 +358,7 @@ const LottieAnim = {
 
     const onError = () => {
       failed.value = true;
+      markReady();
     };
 
     const onHover = () => {
@@ -349,17 +371,21 @@ const LottieAnim = {
       if (failed.value && props.fallbackImg) {
         return Vue.h('img', { src: props.fallbackImg, class: 'gift-png-fallback' });
       }
-      return Vue.h('dotlottie-player', {
-        ref: el,
-        src: srcVal.value,
-        background: 'transparent',
-        speed: '1',
-        autoplay: !pageLoading.value,
-        onError: onError,
-        onMouseenter: onHover,
-        onTouchstart: onHover,
-        style: { width: '100%', height: '100%', display: 'block' }
-      });
+      return Vue.h('div', { class: 'lottie-anim-wrapper', style: { width: '100%', height: '100%', position: 'relative' } }, [
+        !isReady.value ? Vue.h('div', { class: 'skeleton-gift-media shimmer-skeleton', style: { position: 'absolute', inset: 0, zIndex: 2, borderRadius: '12px' } }) : null,
+        Vue.h('dotlottie-player', {
+          ref: el,
+          src: srcVal.value,
+          background: 'transparent',
+          speed: '1',
+          autoplay: true,
+          loop: true,
+          onError: onError,
+          onMouseenter: onHover,
+          onTouchstart: onHover,
+          style: { width: '100%', height: '100%', display: 'block', opacity: isReady.value ? 1 : 0, transition: 'opacity 0.25s ease' }
+        })
+      ]);
     };
   },
 };
@@ -784,7 +810,9 @@ createApp({
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           gifts.value = data;
-          preloadAllLottieAnimations(data);
+          await preloadAllLottieAnimations(data);
+          // 0.2s buffer so animations mount & render before revealing text
+          await new Promise(resolve => setTimeout(resolve, 200));
         }
       } catch (e) {
         console.error('loadGifts error:', e);
