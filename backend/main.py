@@ -836,71 +836,80 @@ async def shared_chat_handler(update: Update, context):
 async def lifespan(app: FastAPI):
     global ptb_app
     import asyncio
+
+    async def _background_startup():
+        global ptb_app
+        try:
+            await db.init_db()
+            ptb_app = Application.builder().token(BOT_TOKEN).updater(None).build()
+            ptb_app.add_handler(CommandHandler("start", start_handler))
+            ptb_app.add_handler(CommandHandler("gifts", start_handler))
+            ptb_app.add_handler(CommandHandler("menu", start_handler))
+            ptb_app.add_handler(CommandHandler("admin", admin_command_handler))
+            ptb_app.add_handler(CommandHandler("stats", admin_command_handler))
+            ptb_app.add_handler(CommandHandler("userbots", userbots_command_handler))
+            ptb_app.add_handler(CommandHandler("select", select_command_handler))
+            ptb_app.add_handler(CommandHandler("share", select_command_handler))
+            ptb_app.add_handler(CallbackQueryHandler(callback_handler))
+            ptb_app.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
+            user_shared_filter = getattr(filters.StatusUpdate, "USERS_SHARED", getattr(filters.StatusUpdate, "USER_SHARED", None))
+            if user_shared_filter:
+                ptb_app.add_handler(MessageHandler(user_shared_filter, shared_user_handler))
+
+            chat_shared_filter = getattr(filters.StatusUpdate, "CHAT_SHARED", None)
+            if chat_shared_filter:
+                ptb_app.add_handler(MessageHandler(chat_shared_filter, shared_chat_handler))
+            ptb_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, user_message_or_admin_reply_handler))
+            await ptb_app.initialize()
+            await ptb_app.start()
+
+            webhook_url = f"{BASE_URL}/webhook"
+            try:
+                await ptb_app.bot.set_webhook(webhook_url, drop_pending_updates=True)
+                logger.info(f"Webhook: {webhook_url}")
+            except Exception as e:
+                logger.warning(f"Failed to set webhook ({e}), continuing...")
+
+            mini_app_url = f"{BASE_URL}/index.html"
+            try:
+                await ptb_app.bot.set_chat_menu_button(
+                    menu_button=MenuButtonWebApp(text="🎁 Open Shop", web_app=WebAppInfo(url=mini_app_url))
+                )
+            except Exception as e:
+                logger.warning(f"Menu button: {e}")
+            try:
+                await ptb_app.bot.set_my_commands([
+                    BotCommand("start", "Open the Gift Shop"),
+                ])
+            except Exception as e:
+                logger.warning(f"Commands: {e}")
+
+            # Set message callback for WebSockets
+            try:
+                from userbot.userbot import set_message_callback
+                set_message_callback(ws_new_message_callback)
+            except Exception as e:
+                logger.warning(f"Could not set message callback: {e}")
+
+            try:
+                from bot_manager import set_bot_ws_broadcast_callback, sync_all_managed_bots
+                set_bot_ws_broadcast_callback(ws_bot_message_callback)
+                await sync_all_managed_bots()
+            except Exception as e:
+                logger.warning(f"Managed bots startup sync: {e}")
+        except Exception as err:
+            logger.error(f"Background startup error: {err}")
+
+    asyncio.create_task(_background_startup())
     asyncio.create_task(uptime_pinger())
     try:
         from userbot.userbot import idle_userbots_cleanup_loop
         asyncio.create_task(idle_userbots_cleanup_loop())
     except Exception as e:
         logger.warning(f"Could not start idle_userbots_cleanup_loop: {e}")
-    await db.init_db()
-    ptb_app = Application.builder().token(BOT_TOKEN).updater(None).build()
-    ptb_app.add_handler(CommandHandler("start", start_handler))
-    ptb_app.add_handler(CommandHandler("gifts", start_handler))
-    ptb_app.add_handler(CommandHandler("menu", start_handler))
-    ptb_app.add_handler(CommandHandler("admin", admin_command_handler))
-    ptb_app.add_handler(CommandHandler("stats", admin_command_handler))
-    ptb_app.add_handler(CommandHandler("userbots", userbots_command_handler))
-    ptb_app.add_handler(CommandHandler("select", select_command_handler))
-    ptb_app.add_handler(CommandHandler("share", select_command_handler))
-    ptb_app.add_handler(CallbackQueryHandler(callback_handler))
-    ptb_app.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
-    user_shared_filter = getattr(filters.StatusUpdate, "USERS_SHARED", getattr(filters.StatusUpdate, "USER_SHARED", None))
-    if user_shared_filter:
-        ptb_app.add_handler(MessageHandler(user_shared_filter, shared_user_handler))
-
-    chat_shared_filter = getattr(filters.StatusUpdate, "CHAT_SHARED", None)
-    if chat_shared_filter:
-        ptb_app.add_handler(MessageHandler(chat_shared_filter, shared_chat_handler))
-    ptb_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, user_message_or_admin_reply_handler))
-    await ptb_app.initialize()
-    await ptb_app.start()
-
-    webhook_url = f"{BASE_URL}/webhook"
-    try:
-        await ptb_app.bot.set_webhook(webhook_url, drop_pending_updates=True)
-        logger.info(f"Webhook: {webhook_url}")
-    except Exception as e:
-        logger.warning(f"Failed to set webhook ({e}), continuing...")
-
-    mini_app_url = f"{BASE_URL}/index.html"
-    try:
-        await ptb_app.bot.set_chat_menu_button(
-            menu_button=MenuButtonWebApp(text="🎁 Open Shop", web_app=WebAppInfo(url=mini_app_url))
-        )
-    except Exception as e:
-        logger.warning(f"Menu button: {e}")
-    try:
-        await ptb_app.bot.set_my_commands([
-            BotCommand("start", "Open the Gift Shop"),
-        ])
-    except Exception as e:
-        logger.warning(f"Commands: {e}")
-
-    # Set message callback for WebSockets
-    try:
-        from userbot.userbot import set_message_callback
-        set_message_callback(ws_new_message_callback)
-    except Exception as e:
-        logger.warning(f"Could not set message callback: {e}")
-
-    try:
-        from bot_manager import set_bot_ws_broadcast_callback, sync_all_managed_bots
-        set_bot_ws_broadcast_callback(ws_bot_message_callback)
-        await sync_all_managed_bots()
-    except Exception as e:
-        logger.warning(f"Managed bots startup sync: {e}")
 
     yield
+
     # Shutdown all active running userbots
     try:
         from userbot.userbot import stop_all_running_userbots
@@ -908,8 +917,12 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Error stopping userbots: {e}")
 
-    await ptb_app.stop()
-    await ptb_app.shutdown()
+    if ptb_app:
+        try:
+            await ptb_app.stop()
+            await ptb_app.shutdown()
+        except Exception:
+            pass
 
 
 # ── App ────────────────────────────────────────────────────────────────────────
@@ -1476,6 +1489,8 @@ async def read_chat_history_endpoint(request: Request):
 # ── Webhook ────────────────────────────────────────────────────────────────────
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
+    if not ptb_app or not getattr(ptb_app, "bot", None):
+        return JSONResponse({"ok": False, "error": "Initializing"}, status_code=503)
     data = await request.json()
     update = Update.de_json(data, ptb_app.bot)
     await ptb_app.process_update(update)
