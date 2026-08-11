@@ -72,6 +72,9 @@ const I18N = {
     savePricingBtn: "Save Fees",
     payBtn: "Pay",
     buyDirectBtn: "Buy Direct",
+    myAccountShort: "My Account",
+    officialBotShort: "Official Bot",
+    userbotShort: "Userbot",
     chooseSender: "Choose Sender...",
     chooseSenderSub: "Tap to select official bot or userbot",
     recipientInputPlaceholder: "Username or ID",
@@ -128,6 +131,9 @@ const I18N = {
     savePricingBtn: "Komissiyani saqlash",
     payBtn: "To'lash",
     buyDirectBtn: "Sotib olish",
+    myAccountShort: "Shaxsiy hisob",
+    officialBotShort: "Rasmiy bot",
+    userbotShort: "Userbot",
     chooseSender: "Yuboruvchini tanlang...",
     chooseSenderSub: "Tanlash uchun bosing",
     recipientInputPlaceholder: "Username yoki ID",
@@ -184,6 +190,9 @@ const I18N = {
     savePricingBtn: "Сохранить комиссии",
     payBtn: "Оплатить",
     buyDirectBtn: "Купить напрямую",
+    myAccountShort: "Личный аккаунт",
+    officialBotShort: "Официальный бот",
+    userbotShort: "Юзербот",
     chooseSender: "Выберите отправителя...",
     chooseSenderSub: "Нажмите для выбора бота или юзербота",
     recipientInputPlaceholder: "Username или ID",
@@ -957,6 +966,28 @@ createApp({
       if (!u) return 'Userbot';
       const name = (u.first_name || '').trim().split(' ')[0];
       return name || (u.username ? '@' + u.username : 'Userbot');
+    };
+
+    const getSmallestPriceCombination = (g) => {
+      if (!g) return { price: 50, label: t('myAccountShort') };
+      const base = Number(g.base_stars || 50);
+      const feeMyAccount = (pricing.myaccount_stars !== undefined && pricing.myaccount_stars !== null) ? Number(pricing.myaccount_stars) : 0;
+      const feeBot = (pricing.bot_stars !== undefined && pricing.bot_stars !== null) ? Number(pricing.bot_stars) : 3;
+      const feeUserbot = (pricing.userbot_stars !== undefined && pricing.userbot_stars !== null) ? Number(pricing.userbot_stars) : 5;
+
+      const myAccountPrice = base + feeMyAccount;
+      const botPrice = base + feeBot;
+      const userbotPrice = base + feeUserbot;
+
+      const minPrice = Math.min(myAccountPrice, botPrice, userbotPrice);
+
+      if (minPrice === myAccountPrice) {
+        return { price: myAccountPrice, label: t('myAccountShort') };
+      } else if (minPrice === botPrice) {
+        return { price: botPrice, label: t('officialBotShort') };
+      } else {
+        return { price: userbotPrice, label: t('userbotShort') };
+      }
     };
 
     const getUserFirstName = () => {
@@ -1774,7 +1805,7 @@ createApp({
       tab, gifts, selected, hoveredGiftId, recipient, giftMsg, paying, errMsg, toast, totalStars, priceBreakdown,
       isAdmin, showAdmin, aTab, adminGifts, sortedAdminGifts, adminOrders, adminUserbots, userLinkedAccounts, systemUserbots, ubForm, ubMsgForm, myOrders, user, form,
       checkingUser, verifiedUser, userCheckError, userbotAccounts, publicUserbots, selectedSender, selectedUserbot, userAccount, accountsLoading,
-      showSenderDropdown, getSelectedUserbotObj, getSelectedUserbotName, getUserFirstName, getUserPhoto, onAnimationFileSelect,
+      showSenderDropdown, getSelectedUserbotObj, getSelectedUserbotName, getSmallestPriceCombination, getUserFirstName, getUserPhoto, onAnimationFileSelect,
       currentLang, setLanguage, t, pricing, savePricing, phoneModal, openPhoneAuth, requestPhoneCode, resendPhoneCode, confirmPhoneCode, disconnectMyAccount,
       sheetGlowStyle, sheetRingStyle, giftName, getGiftImg, getFallbackPng, scrollToGifts, openRealUserContact, isNumeric,
       openSheet, closeSheet, pickContact, setRecipientMe, pay, loadHistory, openAdmin,
