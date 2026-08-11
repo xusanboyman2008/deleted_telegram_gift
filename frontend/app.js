@@ -1417,22 +1417,6 @@ createApp({
       botCommands.value.splice(idx, 1);
     };
 
-    // ── Multi-Bot Management State & Logic ────────────────
-    const managedBots = ref([]);
-    const botLoading = ref(false);
-    const showAddBotModal = ref(false);
-    const newBotToken = ref('');
-    const addingBot = ref(false);
-    const showCommandModal = ref(false);
-    const selectedBotForConfig = ref(null);
-    const botCommandsList = ref([]);
-    const activeBotNav = ref('bots'); // 'bots' or 'bot_chat'
-    const selectedBotChat = ref(null);
-    const botChatContacts = ref([]);
-    const activeBotUser = ref(null);
-    const botMessages = ref([]);
-    const botInputText = ref('');
-    const botSending = ref(false);
 
     window.handleGlobalBotMessage = (data) => {
       const msg = data.message;
