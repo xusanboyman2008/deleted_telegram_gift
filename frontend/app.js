@@ -248,7 +248,68 @@ function getRenderer(filename) {
   return 'svg';
 }
 
-const animCache = {};
+const animBlobCache = {};
+
+async function getCachedAnimSrc(path) {
+  if (!path) return '';
+  let url = path;
+  if (!url.startsWith('assets/')) {
+    let name = url;
+    if (!name.endsWith('.lottie')) name = name.replace('.json', '.lottie');
+    url = 'assets/' + name;
+  }
+
+  if (animBlobCache[url]) {
+    return animBlobCache[url];
+  }
+
+  try {
+    if ('caches' in window) {
+      const cacheStorage = await caches.open('lottie-assets-v1');
+      let response = await cacheStorage.match(url);
+
+      if (!response) {
+        response = await fetch(url, {
+          headers: { 'ngrok-skip-browser-warning': '69420' }
+        });
+        if (response.ok) {
+          cacheStorage.put(url, response.clone()).catch(() => {});
+        }
+      }
+
+      if (response && response.ok) {
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        animBlobCache[url] = objectUrl;
+        return objectUrl;
+      }
+    } else {
+      const res = await fetch(url, {
+        headers: { 'ngrok-skip-browser-warning': '69420' }
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        animBlobCache[url] = objectUrl;
+        return objectUrl;
+      }
+    }
+  } catch (e) {
+    console.warn('Cache fetch fallback for:', url, e);
+  }
+
+  return url;
+}
+
+function preloadAllLottieAnimations(items) {
+  if (!Array.isArray(items)) return;
+  items.forEach(item => {
+    const fn = typeof item === 'string' ? item : item.animation;
+    if (fn) {
+      getCachedAnimSrc(fn).catch(() => {});
+    }
+  });
+}
 
 const LottieAnim = {
   props: { filename: String, fallbackImg: String },
@@ -282,15 +343,12 @@ const LottieAnim = {
       }
     };
 
-    const init = () => {
+    const init = async () => {
       failed.value = false;
       if (!props.filename) return;
 
-      let name = props.filename;
-      if (!name.endsWith('.lottie')) {
-        name = name.replace('.json', '.lottie');
-      }
-      srcVal.value = 'assets/' + name;
+      const src = await getCachedAnimSrc(props.filename);
+      srcVal.value = src;
     };
 
     onMounted(init);
@@ -399,6 +457,10 @@ const DEFAULT_GIFTS_SEED = [
   { id: 9, emoji: "🎄", display_name: "Christmas Tree", date_label: "12/31/25", gift_tg_id: "5956217000635139069", base_stars: 50, commission: 10, active: 1, animation: "green_tree.lottie" },
   { id: 10, emoji: "🧸", display_name: "Hug Bear", date_label: "05/10/26", gift_tg_id: "5800655655995968830", base_stars: 50, commission: 10, active: 1, animation: "hug_bear.lottie" }
 ];
+
+try {
+  preloadAllLottieAnimations(DEFAULT_GIFTS_SEED);
+} catch (e) {}
 
 // ── Main App ───────────────────────────────────
 createApp({
@@ -760,6 +822,7 @@ createApp({
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           gifts.value = data;
+          preloadAllLottieAnimations(data);
         }
       } catch (e) {
         console.error('loadGifts error:', e);
