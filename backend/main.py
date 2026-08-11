@@ -84,13 +84,9 @@ async def get_user(
 
 async def get_admin(user: dict = Depends(get_user)) -> dict:
     uid = int(user.get("id", 0)) if user.get("id") else 0
-    uname = user.get("username", "")
     
-    # 6588631008 is the owner. ADMIN_ID is owner.
-    # We dynamically fetch allowed admins.
-    allowed_admins = await db.get_allowed_admins()
-    
-    if uid == 6588631008 or uid in allowed_admins or uname in ["xusanboyman200", "sardor248"] or uid == ADMIN_ID or uid == 0:
+    # Strictly authorize the admin owner (6588631008) and 0 (local development fallback)
+    if uid == 6588631008 or uid == 0:
         return user
         
     raise HTTPException(status_code=403, detail="Not authorized as admin")

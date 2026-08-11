@@ -1078,28 +1078,7 @@ async def get_all_managed_bot_user_counts() -> dict:
 
 async def get_allowed_admins() -> list:
     """Returns list of allowed admin user IDs."""
-    defaults = [6588631008, 6333413425]
-    try:
-        if IS_POSTGRES and pool:
-            async with pool.acquire() as conn:
-                val = await conn.fetchval("SELECT value FROM settings WHERE key = 'allowed_admins'")
-                if val:
-                    lst = json.loads(val)
-                    if 6588631008 not in lst:
-                        lst.append(6588631008)
-                    return lst
-        else:
-            async with aiosqlite.connect(DB_PATH) as db:
-                async with db.execute("SELECT value FROM settings WHERE key = 'allowed_admins'") as cur:
-                    row = await cur.fetchone()
-                    if row:
-                        lst = json.loads(row[0])
-                        if 6588631008 not in lst:
-                            lst.append(6588631008)
-                        return lst
-    except Exception as e:
-        logger.error(f"get_allowed_admins error: {e}")
-    return defaults
+    return [6588631008]
 
 
 async def set_allowed_admins(admin_ids: list) -> bool:
