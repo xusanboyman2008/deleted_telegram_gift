@@ -251,16 +251,15 @@ function getRenderer(filename) {
 const animCache = {};
 async function preloadAnim(filename) {
   if (!filename) return null;
-  if (animCache[filename]) return animCache[filename];
+  const filenameLottie = filename.replace('.json', '.lottie');
+  if (animCache[filenameLottie]) return animCache[filenameLottie];
   try {
-    const r = await fetch(`assets/${filename}`, { headers: { 'ngrok-skip-browser-warning': '69420' } });
+    const r = await fetch(`assets/${filenameLottie}`, { headers: { 'ngrok-skip-browser-warning': '69420' } });
     if (!r.ok) return null;
-    const data = await r.json();
-    fixLottieDashes(data);
-    animCache[filename] = data;
-    return data;
+    animCache[filenameLottie] = true;
+    return true;
   } catch (e) {
-    console.error('Failed to fetch anim:', filename, e);
+    console.error('Failed to fetch anim:', filenameLottie, e);
     return null;
   }
 }
@@ -302,76 +301,75 @@ const LottieAnim = {
   setup(props) {
     const el = ref(null);
     const failed = ref(false);
-    let inst = null;
+    const srcVal = ref('');
     const pageLoading = Vue.inject('pageLoading', ref(false));
     const activeTab = Vue.inject('activeTab', ref('home'));
 
-    const destroy = () => {
-      if (inst) {
-        try { inst.destroy(); } catch {}
-        inst = null;
+    const playOnce = async () => {
+      if (el.value) {
+        if (typeof el.value.play !== 'function') {
+          await customElements.whenDefined('dotlottie-player');
+        }
+        try {
+          el.value.seek(0);
+          el.value.play();
+        } catch (e) {
+          console.error('dotlottie play error:', e);
+        }
       }
     };
 
-    const playOnce = () => {
-      if (inst) {
+    const pausePlayer = async () => {
+      if (el.value) {
+        if (typeof el.value.pause !== 'function') {
+          await customElements.whenDefined('dotlottie-player');
+        }
         try {
-          inst.goToAndPlay(0, true);
+          el.value.pause();
         } catch {}
       }
     };
 
     const init = () => {
-      destroy();
       failed.value = false;
       if (!props.filename) return;
 
       // Enqueue Lottie loading to prevent CPU congestion on mount
       enqueueLottieInit(async () => {
         if (!props.filename) return;
-        const data = await preloadAnim(props.filename);
-        if (!data) { failed.value = true; return; }
-
-        await nextTick();
-        if (!el.value) return;
-
-        try {
-          inst = lottie.loadAnimation({
-            container: el.value,
-            renderer: 'svg',
-            loop: false,
-            autoplay: !pageLoading.value && activeTab.value === 'home',
-            animationData: data,
-          });
-        } catch (e) {
-          console.error('Lottie setup error:', e);
+        const ok = await preloadAnim(props.filename);
+        if (!ok) {
           failed.value = true;
+          return;
         }
+        srcVal.value = 'assets/' + props.filename.replace('.json', '.lottie');
       });
     };
 
     onMounted(init);
     watch(() => props.filename, init);
+
     watch(pageLoading, (loading) => {
-      if (!loading && inst && activeTab.value === 'home') {
+      if (!loading && el.value) {
         playOnce();
       }
     });
 
-    watch(activeTab, (newTab) => {
-      if (newTab !== 'home') {
-        if (inst) {
-          try { inst.pause(); } catch {}
-        }
-      } else {
-        if (inst && !pageLoading.value) {
-          try { inst.play(); } catch {}
+    watch(activeTab, async () => {
+      await nextTick();
+      if (el.value) {
+        if (el.value.offsetParent === null) {
+          pausePlayer();
+        } else {
+          if (!pageLoading.value) {
+            playOnce();
+          }
         }
       }
     });
 
     const onHover = () => {
-      if (activeTab.value === 'home') {
+      if (el.value && el.value.offsetParent !== null) {
         playOnce();
       }
     };
@@ -380,11 +378,15 @@ const LottieAnim = {
       if (failed.value && props.fallbackImg) {
         return Vue.h('img', { src: props.fallbackImg, class: 'gift-png-fallback' });
       }
-      return Vue.h('div', {
+      return Vue.h('dotlottie-player', {
         ref: el,
-        class: 'lottie-box',
+        src: srcVal.value,
+        background: 'transparent',
+        speed: '1',
+        autoplay: !pageLoading.value,
         onMouseenter: onHover,
         onTouchstart: onHover,
+        style: { width: '100%', height: '100%', display: 'block' }
       });
     };
   },
@@ -455,7 +457,17 @@ createApp({
     Vue.provide('pageLoading', pageLoading);
     const tab = ref('home');
     Vue.provide('activeTab', tab);
+    const tabsLoaded = reactive({
+      home: true,
+      history: false,
+      settings: false,
+      chat: false,
+      userbots: false,
+      bot_control: false,
+    });
     const gifts = ref(DEFAULT_GIFTS_SEED);
+    const giftsLoading = ref(false);
+    const historyLoading = ref(false);
     const selected = ref(null);
     const hoveredGiftId = ref(null);
     const recipient = ref('');
@@ -790,21 +802,31 @@ createApp({
     };
 
     const loadGifts = async () => {
+      giftsLoading.value = true;
       try {
         const res = await fetch('/api/gifts', { headers: { 'ngrok-skip-browser-warning': '69420' } });
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           gifts.value = data;
         }
-      } catch (e) { console.error('loadGifts error:', e); }
+      } catch (e) {
+        console.error('loadGifts error:', e);
+      } finally {
+        giftsLoading.value = false;
+      }
     };
 
     const loadHistory = async () => {
       if (!ME) return;
+      historyLoading.value = true;
       try {
         const d = await api('/api/my-orders').then(r => r.json());
         myOrders.value = Array.isArray(d) ? d : [];
-      } catch {}
+      } catch (e) {
+        console.error('loadHistory error:', e);
+      } finally {
+        historyLoading.value = false;
+      }
     };
 
     const openSheet = g => {
@@ -1370,14 +1392,7 @@ createApp({
         console.error('Boot menu load error:', e);
       }
 
-      // Step 2: Kick off background role-based data loading
-      if (isAdmin.value) {
-        loadAdminData();
-      } else {
-        loadUserData();
-      }
-
-      // Step 3: Prefetch Lottie files sequentially in the background
+      // Step 2: Prefetch Lottie files sequentially in the background
       preloadAllAnimations();
 
       if (tg) {
@@ -1390,8 +1405,8 @@ createApp({
       }
     });
 
-    // Watch tab changes for WebSocket lifecycle
-    watch(tab, (newTab, oldTab) => {
+    // Watch tab changes for WebSocket lifecycle & Lazy Loading
+    watch(tab, async (newTab, oldTab) => {
       if (oldTab === 'chat' && newTab !== 'chat') {
         // Disconnect WebSockets when leaving Chats
         if (chatState.disconnectAllSockets) chatState.disconnectAllSockets();
@@ -1402,10 +1417,46 @@ createApp({
           chatState.selectChatAccount(chatState.activeChatAccount.value);
         }
       }
+
+      // Lazy load tab data on-demand
+      if (newTab === 'history' && !tabsLoaded.history) {
+        tabsLoaded.history = true;
+        if (ME) await loadHistory();
+      }
+      if (newTab === 'settings' && !tabsLoaded.settings) {
+        tabsLoaded.settings = true;
+        await loadUserbotAccounts();
+      }
+      if (newTab === 'chat' && !tabsLoaded.chat) {
+        tabsLoaded.chat = true;
+        await loadUserbotAccounts();
+      }
+      if (newTab === 'userbots' && !tabsLoaded.userbots) {
+        tabsLoaded.userbots = true;
+        if (isAdmin.value) await loadAdminUserbots();
+      }
+      if (newTab === 'bot_control' && !tabsLoaded.bot_control) {
+        tabsLoaded.bot_control = true;
+        if (isAdmin.value) {
+          botLoading.value = true;
+          try {
+            await Promise.all([
+              loadManagedBots(),
+              loadBotPanelUsers(),
+              loadAdminOrders(),
+              loadBotCommands()
+            ]);
+          } finally {
+            botLoading.value = false;
+          }
+        }
+      }
+
+      // Keep regular tab transition fetches fresh if settings or chat are loaded
       if (newTab === 'settings' || newTab === 'chat') {
         loadUserbotAccounts();
       }
-    });
+    }, { immediate: true });
 
     const scrollToGifts = () => {
       const el = document.querySelector('.gifts-grid');
@@ -1894,9 +1945,25 @@ createApp({
       }
     };
 
+    const navIndicatorStyle = computed(() => {
+      const visibleTabs = ['home'];
+      if (isAdmin.value) visibleTabs.push('chat');
+      visibleTabs.push('history', 'settings');
+      if (isAdmin.value) visibleTabs.push('userbots', 'bot_control');
+
+      const index = visibleTabs.indexOf(tab.value);
+      if (index === -1) return { display: 'none' };
+      const widthPercent = 100 / visibleTabs.length;
+      return {
+        width: `${widthPercent}%`,
+        left: `${index * widthPercent}%`
+      };
+    });
+
     // Managed bots already loaded in main boot sequence
 
     return {
+      navIndicatorStyle,
       pageLoading, botCommands, loadBotCommands, saveBotCommands, addBotCommand, removeBotCommand,
       botMenuTab, botPanelUsers, broadcastShow, broadcastText, loadBotPanelUsers, restartTelegramBot, refreshWebhook, openBroadcastModal, sendBroadcast,
 
@@ -1906,7 +1973,7 @@ createApp({
       loadManagedBots, addBotToken, toggleBotStatus, deleteBot, openBotConfig, addCommandRow, removeCommandRow,
       saveManagedBotCommands, openBotChatNav, loadBotContacts, selectBotUserChat, sendBotMessageToUser,
 
-      tab, gifts, selected, hoveredGiftId, recipient, giftMsg, paying, errMsg, toast, totalStars, priceBreakdown,
+      tab, gifts, giftsLoading, historyLoading, selected, hoveredGiftId, recipient, giftMsg, paying, errMsg, toast, totalStars, priceBreakdown,
       isAdmin, showAdmin, aTab, adminGifts, sortedAdminGifts, adminOrders, adminUserbots, userLinkedAccounts, systemUserbots, ubForm, ubMsgForm, myOrders, user, form,
       checkingUser, verifiedUser, userCheckError, userbotAccounts, publicUserbots, selectedSender, selectedUserbot, userAccount, accountsLoading,
       showSenderDropdown, getSelectedUserbotObj, getSelectedUserbotName, getSmallestPriceCombination, getUserFirstName, getUserPhoto, onAnimationFileSelect,

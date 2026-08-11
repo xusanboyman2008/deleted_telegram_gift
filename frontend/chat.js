@@ -70,6 +70,12 @@ function setupChatState(Vue, api, showToast, tg) {
   const activeChatAccount = ref(null);  // currently selected account
   const showAccountDropdown = ref(false);
 
+  // Contacts pagination state
+  const contactsLimit = 30;
+  const contactsOffset = ref(0);
+  const contactsHasMore = ref(true);
+  const chatContactsLoadingMore = ref(false);
+
   let chatSocket = null;
 
   const selectChatAccount = (acc) => {
@@ -77,6 +83,8 @@ function setupChatState(Vue, api, showToast, tg) {
     showAccountDropdown.value = false;
     activeChat.value = null;
     currentChatPeer.value = null;
+    contactsOffset.value = 0;
+    contactsHasMore.value = true;
     if (chatSocket) {
       try {
         chatSocket.close();
@@ -435,13 +443,23 @@ function setupChatState(Vue, api, showToast, tg) {
 
   const chatContactsLoading = ref(false);
 
-  const loadChatContacts = async () => {
+  const loadChatContacts = async (loadMore = false) => {
     if (!activeChatAccount.value?.id) {
       chatList.value = [...DEFAULT_CHAT_CONTACTS];
       chatContactsLoading.value = false;
+      contactsHasMore.value = false;
       return;
     }
-    chatContactsLoading.value = true;
+
+    if (loadMore) {
+      if (chatContactsLoadingMore.value || !contactsHasMore.value) return;
+      chatContactsLoadingMore.value = true;
+    } else {
+      chatContactsLoading.value = true;
+      contactsOffset.value = 0;
+      contactsHasMore.value = true;
+    }
+
     try {
       if (activeChatAccount.value.is_managed_bot) {
         const botId = activeChatAccount.value.managed_bot_id;
@@ -453,7 +471,6 @@ function setupChatState(Vue, api, showToast, tg) {
             title: c.user_first_name || (c.user_username ? '@' + c.user_username : 'User'),
             is_bot: false,
             photo: c.user_photo || null,
-
             last_msg: c.last_msg || '',
             last_time: c.last_time || '',
             last_out: !!c.last_out,
@@ -466,24 +483,50 @@ function setupChatState(Vue, api, showToast, tg) {
         } else {
           chatList.value = [];
         }
+        contactsHasMore.value = false;
       } else {
         const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
-        const res = await api(`/api/userbot/chat/contacts?account_id=${encodeURIComponent(accountId)}&limit=30`);
+        const currentOffset = contactsOffset.value;
+        const res = await api(`/api/userbot/chat/contacts?account_id=${encodeURIComponent(accountId)}&limit=${contactsLimit}&offset=${currentOffset}`);
         const data = await res.json();
-        if (data.success && Array.isArray(data.contacts) && data.contacts.length > 0) {
-          chatList.value = data.contacts;
+        if (data.success && Array.isArray(data.contacts)) {
+          if (loadMore) {
+            const existingPeers = new Set(chatList.value.map(c => c.peer));
+            const newContacts = data.contacts.filter(c => !existingPeers.has(c.peer));
+            chatList.value = [...chatList.value, ...newContacts];
+          } else {
+            chatList.value = data.contacts;
+          }
+          if (data.contacts.length < contactsLimit) {
+            contactsHasMore.value = false;
+          } else {
+            contactsOffset.value += data.contacts.length;
+          }
         } else {
-          chatList.value = [...DEFAULT_CHAT_CONTACTS];
+          if (!loadMore) {
+            chatList.value = [...DEFAULT_CHAT_CONTACTS];
+          }
+          contactsHasMore.value = false;
         }
       }
     } catch (e) {
       console.error('loadChatContacts error:', e);
-      chatList.value = activeChatAccount.value?.is_managed_bot ? [] : [...DEFAULT_CHAT_CONTACTS];
+      if (!loadMore) {
+        chatList.value = activeChatAccount.value?.is_managed_bot ? [] : [...DEFAULT_CHAT_CONTACTS];
+      }
+      contactsHasMore.value = false;
     } finally {
       chatContactsLoading.value = false;
+      chatContactsLoadingMore.value = false;
     }
   };
 
+  const handleContactsScroll = (e) => {
+    const el = e.target;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 50) {
+      loadChatContacts(true);
+    }
+  };
   // ── Sending Messages ───────────────────────────
   const chatInputText = ref('');
   const chatSending = ref(false);
@@ -860,5 +903,8 @@ function setupChatState(Vue, api, showToast, tg) {
     profileModal,
     openProfileModal,
     disconnectAllSockets,
+    contactsHasMore,
+    chatContactsLoadingMore,
+    handleContactsScroll,
   };
 }

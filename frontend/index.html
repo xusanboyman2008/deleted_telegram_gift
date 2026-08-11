@@ -61,270 +61,344 @@
   <div class="view-wrap">
 
     <!-- HOME TAB ────────────────── -->
-    <div v-show="tab==='home'" class="view">
-      <!-- Direct Contact Owner Banner -->
-      <div class="real-user-banner" @click="openRealUserContact">
-        <div class="rub-icon">👤</div>
-        <div class="rub-info">
-          <div class="rub-title">{{ t('buyDirectBtn') }}</div>
-          <div class="rub-desc">Contact @xusanboyman200 for direct manual transfers</div>
-        </div>
-        <div class="rub-arrow">↗</div>
-      </div>
-
-      <!-- 3-Column Grid -->
-      <div class="gifts-grid" style="margin-top: 10px;">
-        <div v-for="g in gifts" :key="g.id" class="gift-card" @click="openSheet(g)" @mouseenter="hoveredGiftId = g.id" @mouseleave="hoveredGiftId = null">
-          <div class="card-media">
-            <lottie-anim v-if="g.animation" :filename="g.animation"></lottie-anim>
-            <span v-else class="card-emoji-fallback">{{ g.emoji }}</span>
+    <transition name="view-fade">
+      <div v-show="tab==='home'" class="view">
+        <!-- Direct Contact Owner Banner -->
+        <div class="real-user-banner" @click="openRealUserContact">
+          <div class="rub-icon">👤</div>
+          <div class="rub-info">
+            <div class="rub-title">{{ t('buyDirectBtn') }}</div>
+            <div class="rub-desc">Contact @xusanboyman200 for direct manual transfers</div>
           </div>
-          <div class="card-title">{{ giftName(g) }}</div>
-          <div class="card-price-pill">
-            <span class="star-icon">⭐</span> {{ g.base_stars + (pricing.bot_stars || 3) }}
+          <div class="rub-arrow">↗</div>
+        </div>
+
+        <!-- 🦴 Ultimate Skeleton Loader for Gifts Grid -->
+        <div v-if="giftsLoading" class="skeleton-gifts-grid">
+          <div v-for="n in 6" :key="n" class="skeleton-gift-card">
+            <div class="skeleton-gift-media shimmer-skeleton"></div>
+            <div class="skeleton-gift-title shimmer-skeleton"></div>
+            <div class="skeleton-gift-price shimmer-skeleton"></div>
           </div>
         </div>
-      </div>
 
-      <!-- Admin Management Box (Visible for Admin Users) -->
-      <div v-if="isAdmin" class="admin-bottom-box">
-        <div class="admin-box-header">
-          <div class="admin-box-title">⚡ Admin Management</div>
-          <button class="admin-panel-btn" @click="openAdmin">Open Dashboard ⚙️</button>
-        </div>
-        <div class="admin-add-card" @click="openAddForm">
-          <div class="big-plus">+</div>
-          <div class="add-card-text">Add New Gift</div>
-        </div>
-      </div>
+        <!-- 3-Column Grid -->
+        <transition-group v-else name="gift-stagger" tag="div" class="gifts-grid" style="margin-top: 10px;">
+          <div v-for="g in gifts" :key="g.id" class="gift-card v-btn" @click="openSheet(g)" @mouseenter="hoveredGiftId = g.id" @mouseleave="hoveredGiftId = null">
+            <div class="card-media">
+              <lottie-anim v-if="g.animation" :filename="g.animation"></lottie-anim>
+              <span v-else class="card-emoji-fallback">{{ g.emoji }}</span>
+            </div>
+            <div class="card-title">{{ giftName(g) }}</div>
+            <div class="card-price-pill">
+              <span class="star-icon">⭐</span> {{ g.base_stars + (pricing.bot_stars || 3) }}
+            </div>
+          </div>
+        </transition-group>
 
-      <p class="footer-note">⭐ Price shown in Telegram Stars</p>
-    </div>
+        <!-- Admin Management Box (Visible for Admin Users) -->
+        <div v-if="isAdmin" class="admin-bottom-box">
+          <div class="admin-box-header">
+            <div class="admin-box-title">⚡ Admin Management</div>
+            <button class="admin-panel-btn" @click="openAdmin">Open Dashboard ⚙️</button>
+          </div>
+          <div class="admin-add-card" @click="openAddForm">
+            <div class="big-plus">+</div>
+            <div class="add-card-text">Add New Gift</div>
+          </div>
+        </div>
+
+        <p class="footer-note">⭐ Price shown in Telegram Stars</p>
+      </div>
+    </transition>
 
     <!-- HISTORY TAB ─────────────── -->
-    <div v-show="tab==='history'" class="view">
-      <h2 class="view-title">📜 {{ t('history') }}</h2>
-      <div v-if="!user" class="empty-state">
-        <div class="empty-icon">🔒</div>
-        <p>Open in Telegram to view your orders</p>
-      </div>
-      <div v-else-if="myOrders.length === 0" class="empty-state">
-        <span class="empty-icon">🎁</span>
-        <p>No orders yet</p>
-      </div>
-      <div v-else class="orders-list">
-        <div v-for="o in myOrders" :key="o.id" class="order-item">
-          <div class="oi-left">
-            <div class="oi-media" style="width: 42px; height: 42px; flex-shrink: 0;">
-              <lottie-anim v-if="o.animation" :filename="o.animation"></lottie-anim>
-              <span v-else class="oi-emoji">{{ o.emoji }}</span>
+    <transition name="view-fade">
+      <div v-show="tab==='history'" class="view">
+        <h2 class="view-title">📜 {{ t('history') }}</h2>
+        <div v-if="!user" class="empty-state">
+          <div class="empty-icon">🔒</div>
+          <p>Open in Telegram to view your orders</p>
+        </div>
+        <!-- 🦴 Ultimate Skeleton Loader for History Tab -->
+        <div v-else-if="historyLoading" class="skeleton-orders-list">
+          <div v-for="n in 4" :key="n" class="skeleton-order-item">
+            <div class="skeleton-order-left">
+              <div class="skeleton-order-emoji shimmer-skeleton"></div>
+              <div class="skeleton-order-info">
+                <div class="skeleton-order-title shimmer-skeleton"></div>
+                <div class="skeleton-order-sub shimmer-skeleton"></div>
+              </div>
             </div>
-            <div class="oi-info">
-              <span class="oi-name">{{ giftName(o) }}</span>
-              <span class="oi-recipient">To: {{ o.recipient_id }}</span>
+            <div class="skeleton-order-right">
+              <div class="skeleton-order-stars shimmer-skeleton"></div>
+              <div class="skeleton-order-status shimmer-skeleton"></div>
             </div>
-          </div>
-          <div class="oi-right">
-            <span class="oi-stars">⭐ {{ o.total_stars }}</span>
-            <span :class="['oi-status', 'st-'+o.status]">{{ o.status }}</span>
           </div>
         </div>
+        <div v-else-if="myOrders.length === 0" class="empty-state">
+          <span class="empty-icon">🎁</span>
+          <p>No orders yet</p>
+        </div>
+        <div v-else class="orders-list">
+          <transition-group name="list-slide">
+            <div v-for="o in myOrders" :key="o.id" class="order-item" :style="{'animation-delay': (o.id % 5) * 0.05 + 's'}">
+              <div class="oi-left">
+                <div class="oi-media" style="width: 42px; height: 42px; flex-shrink: 0;">
+                  <lottie-anim v-if="o.animation" :filename="o.animation"></lottie-anim>
+                  <span v-else class="oi-emoji">{{ o.emoji }}</span>
+                </div>
+                <div class="oi-info">
+                  <span class="oi-name">{{ giftName(o) }}</span>
+                  <span class="oi-recipient">To: {{ o.recipient_id }}</span>
+                </div>
+              </div>
+              <div class="oi-right">
+                <span class="oi-stars">⭐ {{ o.total_stars }}</span>
+                <span :class="['oi-status', 'st-'+o.status]">{{ o.status }}</span>
+              </div>
+            </div>
+          </transition-group>
+        </div>
       </div>
-    </div>
+    </transition>
 
     <!-- SETTINGS TAB ────────────── -->
-    <div v-show="tab==='settings'" class="view">
-      <h2 class="view-title">⚙️ {{ t('settings') }}</h2>
+    <transition name="view-fade">
+      <div v-show="tab==='settings'" class="view">
+        <h2 class="view-title">⚙️ {{ t('settings') }}</h2>
 
-      <!-- Language Selector Box -->
-      <div class="settings-card">
-        <div class="settings-card-header">
-          <span class="sc-icon">🌐</span>
-          <div class="sc-title">{{ t('chooseLanguage') }}</div>
-        </div>
-        <div class="lang-selector-grid">
-          <button :class="['lang-btn', currentLang==='en'?'active':'']" @click="setLanguage('en')">
-            🇬🇧 English
-          </button>
-          <button :class="['lang-btn', currentLang==='uz'?'active':'']" @click="setLanguage('uz')">
-            🇺🇿 O'zbekcha
-          </button>
-          <button :class="['lang-btn', currentLang==='ru'?'active':'']" @click="setLanguage('ru')">
-            🇷🇺 Русский
-          </button>
-        </div>
-      </div>
-
-      <!-- Telegram Account Connection Card ("Use My Account") -->
-      <div class="settings-card">
-        <div class="settings-card-header">
-          <span class="sc-icon">👤</span>
-          <div class="sc-title" style="display: flex; align-items: center; gap: 6px;">{{ t('myAccountSender') }} <span class="info-circle" title="Tizimga shaxsiy profilingizni ulash orqali sovg'alarni o'z nomingizdan yuborish imkoniyatiga ega bo'lasiz. Telefon raqamingiz va tasdiqlash kodi orqali bog'lanadi.">!</span></div>
-        </div>
-        <p class="sc-desc">{{ t('myAccountSenderSub') }}</p>
-
-        <div v-if="userAccount" class="account-connected-box">
-          <div class="acb-status" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-            <span class="status-dot green"></span>
-            <b>{{ t('myAccountConnected') }}:</b> {{ userAccount.first_name }} <span v-if="userAccount.username">(@{{ userAccount.username }})</span>
-            <span class="stars-badge" @click="loadUserbotAccounts" style="background: rgba(234, 179, 8, 0.2); color: #FACC15; padding: 3px 10px; border-radius: 10px; font-size: 0.8rem; font-weight: 600; border: 1px solid rgba(234, 179, 8, 0.4); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; user-select: none;" title="Click to refresh balance">
-              ⭐ {{ userAccount.stars_balance || 0 }} Stars
-              <span :class="{ 'loading-spin': accountsLoading }" style="display: inline-block;">🔄</span>
-            </span>
+        <!-- 🦴 Ultimate Skeleton Loader for Settings Tab -->
+        <div v-if="accountsLoading && !userAccount" class="skeleton-settings">
+          <div class="skeleton-settings-card">
+            <div class="skeleton-settings-header">
+              <div class="skeleton-settings-icon shimmer-skeleton"></div>
+              <div class="skeleton-settings-title shimmer-skeleton"></div>
+            </div>
+            <div class="skeleton-settings-content shimmer-skeleton"></div>
           </div>
-          <button class="disconnect-btn" @click="disconnectMyAccount" style="margin-top: 6px;">
-            🔌 {{ t('disconnectAccount') }}
-          </button>
+          <div class="skeleton-settings-card">
+            <div class="skeleton-settings-header">
+              <div class="skeleton-settings-icon shimmer-skeleton"></div>
+              <div class="skeleton-settings-title shimmer-skeleton"></div>
+            </div>
+            <div class="skeleton-settings-content shimmer-skeleton"></div>
+          </div>
         </div>
 
-        <div v-else>
-          <button class="connect-acc-btn" @click="openPhoneAuth">
-            📱 {{ t('connectMyAccount') }}
-          </button>
-        </div>
-      </div>
+        <transition-group v-else name="list-slide" tag="div" style="display: flex; flex-direction: column; gap: 4px;">
+          <!-- Language Selector Box -->
+          <div class="settings-card" key="lang" style="animation-delay: 0.05s;">
+            <div class="settings-card-header">
+              <span class="sc-icon">🌐</span>
+              <div class="sc-title">{{ t('chooseLanguage') }}</div>
+            </div>
+            <div class="lang-selector-grid">
+              <button :class="['lang-btn', 'v-btn', currentLang==='en'?'active':'']" @click="setLanguage('en')">
+                🇬🇧 English
+              </button>
+              <button :class="['lang-btn', 'v-btn', currentLang==='uz'?'active':'']" @click="setLanguage('uz')">
+                🇺🇿 O'zbekcha
+              </button>
+              <button :class="['lang-btn', 'v-btn', currentLang==='ru'?'active':'']" @click="setLanguage('ru')">
+                🇷🇺 Русский
+              </button>
+            </div>
+          </div>
 
-      <!-- Support Contact Card -->
-      <div class="settings-card">
-        <div class="settings-card-header">
-          <span class="sc-icon">💬</span>
-          <div class="sc-title">{{ t('supportContact') }}</div>
-        </div>
-        <p class="sc-desc">Have questions or facing issues? Reach out to support directly.</p>
-        <button class="support-contact-btn" @click="openRealUserContact">
-          {{ t('supportBtn') }}
-        </button>
-      </div>
+          <!-- Telegram Account Connection Card ("Use My Account") -->
+          <div class="settings-card" key="account" style="animation-delay: 0.1s;">
+            <div class="settings-card-header">
+              <span class="sc-icon">👤</span>
+              <div class="sc-title" style="display: flex; align-items: center; gap: 6px;">{{ t('myAccountSender') }} <span class="info-circle" title="Tizimga shaxsiy profilingizni ulash orqali sovg'alarni o'z nomingizdan yuborish imkoniyatiga ega bo'lasiz. Telefon raqamingiz va tasdiqlash kodi orqali bog'lanadi.">!</span></div>
+            </div>
+            <p class="sc-desc">{{ t('myAccountSenderSub') }}</p>
 
-      <!-- Admin Dashboard Entry Button (If Admin) -->
-      <div v-if="isAdmin" class="settings-card admin-settings-card">
-        <div class="settings-card-header">
-          <span class="sc-icon">⚡</span>
-          <div class="sc-title">{{ t('adminPanel') }}</div>
-        </div>
-        <button class="admin-dashboard-btn" @click="openAdmin">
-          Open Admin Dashboard ⚙️
-        </button>
+            <div v-if="userAccount" class="account-connected-box">
+              <div class="acb-status" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <span class="status-dot green"></span>
+                <b>{{ t('myAccountConnected') }}:</b> {{ userAccount.first_name }} <span v-if="userAccount.username">(@{{ userAccount.username }})</span>
+                <span class="stars-badge" @click="loadUserbotAccounts" style="background: rgba(234, 179, 8, 0.2); color: #FACC15; padding: 3px 10px; border-radius: 10px; font-size: 0.8rem; font-weight: 600; border: 1px solid rgba(234, 179, 8, 0.4); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; user-select: none;" title="Click to refresh balance">
+                  ⭐ {{ userAccount.stars_balance || 0 }} Stars
+                  <span :class="{ 'loading-spin': accountsLoading }" style="display: inline-block;">🔄</span>
+                </span>
+              </div>
+              <button class="disconnect-btn v-btn" @click="disconnectMyAccount" style="margin-top: 6px;">
+                🔌 {{ t('disconnectAccount') }}
+              </button>
+            </div>
+
+            <div v-else>
+              <button class="connect-acc-btn v-btn" @click="openPhoneAuth">
+                📱 {{ t('connectMyAccount') }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Support Contact Card -->
+          <div class="settings-card" key="support" style="animation-delay: 0.15s;">
+            <div class="settings-card-header">
+              <span class="sc-icon">💬</span>
+              <div class="sc-title">{{ t('supportContact') }}</div>
+            </div>
+            <p class="sc-desc">Have questions or facing issues? Reach out to support directly.</p>
+            <button class="support-contact-btn v-btn" @click="openRealUserContact">
+              {{ t('supportBtn') }}
+            </button>
+          </div>
+
+          <!-- Admin Dashboard Entry Button (If Admin) -->
+          <div v-if="isAdmin" class="settings-card admin-settings-card" key="admin" style="animation-delay: 0.2s;">
+            <div class="settings-card-header">
+              <span class="sc-icon">⚡</span>
+              <div class="sc-title">{{ t('adminPanel') }}</div>
+            </div>
+            <button class="admin-dashboard-btn v-btn" @click="openAdmin">
+              Open Admin Dashboard ⚙️
+            </button>
+          </div>
+        </transition-group>
       </div>
-    </div>
+    </transition>
 
     <!-- ── Admin Userbots Tab View ──────────────── -->
     <div class="page" v-if="tab==='userbots'">
       <div class="page-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h2>🤖 {{ t('userbots') }}</h2>
-        <button class="add-btn" @click="openAdmin(); aTab='userbots'; openAddUserbot()" style="display: flex; align-items: center; gap: 6px;">
+        <button class="add-btn v-btn" @click="openAdmin(); aTab='userbots'; openAddUserbot()" style="display: flex; align-items: center; gap: 6px;">
           ➕ Add Account
         </button>
       </div>
 
-      <!-- 1. Users Telegram Accounts -->
-      <h3 style="margin: 20px 0 10px 0; font-size: 1.05rem; color: #fff; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-        <span>👤</span> {{ t('userAccounts') }}
-      </h3>
-      <div v-if="!userLinkedAccounts.length" style="color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; font-size: 0.9rem; text-align: center;">
-        No user-linked Telegram accounts yet.
-      </div>
-      <div v-else class="premium-userbot-grid">
-        <div v-for="ub in userLinkedAccounts" :key="ub.id" :class="['premium-userbot-card', ub.active === false ? 'disabled' : '']">
-          <div class="pub-header">
-            <img v-if="ub.photo" :src="ub.photo" class="pub-avatar" alt="avatar" />
-            <div v-else class="pub-avatar-placeholder">👤</div>
-            <div class="pub-details">
-              <div class="pub-name">
-                {{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }}
-                <span :class="['status-pill', ub.active !== false ? 'active' : 'inactive']">
-                  {{ ub.active !== false ? '🟢 Active' : '🔴 Disabled' }}
-                </span>
-                <span class="stars-badge" style="background: rgba(234, 179, 8, 0.2); color: #FACC15; padding: 2px 8px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.4); margin-left: 6px; display: inline-flex; align-items: center; gap: 3px;">
-                  ⭐ {{ ub.stars_balance || 0 }} Stars
-                </span>
-              </div>
-              <div class="pub-username">@{{ ub.username || 'no_username' }}</div>
+      <!-- 🦴 Ultimate Skeleton Loader for Admin Userbots -->
+      <div v-if="accountsLoading && !userLinkedAccounts.length && !systemUserbots.length" class="skeleton-userbots-grid">
+        <div v-for="n in 2" :key="n" class="skeleton-userbot-card">
+          <div class="skeleton-userbot-header">
+            <div class="skeleton-userbot-avatar shimmer-skeleton"></div>
+            <div class="skeleton-userbot-details">
+              <div class="skeleton-userbot-name shimmer-skeleton"></div>
+              <div class="skeleton-userbot-username shimmer-skeleton"></div>
             </div>
           </div>
-          <div class="pub-meta" style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <div>📞 {{ ub.phone }}</div>
-              <div style="color: #c084fc; font-weight: 500;">Owner ID: {{ ub.owner_tg_id }}</div>
-            </div>
-            <div style="background: rgba(234, 179, 8, 0.15); color: #FACC15; padding: 4px 10px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.3);">
-              ⭐ {{ ub.stars_balance || 0 }}
-            </div>
-          </div>
-          <div class="pub-actions">
-            <!-- Jump to Chat Button -->
-            <button class="btn-chat" @click="jumpToUserbotChat(ub)" title="Chat as this userbot">
-              💬 Chat
-            </button>
-            <button v-if="ub.toggling" class="btn-edit" disabled style="opacity: 0.6; cursor: wait;">
-              ⏳ ...
-            </button>
-            <button v-else-if="ub.active !== false" class="btn-disable" @click="toggleUserbotActive(ub)" title="Disable Userbot">
-              🔴 Stop
-            </button>
-            <button v-else class="btn-enable" @click="toggleUserbotActive(ub)" title="Re-enable Userbot">
-              ↩️ Start
-            </button>
-            <button class="btn-edit" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">
-              ✏️ Edit
-            </button>
+          <div class="skeleton-userbot-meta shimmer-skeleton"></div>
+          <div class="skeleton-userbot-actions">
+            <div class="skeleton-userbot-btn shimmer-skeleton"></div>
+            <div class="skeleton-userbot-btn shimmer-skeleton"></div>
+            <div class="skeleton-userbot-btn shimmer-skeleton"></div>
           </div>
         </div>
       </div>
 
-      <!-- 2. System Userbots (Official) -->
-      <h3 style="margin: 30px 0 10px 0; font-size: 1.05rem; color: #fff; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-        <span>🤖</span> {{ t('systemUserbots') }}
-      </h3>
-      <div v-if="!systemUserbots.length" style="color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; font-size: 0.9rem; text-align: center;">
-        No system userbots configured yet.
-      </div>
-      <div v-else class="premium-userbot-grid">
-        <div v-for="ub in systemUserbots" :key="ub.id" :class="['premium-userbot-card', ub.active === false ? 'disabled' : '']">
-          <div class="pub-header">
-            <img v-if="ub.photo" :src="ub.photo" class="pub-avatar" alt="avatar" />
-            <div v-else class="pub-avatar-placeholder">🤖</div>
-            <div class="pub-details">
-              <div class="pub-name">
-                {{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }}
-                <span :class="['status-pill', ub.active !== false ? 'active' : 'inactive']">
-                  {{ ub.active !== false ? '🟢 Active' : '🔴 Disabled' }}
-                </span>
-                <span class="stars-badge" style="background: rgba(234, 179, 8, 0.2); color: #FACC15; padding: 2px 8px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.4); margin-left: 6px; display: inline-flex; align-items: center; gap: 3px;">
-                  ⭐ {{ ub.stars_balance || 0 }} Stars
-                </span>
-              </div>
-              <div class="pub-username">@{{ ub.username || 'no_username' }}</div>
-            </div>
-          </div>
-          <div class="pub-meta" style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <div>📞 {{ ub.phone }}</div>
-              <div style="color: #4ade80; font-weight: 500;">Official Platform Bot</div>
-            </div>
-            <div style="background: rgba(234, 179, 8, 0.15); color: #FACC15; padding: 4px 10px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.3);">
-              ⭐ {{ ub.stars_balance || 0 }}
-            </div>
-          </div>
-          <div class="pub-actions">
-            <!-- Jump to Chat Button -->
-            <button class="btn-chat" @click="jumpToUserbotChat(ub)" title="Chat as this userbot">
-              💬 Chat
-            </button>
-            <button v-if="ub.toggling" class="btn-edit" disabled style="opacity: 0.6; cursor: wait;">
-              ⏳ ...
-            </button>
-            <button v-else-if="ub.active !== false" class="btn-disable" @click="toggleUserbotActive(ub)" title="Disable Userbot">
-              🔴 Stop
-            </button>
-            <button v-else class="btn-enable" @click="toggleUserbotActive(ub)" title="Re-enable Userbot">
-              ↩️ Start
-            </button>
-            <button class="btn-edit" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">
-              ✏️ Edit
-            </button>
-          </div>
+      <div v-else>
+        <!-- 1. Users Telegram Accounts -->
+        <h3 style="margin: 20px 0 10px 0; font-size: 1.05rem; color: #fff; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+          <span>👤</span> {{ t('userAccounts') }}
+        </h3>
+        <div v-if="!userLinkedAccounts.length" style="color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; font-size: 0.9rem; text-align: center;">
+          No user-linked Telegram accounts yet.
         </div>
+        <transition-group v-else name="scale-pop" tag="div" class="premium-userbot-grid">
+          <div v-for="ub in userLinkedAccounts" :key="ub.id" :class="['premium-userbot-card', ub.active === false ? 'disabled' : '']">
+            <div class="pub-header">
+              <img v-if="ub.photo" :src="ub.photo" class="pub-avatar" alt="avatar" />
+              <div v-else class="pub-avatar-placeholder">👤</div>
+              <div class="pub-details">
+                <div class="pub-name">
+                  {{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }}
+                  <span :class="['status-pill', ub.active !== false ? 'active' : 'inactive']">
+                    {{ ub.active !== false ? '🟢 Active' : '🔴 Disabled' }}
+                  </span>
+                  <span class="stars-badge" style="background: rgba(234, 179, 8, 0.2); color: #FACC15; padding: 2px 8px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.4); margin-left: 6px; display: inline-flex; align-items: center; gap: 3px;">
+                    ⭐ {{ ub.stars_balance || 0 }} Stars
+                  </span>
+                </div>
+                <div class="pub-username">@{{ ub.username || 'no_username' }}</div>
+              </div>
+            </div>
+            <div class="pub-meta" style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div>📞 {{ ub.phone }}</div>
+                <div style="color: #c084fc; font-weight: 500;">Owner ID: {{ ub.owner_tg_id }}</div>
+              </div>
+              <div style="background: rgba(234, 179, 8, 0.15); color: #FACC15; padding: 4px 10px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.3);">
+                ⭐ {{ ub.stars_balance || 0 }}
+              </div>
+            </div>
+            <div class="pub-actions">
+              <!-- Jump to Chat Button -->
+              <button class="btn-chat v-btn" @click="jumpToUserbotChat(ub)" title="Chat as this userbot">
+                💬 Chat
+              </button>
+              <button v-if="ub.toggling" class="btn-edit" disabled style="opacity: 0.6; cursor: wait;">
+                ⏳ ...
+              </button>
+              <button v-else-if="ub.active !== false" class="btn-disable v-btn" @click="toggleUserbotActive(ub)" title="Disable Userbot">
+                🔴 Stop
+              </button>
+              <button v-else class="btn-enable v-btn" @click="toggleUserbotActive(ub)" title="Re-enable Userbot">
+                ↩️ Start
+              </button>
+              <button class="btn-edit v-btn" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">
+                ✏️ Edit
+              </button>
+            </div>
+          </div>
+        </transition-group>
+
+        <!-- 2. System Userbots (Official) -->
+        <h3 style="margin: 30px 0 10px 0; font-size: 1.05rem; color: #fff; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+          <span>🤖</span> {{ t('systemUserbots') }}
+        </h3>
+        <div v-if="!systemUserbots.length" style="color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; font-size: 0.9rem; text-align: center;">
+          No system userbots configured yet.
+        </div>
+        <transition-group v-else name="scale-pop" tag="div" class="premium-userbot-grid">
+          <div v-for="ub in systemUserbots" :key="ub.id" :class="['premium-userbot-card', ub.active === false ? 'disabled' : '']">
+            <div class="pub-header">
+              <img v-if="ub.photo" :src="ub.photo" class="pub-avatar" alt="avatar" />
+              <div v-else class="pub-avatar-placeholder">🤖</div>
+              <div class="pub-details">
+                <div class="pub-name">
+                  {{ ub.first_name || 'Account #'+ub.id }} {{ ub.last_name || '' }}
+                  <span :class="['status-pill', ub.active !== false ? 'active' : 'inactive']">
+                    {{ ub.active !== false ? '🟢 Active' : '🔴 Disabled' }}
+                  </span>
+                  <span class="stars-badge" style="background: rgba(234, 179, 8, 0.2); color: #FACC15; padding: 2px 8px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.4); margin-left: 6px; display: inline-flex; align-items: center; gap: 3px;">
+                    ⭐ {{ ub.stars_balance || 0 }} Stars
+                  </span>
+                </div>
+                <div class="pub-username">@{{ ub.username || 'no_username' }}</div>
+              </div>
+            </div>
+            <div class="pub-meta" style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div>📞 {{ ub.phone }}</div>
+                <div style="color: #4ade80; font-weight: 500;">Official Platform Bot</div>
+              </div>
+              <div style="background: rgba(234, 179, 8, 0.15); color: #FACC15; padding: 4px 10px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.3);">
+                ⭐ {{ ub.stars_balance || 0 }}
+              </div>
+            </div>
+            <div class="pub-actions">
+              <!-- Jump to Chat Button -->
+              <button class="btn-chat v-btn" @click="jumpToUserbotChat(ub)" title="Chat as this userbot">
+                💬 Chat
+              </button>
+              <button v-if="ub.toggling" class="btn-edit" disabled style="opacity: 0.6; cursor: wait;">
+                ⏳ ...
+              </button>
+              <button v-else-if="ub.active !== false" class="btn-disable v-btn" @click="toggleUserbotActive(ub)" title="Disable Userbot">
+                🔴 Stop
+              </button>
+              <button v-else class="btn-enable v-btn" @click="toggleUserbotActive(ub)" title="Re-enable Userbot">
+                ↩️ Start
+              </button>
+              <button class="btn-edit v-btn" @click="openAdmin(); aTab='userbots'; editUserbot(ub)" title="Edit Profile">
+                ✏️ Edit
+              </button>
+            </div>
+          </div>
+        </transition-group>
       </div>
     </div>
 
@@ -446,9 +520,21 @@
                 </h3>
               </div>
 
-              <div v-if="botLoading" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 0; gap: 14px;">
-                <span class="tg-spinner" style="width: 32px; height: 32px; border-width: 3px; border-color: #3390EC transparent transparent transparent;"></span>
-                <p style="color: rgba(255,255,255,0.5); font-size: 0.9rem;">Loading configured bots...</p>
+              <!-- 🦴 Ultimate Skeleton Loader for Managed Bots -->
+              <div v-if="botLoading" class="skeleton-bots-grid">
+                <div v-for="n in 2" :key="n" class="skeleton-bot-card">
+                  <div class="skeleton-bot-header">
+                    <div class="skeleton-bot-avatar shimmer-skeleton"></div>
+                    <div class="skeleton-bot-details">
+                      <div class="skeleton-bot-name shimmer-skeleton"></div>
+                      <div class="skeleton-bot-username shimmer-skeleton"></div>
+                    </div>
+                  </div>
+                  <div class="skeleton-bot-actions">
+                    <div class="skeleton-bot-btn shimmer-skeleton"></div>
+                    <div class="skeleton-bot-btn shimmer-skeleton"></div>
+                  </div>
+                </div>
               </div>
 
               <div v-else-if="!managedBots.length" style="text-align: center; padding: 60px 20px; background: rgba(255,255,255,0.01); border-radius: 16px; border: 1px dashed rgba(255,255,255,0.1);">
@@ -459,8 +545,9 @@
                 </p>
               </div>
 
-              <div v-else style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
-                <div v-for="bot in managedBots" :key="bot.id" style="background: rgba(255,255,255,0.02); border-radius: 16px; border: 1px solid rgba(255,255,255,0.06); padding: 18px; display: flex; flex-direction: column; gap: 16px; transition: transform 0.2s, border-color 0.2s, background-color 0.2s;" class="bot-card-item">
+              <div v-else-if="activeBotNav === 'bots'">
+                <transition-group name="scale-pop" tag="div" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
+                  <div v-for="bot in managedBots" :key="bot.id" style="background: rgba(255,255,255,0.02); border-radius: 16px; border: 1px solid rgba(255,255,255,0.06); padding: 18px; display: flex; flex-direction: column; gap: 16px; transition: transform 0.2s, border-color 0.2s, background-color 0.2s;" class="bot-card-item">
                   <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
                     <div style="display: flex; align-items: center; gap: 14px; min-width: 0;">
                       <div style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #7B61FF, #3390EC); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0; box-shadow: 0 4px 10px rgba(51,144,236,0.25);">
@@ -508,7 +595,7 @@
                     </button>
                   </div>
                 </div>
-              </div>
+              </transition-group>
             </div>
 
             <!-- Bot Users 1-to-1 Chat View -->
@@ -841,11 +928,16 @@
           </div>
 
           <!-- Chat items list -->
-          <div class="tg-chats-list">
-            <!-- Chat List Loader -->
-            <div v-if="chatContactsLoading" style="padding: 24px; text-align: center; color: rgba(255,255,255,0.5); font-size: 0.85rem; display: flex; flex-direction: column; align-items: center; gap: 8px;">
-              <span class="tg-spinner" style="width: 22px; height: 22px; border-width: 2px;"></span>
-              <span>Loading chat contacts...</span>
+          <div class="tg-chats-list" @scroll="handleContactsScroll">
+            <!-- Chat List Loader (Skeleton Loader) -->
+            <div v-if="chatContactsLoading" style="padding: 10px 0;">
+              <div v-for="i in 5" :key="i" class="tg-skeleton-chat-item">
+                <div class="tg-skeleton-avatar"></div>
+                <div class="tg-skeleton-info">
+                  <div class="tg-skeleton-line-top"></div>
+                  <div class="tg-skeleton-line-bottom"></div>
+                </div>
+              </div>
             </div>
             <!-- Resolve username/ID search target -->
             <div
@@ -896,6 +988,22 @@
                   </span>
                   <span v-if="chat.unread" class="tg-unread-badge">{{ chat.unread }}</span>
                 </div>
+              </div>
+            </div>
+
+            <!-- Load More Trigger Button / Loader -->
+            <div v-if="contactsHasMore && filteredChatList.length > 0 && !chatContactsLoading" style="padding: 12px; text-align: center; display: flex; justify-content: center; align-items: center; min-height: 48px;">
+              <button 
+                v-if="!chatContactsLoadingMore" 
+                class="tg-load-more-btn" 
+                @click="loadChatContacts(true)"
+                style="background: rgba(51, 144, 236, 0.1); border: 1px solid rgba(51, 144, 236, 0.2); color: #3390ec; padding: 6px 16px; border-radius: 12px; font-size: 0.78rem; font-weight: 500; cursor: pointer; transition: all 0.2s;"
+              >
+                Load More
+              </button>
+              <div v-else style="color: rgba(255,255,255,0.5); font-size: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <span class="tg-spinner" style="width: 14px; height: 14px; border-width: 1.5px;"></span>
+                <span>Loading more...</span>
               </div>
             </div>
 
@@ -1114,27 +1222,28 @@
 
   <!-- ── Bottom Navigation ──────────────────── -->
   <nav class="bottom-nav">
-    <button :class="['nav-item', tab==='home'?'active':'']" @click="tab='home'">
+    <div class="nav-tab-active-indicator" :style="navIndicatorStyle"></div>
+    <button :class="['nav-item', 'v-btn', tab==='home'?'active':'']" @click="tab='home'">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 9.5L12 3l9 6.5V21H3V9.5z"/></svg>
       <span>{{ t('gifts') }}</span>
     </button>
-    <button v-if="isAdmin" :class="['nav-item', tab==='chat'?'active':'']" @click="tab='chat'">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+    <button v-if="isAdmin" :class="['nav-item', 'v-btn', tab==='chat'?'active':'']" @click="tab='chat'">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-7.6 4.7l-5.7 1.9 1.9-5.7c-.9-1.2-1.4-2.7-1.4-4.2C3 6.3 7.7 2 13.5 2h.5A8.5 8.5 0 0 1 22 10.5v1z"/></svg>
       <span>{{ t('chats') }}</span>
     </button>
-    <button :class="['nav-item', tab==='history'?'active':'']" @click="loadHistory(); tab='history'">
+    <button :class="['nav-item', 'v-btn', tab==='history'?'active':'']" @click="loadHistory(); tab='history'">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       <span>{{ t('history') }}</span>
     </button>
-    <button :class="['nav-item', tab==='settings'?'active':'']" @click="tab='settings'">
+    <button :class="['nav-item', 'v-btn', tab==='settings'?'active':'']" @click="tab='settings'">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       <span>{{ t('settings') }}</span>
     </button>
-    <button v-if="isAdmin" :class="['nav-item', tab==='userbots'?'active':'']" @click="loadAdminUserbots(); tab='userbots'">
+    <button v-if="isAdmin" :class="['nav-item', 'v-btn', tab==='userbots'?'active':'']" @click="loadAdminUserbots(); tab='userbots'">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a2 2 0 0 1 2 2v2h-4V4a2 2 0 0 1 2-2z"/><rect x="4" y="6" width="16" height="12" rx="2"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><path d="M9 15h6"/></svg>
       <span>{{ t('userbots') }}</span>
     </button>
-    <button v-if="isAdmin" :class="['nav-item', tab==='bot_control'?'active':'']" @click="tab='bot_control'">
+    <button v-if="isAdmin" :class="['nav-item', 'v-btn', tab==='bot_control'?'active':'']" @click="tab='bot_control'">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
         <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
         <line x1="8" y1="21" x2="16" y2="21"/>

@@ -649,11 +649,14 @@ async def async_get_userbot_accounts(active_only: bool = True, user_tg_id: int =
     return [acc for acc in accounts if not acc.get("owner_tg_id")]
 
 async def get_userbot_by_id_or_hash(identifier) -> dict:
-    """Finds a userbot account by integer ID or obfuscated hashed ID."""
+    """Finds a userbot account by integer ID, obfuscated hashed ID, or owner_tg_id."""
     accounts = await async_get_userbot_accounts(active_only=False, is_admin=True)
     str_id = str(identifier)
     for acc in accounts:
         if str(acc.get("id")) == str_id or hash_userbot_id(acc.get("id")) == str_id:
+            return acc
+    for acc in accounts:
+        if acc.get("owner_tg_id") and str(acc.get("owner_tg_id")) == str_id:
             return acc
     return accounts[0] if accounts else None
 
@@ -771,6 +774,44 @@ async def set_userbot_active_status(account_id: int, active: bool) -> bool:
         logger.error(f"SQLite set_userbot_active_status error: {e}")
 
     return True
+
+
+async def update_userbot_account_db(account_id: int, **fields) -> bool:
+    """Updates specific fields of a userbot account in PostgreSQL and SQLite database."""
+    if not fields:
+        return True
+    
+    allowed = {"session", "phone", "session_string", "api_id", "api_hash", "first_name", "last_name", "username", "bio", "photo", "active", "owner_tg_id", "stars_balance"}
+    valid_fields = {k: v for k, v in fields.items() if k in allowed}
+    if not valid_fields:
+        return True
+
+    # Map boolean active to int/bool as appropriate
+    if "active" in valid_fields:
+        valid_fields["active"] = 1 if valid_fields["active"] else 0
+
+    if IS_POSTGRES and pool:
+        try:
+            sets = ", ".join(f"{k}=${i+1}" for i, k in enumerate(valid_fields.keys()))
+            vals = list(valid_fields.values())
+            vals.append(account_id)
+            async with pool.acquire() as conn:
+                await conn.execute(f"UPDATE userbot_accounts SET {sets} WHERE id=${len(vals)}", *vals)
+        except Exception as e:
+            logger.error(f"PostgreSQL update_userbot_account_db error: {e}")
+
+    try:
+        sets = ", ".join(f"{k}=?" for k in valid_fields.keys())
+        vals = list(valid_fields.values())
+        vals.append(account_id)
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(f"UPDATE userbot_accounts SET {sets} WHERE id=?", vals)
+            await db.commit()
+    except Exception as e:
+        logger.error(f"SQLite update_userbot_account_db error: {e}")
+
+    return True
+
 
 
 async def get_pricing_settings() -> dict:

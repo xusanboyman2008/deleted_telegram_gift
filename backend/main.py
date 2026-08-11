@@ -312,7 +312,7 @@ async def callback_handler(update: Update, context):
 
         current_active = bool(acc.get("active", True))
         new_active = not current_active
-        update_userbot_account(ub_id, active=new_active)
+        await update_userbot_account(ub_id, active=new_active)
         await db.set_userbot_active_status(ub_id, new_active)
 
         action_word = "Re-enabled (Undone)" if new_active else "Disabled"
@@ -1578,7 +1578,7 @@ async def get_userbot_accounts(user: dict = Depends(get_optional_user)):
             client = await get_running_client(acc_id)
             if client and client.is_connected:
                 stars = await get_userbot_stars_balance(client)
-                update_userbot_account(acc_id, stars_balance=stars)
+                await update_userbot_account(acc_id, stars_balance=stars)
                 acc["stars_balance"] = stars
         except Exception as ex:
             logger.warning(f"Failed to auto-update stars for account {acc_id}: {ex}")
@@ -2010,7 +2010,7 @@ async def admin_update_userbot(account_id: int, body: UserbotUpdate, background_
     except ImportError:
         from userbot import update_userbot_account, get_userbot_by_id, sync_userbot_telegram_profile
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
-    success = update_userbot_account(account_id, **fields)
+    success = await update_userbot_account(account_id, **fields)
     if not success:
         raise HTTPException(status_code=404, detail="Userbot account not found")
     if "active" in fields:
@@ -2035,7 +2035,7 @@ async def admin_toggle_userbot_active(account_id: int, admin=Depends(get_admin))
 
     current_active = bool(acc.get("active", True))
     new_active = not current_active
-    success = update_userbot_account(account_id, active=new_active)
+    success = await update_userbot_account(account_id, active=new_active)
     await db.set_userbot_active_status(account_id, new_active)
 
     status_str = "re-enabled (undone)" if new_active else "disabled"
@@ -2123,7 +2123,7 @@ async def delete_userbot_chat_history_endpoint(account_id: str, recipient: str):
 
 
 @app.get("/api/userbot/chat/contacts")
-async def userbot_chat_contacts_endpoint(account_id: str, limit: int = 30):
+async def userbot_chat_contacts_endpoint(account_id: str, limit: int = 30, offset: int = 0):
     try:
         from userbot.userbot import get_userbot_contacts
     except ImportError:
@@ -2139,7 +2139,7 @@ async def userbot_chat_contacts_endpoint(account_id: str, limit: int = 30):
         except ValueError:
             real_id = 1
 
-    contacts = await get_userbot_contacts(real_id, limit=limit)
+    contacts = await get_userbot_contacts(real_id, limit=limit, offset=offset)
     return {"success": True, "contacts": contacts}
 
 

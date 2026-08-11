@@ -207,7 +207,7 @@ async def sync_userbot_telegram_profile(account: dict):
         logger.error(f"sync_userbot_telegram_profile failed for account {account_id}: {e}")
 
 
-def update_userbot_account(account_id: int, **fields) -> bool:
+async def update_userbot_account(account_id: int, **fields) -> bool:
     data = load_userbot_file_data()
     accounts = data.get("accounts", [])
     updated = False
@@ -222,7 +222,13 @@ def update_userbot_account(account_id: int, **fields) -> bool:
             break
     if updated:
         save_userbot_file_data(data)
+        try:
+            from backend.db import update_userbot_account_db
+            await update_userbot_account_db(account_id, **fields)
+        except Exception as e:
+            logger.error(f"Failed to sync userbot {account_id} update to database: {e}")
     return updated
+
 
 async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift_tg_id: str, gift_text: str = None) -> dict:
     """Attempts to deliver gift using the Hydrogram userbot account.
@@ -258,7 +264,7 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
             }
 
         stars = await get_userbot_stars_balance(client)
-        update_userbot_account(account.get("id"), stars_balance=stars)
+        await update_userbot_account(account.get("id"), stars_balance=stars)
 
         rec_target = recipient_id
         if isinstance(recipient_id, str):
@@ -1045,7 +1051,7 @@ async def get_running_client(account_id: int):
                             b64 = base64.b64encode(f.read()).decode("utf-8")
                             photo_data = f"data:image/jpeg;base64,{b64}"
                             account["photo"] = photo_data
-                            update_userbot_account(account_id, photo=photo_data)
+                            await update_userbot_account(account_id, photo=photo_data)
             except Exception as pe:
                 logger.warning(f"Could not fetch profile photo for account {account_id}: {pe}")
 
@@ -1167,8 +1173,36 @@ async def get_userbot_chat_history(account_id: int, recipient: str, limit: int =
         logger.warning(f"get_userbot_chat_history failed for account {account_id}: {e}")
         return []
 
-async def get_userbot_contacts(account_id: int, limit: int = 30) -> list:
-    """Fetches recent dialogs (chat contacts) for account using Hydrogram client session."""
+_PHOTO_CACHE = {}
+
+async def _download_and_cache_photo(client, file_id: str) -> str:
+    import asyncio
+    if file_id in _PHOTO_CACHE:
+        return _PHOTO_CACHE[file_id]
+    try:
+        p_file = await asyncio.wait_for(client.download_media(file_id), timeout=1.5)
+        if p_file and os.path.exists(p_file):
+            import base64
+            def read_file():
+                with open(p_file, "rb") as f:
+                    return base64.b64encode(f.read()).decode("utf-8")
+            
+            loop = asyncio.get_running_loop()
+            b64 = await loop.run_in_executor(None, read_file)
+            photo_url = f"data:image/jpeg;base64,{b64}"
+            _PHOTO_CACHE[file_id] = photo_url
+            try:
+                os.remove(p_file)
+            except Exception:
+                pass
+            return photo_url
+    except Exception:
+        pass
+    return None
+
+async def get_userbot_contacts(account_id: int, limit: int = 30, offset: int = 0) -> list:
+    """Fetches recent dialogs (chat contacts) with pagination and concurrent photo caching for account."""
+    import asyncio
     account = get_userbot_by_id(account_id)
     if not account or not account.get("session_string"):
         return []
@@ -1177,8 +1211,22 @@ async def get_userbot_contacts(account_id: int, limit: int = 30) -> list:
         client = await get_running_client(account_id)
         if not client:
             return []
+        
+        dialogs = []
+        count = 0
+        async for dialog in client.get_dialogs():
+            if count >= offset:
+                dialogs.append(dialog)
+                if len(dialogs) >= limit:
+                    break
+            count += 1
+            if count > 300:
+                break
+
         contacts = []
-        async for dialog in client.get_dialogs(limit=limit):
+        photo_tasks = []
+        
+        for dialog in dialogs:
             chat = dialog.chat
             is_bot = getattr(chat, 'is_bot', False)
             title = ""
@@ -1205,29 +1253,28 @@ async def get_userbot_contacts(account_id: int, limit: int = 30) -> list:
                     last_time = dialog.top_message.date.strftime("%H:%M")
                 last_out = getattr(dialog.top_message, "outgoing", False)
 
-            photo_url = None
-            if chat.photo:
-                try:
-                    p_file = await client.download_media(chat.photo.small_file_id)
-                    if p_file and os.path.exists(p_file):
-                        with open(p_file, "rb") as f:
-                            import base64
-                            b64 = base64.b64encode(f.read()).decode("utf-8")
-                            photo_url = f"data:image/jpeg;base64,{b64}"
-                except Exception:
-                    pass
-
-            contacts.append({
+            contact_data = {
                 "peer": peer,
                 "title": title or peer,
                 "is_bot": is_bot,
-                "photo": photo_url,
+                "photo": None,
                 "last_msg": last_msg,
                 "last_time": last_time,
                 "last_out": last_out,
                 "unread": dialog.unread_messages_count or 0,
                 "online": False,
-            })
+            }
+            contacts.append(contact_data)
+            
+            if chat.photo:
+                photo_tasks.append((contact_data, chat.photo.small_file_id))
+
+        if photo_tasks:
+            async def download_task(item, file_id):
+                item["photo"] = await _download_and_cache_photo(client, file_id)
+
+            await asyncio.gather(*(download_task(item, file_id) for item, file_id in photo_tasks), return_exceptions=True)
+
         return contacts
     except Exception as e:
         logger.warning(f"get_userbot_contacts failed for account {account_id}: {e}")
