@@ -19,8 +19,12 @@ const tg = window.Telegram?.WebApp;
 if (tg) {
   tg.ready();
   tg.expand();
-  try { tg.setBackgroundColor('#0D0E1A'); } catch {}
-  try { tg.setHeaderColor('#0D0E1A'); } catch {}
+  try {
+    if (tg.isVersionAtLeast && tg.isVersionAtLeast('6.1')) {
+      if (typeof tg.setBackgroundColor === 'function') tg.setBackgroundColor('#0D0E1A');
+      if (typeof tg.setHeaderColor === 'function') tg.setHeaderColor('#0D0E1A');
+    }
+  } catch (e) {}
 }
 const ME = tg?.initDataUnsafe?.user || null;
 const INIT_DATA = tg?.initData || '';
@@ -248,57 +252,16 @@ function getRenderer(filename) {
   return 'svg';
 }
 
-const animBlobCache = {};
-
-async function getCachedAnimSrc(path) {
-  if (!path) return '';
-  let url = path;
-  if (!url.startsWith('assets/')) {
-    let name = url;
-    if (!name.endsWith('.lottie')) name = name.replace('.json', '.lottie');
-    url = 'assets/' + name;
+function resolveAnimUrl(filename) {
+  if (!filename) return '';
+  let name = filename;
+  if (!name.endsWith('.lottie')) {
+    name = name.replace('.json', '.lottie');
   }
-
-  if (animBlobCache[url]) {
-    return animBlobCache[url];
+  if (!name.startsWith('assets/')) {
+    name = 'assets/' + name;
   }
-
-  try {
-    if ('caches' in window) {
-      const cacheStorage = await caches.open('lottie-assets-v1');
-      let response = await cacheStorage.match(url);
-
-      if (!response) {
-        response = await fetch(url, {
-          headers: { 'ngrok-skip-browser-warning': '69420' }
-        });
-        if (response.ok) {
-          cacheStorage.put(url, response.clone()).catch(() => {});
-        }
-      }
-
-      if (response && response.ok) {
-        const blob = await response.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        animBlobCache[url] = objectUrl;
-        return objectUrl;
-      }
-    } else {
-      const res = await fetch(url, {
-        headers: { 'ngrok-skip-browser-warning': '69420' }
-      });
-      if (res.ok) {
-        const blob = await res.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        animBlobCache[url] = objectUrl;
-        return objectUrl;
-      }
-    }
-  } catch (e) {
-    console.warn('Cache fetch fallback for:', url, e);
-  }
-
-  return url;
+  return name;
 }
 
 function preloadAllLottieAnimations(items) {
@@ -306,7 +269,8 @@ function preloadAllLottieAnimations(items) {
   items.forEach(item => {
     const fn = typeof item === 'string' ? item : item.animation;
     if (fn) {
-      getCachedAnimSrc(fn).catch(() => {});
+      const url = resolveAnimUrl(fn);
+      fetch(url, { headers: { 'ngrok-skip-browser-warning': '69420' } }).catch(() => {});
     }
   });
 }
@@ -343,12 +307,10 @@ const LottieAnim = {
       }
     };
 
-    const init = async () => {
+    const init = () => {
       failed.value = false;
       if (!props.filename) return;
-
-      const src = await getCachedAnimSrc(props.filename);
-      srcVal.value = src;
+      srcVal.value = resolveAnimUrl(props.filename);
     };
 
     onMounted(init);
@@ -848,11 +810,15 @@ createApp({
       selected.value = g; recipient.value = ''; giftMsg.value = ''; errMsg.value = '';
       verifiedUser.value = null; userCheckError.value = '';
       selectedSender.value = 'bot'; showSenderDropdown.value = false;
-      if (tg) { tg.BackButton.show(); tg.BackButton.onClick(closeSheet); }
+      if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.1') && tg.BackButton) {
+        tg.BackButton.show(); tg.BackButton.onClick(closeSheet);
+      }
     };
     const closeSheet = () => {
       selected.value = null;
-      if (tg) tg.BackButton.hide();
+      if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.1') && tg.BackButton) {
+        tg.BackButton.hide();
+      }
     };
 
     const setRecipientMe = () => {
@@ -1353,21 +1319,8 @@ createApp({
 
     // Helper to preload all gift animations sequentially in the background
     const preloadAllAnimations = async () => {
-      const animationList = gifts.value
-        .map(g => g.animation)
-        .filter(anim => anim && !animCache[anim]);
-
-      // Parallel batch prefetch — 3 concurrent downloads for faster loading
-      const BATCH_SIZE = 3;
-      for (let i = 0; i < animationList.length; i += BATCH_SIZE) {
-        const batch = animationList.slice(i, i + BATCH_SIZE);
-        try {
-          await Promise.all(batch.map(anim => preloadAnim(anim)));
-          // Brief pause between batches to avoid blocking main thread
-          await new Promise(resolve => setTimeout(resolve, 30));
-        } catch (e) {
-          console.error('Preload batch error:', e);
-        }
+      if (gifts.value && gifts.value.length) {
+        preloadAllLottieAnimations(gifts.value);
       }
     };
 
@@ -1413,7 +1366,7 @@ createApp({
       // Step 2: Prefetch Lottie files sequentially in the background
       preloadAllAnimations();
 
-      if (tg) {
+      if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.1') && tg.BackButton) {
         tg.BackButton.onClick(() => {
           if (phoneModal.show) phoneModal.show = false;
           else if (selected.value) closeSheet();
