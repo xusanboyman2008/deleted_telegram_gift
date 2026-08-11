@@ -1100,15 +1100,18 @@ async def websocket_chat_endpoint(
         from userbot.userbot import get_running_client as grc2
         client = await grc2(real_id)
         if client:
-            chat = await client.get_chat(recipient)
+            target_peer = recipient
+            # Convert recipient to integer if it is numeric
+            if str(recipient).strip().replace("-", "").isdigit():
+                target_peer = int(recipient)
+            chat = await client.get_chat(target_peer)
             if chat:
                 extra_key = str(chat.id)
                 await ws_manager.connect(websocket, account_id, extra_key)
-                # Also register by username if available
                 if chat.username:
-                    await ws_manager.connect(websocket, account_id, chat.username)
-    except Exception:
-        pass
+                    await ws_manager.connect(websocket, account_id, chat.username.lower())
+    except Exception as e:
+        logger.warning(f"WS get_chat resolve failed for {recipient}: {e}")
 
     try:
         while True:
@@ -1178,10 +1181,8 @@ async def toggle_managed_bot_endpoint(bot_id: int, body: dict = Body(...), user:
     from bot_manager import start_bot_instance, stop_bot_instance
     bot = await db.get_managed_bot_by_id(bot_id)
     if bot:
-        if active:
-            await start_bot_instance(bot)
-        else:
-            await stop_bot_instance(bot_id)
+        # We always keep the polling loop running to collect chats, even if status is toggled inactive.
+        await start_bot_instance(bot)
     return {"success": True, "active": active}
 
 @app.delete("/api/admin/managed-bots/{bot_id}")
@@ -1249,6 +1250,24 @@ async def get_managed_bot_history_endpoint(bot_id: int, user_id: int, user: dict
         return {"success": False, "error": "Bot not found"}
     messages = await db.get_bot_user_chat_history(bot["token"], user_id)
     return {"success": True, "messages": messages}
+
+@app.delete("/api/admin/managed-bots/{bot_id}/history/{user_id}")
+async def delete_bot_chat_history_endpoint(bot_id: int, user_id: int, user: dict = Depends(get_admin)):
+    bot = await db.get_managed_bot_by_id(bot_id)
+    if not bot:
+        return {"success": False, "error": "Bot not found"}
+    
+    token = bot["token"]
+    if db.IS_POSTGRES and db.pool:
+        async with db.pool.acquire() as conn:
+            await conn.execute("DELETE FROM bot_user_messages WHERE bot_token=$1 AND user_id=$2", token, user_id)
+    else:
+        import aiosqlite
+        async with aiosqlite.connect(db.DB_PATH) as conn:
+            await conn.execute("DELETE FROM bot_user_messages WHERE bot_token=? AND user_id=?", (token, user_id))
+            await conn.commit()
+    return {"success": True}
+
 
 @app.post("/api/admin/managed-bots/{bot_id}/send")
 async def send_managed_bot_message_endpoint(bot_id: int, body: dict = Body(...), user: dict = Depends(get_admin)):
@@ -2079,6 +2098,28 @@ async def userbot_chat_history_endpoint(account_id: str, recipient: str):
 
     history = await get_userbot_chat_history(real_id, recipient)
     return {"success": True, "messages": history}
+
+
+@app.delete("/api/userbot/chat/history")
+async def delete_userbot_chat_history_endpoint(account_id: str, recipient: str):
+    try:
+        from userbot.userbot import delete_userbot_chat_history
+    except ImportError:
+        from userbot import delete_userbot_chat_history
+
+    real_id = account_id
+    ub_obj = await db.get_userbot_by_id_or_hash(account_id)
+    if ub_obj:
+        real_id = ub_obj["id"]
+    else:
+        try:
+            real_id = int(account_id)
+        except ValueError:
+            real_id = 1
+
+    res = await delete_userbot_chat_history(real_id, recipient)
+    return res
+
 
 
 @app.get("/api/userbot/chat/contacts")

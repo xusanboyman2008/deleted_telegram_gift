@@ -421,61 +421,89 @@
               </div>
             </div>
 
-            <!-- Bots Grid View -->
-            <div v-if="activeBotNav === 'bots'" style="flex:1; overflow-y:auto; padding: 24px;">
-              <div v-if="botLoading" style="text-align: center; padding: 40px;">
-                <span class="spin" style="font-size: 2rem; display: block; margin-bottom: 10px;">⏳</span>
-                <p style="color: rgba(255,255,255,0.6);">Loading managed bots...</p>
-              </div>
-
-              <div v-else-if="!managedBots.length" style="text-align: center; padding: 50px 20px; background: rgba(255,255,255,0.02); border-radius: 16px; border: 1px dashed rgba(255,255,255,0.15);">
-                <div style="font-size: 3rem; margin-bottom: 12px;">🤖</div>
-                <h3 style="color: #fff; margin-bottom: 6px;">No Managed Bots Configured</h3>
-                <p style="color: rgba(255,255,255,0.6); max-width: 400px; margin: 0 auto 18px; font-size: 0.9rem;">
-                  Add your Telegram Bot API tokens from @BotFather to manage multiple bots, configure custom commands & scripts, and chat 1-to-1 with bot users.
+            <div v-if="activeBotNav === 'bots'" style="flex:1; overflow-y:auto; padding: 24px; display: flex; flex-direction: column; gap: 24px;">
+              <!-- Beautiful glassmorphic Connect card -->
+              <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px; backdrop-filter: blur(10px); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);">
+                <h4 style="margin: 0 0 6px 0; color: #fff; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                  <span>🤖</span> Connect New Telegram Bot
+                </h4>
+                <p style="margin: 0 0 16px 0; color: rgba(255,255,255,0.6); font-size: 0.85rem; line-height: 1.4;">
+                  Register a bot through <a href="https://t.me/BotFather" target="_blank" style="color: #3390EC; text-decoration: none; font-weight: 600;">@BotFather</a> on Telegram. Copy the provided Bot HTTP API token and enter it below to begin automatically logging conversations, viewing messages, and sending replies.
                 </p>
-                <button class="add-btn" @click="showAddBotModal = true" style="background:#7b61ff; border-color:#7b61ff; color:#fff; padding: 10px 18px; border-radius: 8px; font-weight:600;">
-                  ➕ Add Your First Bot Token
-                </button>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                  <input v-model="newBotToken" type="text" placeholder="e.g. 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" style="flex: 1; height: 44px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 0 14px; color: #fff; font-family: monospace; font-size: 0.9rem; outline: none; transition: border-color 0.2s;" @keydown.enter="addBotToken" />
+                  <button @click="addBotToken" class="add-btn" :disabled="addingBot" style="background: linear-gradient(135deg, #7B61FF, #6344FF); color: #fff; border: none; height: 44px; padding: 0 24px; border-radius: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(123,97,255,0.3);">
+                    <span v-if="addingBot" class="tg-spinner" style="width: 16px; height: 16px; border-width: 2px;"></span>
+                    <span v-else>➕ Connect Bot</span>
+                  </button>
+                </div>
               </div>
 
-              <div v-else style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px;">
-                <div v-for="bot in managedBots" :key="bot.id" style="background: rgba(255,255,255,0.02); border-radius: 14px; border: 1px solid rgba(255,255,255,0.06); padding: 16px; display: flex; flex-direction: column; justify-content: space-between;">
-                  <div>
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                      <div style="display: flex; align-items: center; gap: 12px;">
-                        <div style="width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #7B61FF, #3390EC); display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
-                          🤖
-                        </div>
-                        <div>
-                          <h4 style="margin: 0; color: #fff; font-size: 1rem; font-weight: 600;">{{ bot.bot_name || 'Telegram Bot' }}</h4>
-                          <span style="color: #3390EC; font-size: 0.85rem;">@{{ bot.bot_username }}</span>
-                          <div style="color: rgba(255,255,255,0.5); font-size: 0.78rem; margin-top: 2px;">
-                            👥 {{ bot.user_count || 0 }} Users
-                          </div>
-                        </div>
-                      </div>
-                      <span :style="{ background: bot.active ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: bot.active ? '#10B981' : '#EF4444', padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '600' }">
-                        {{ bot.active ? '🟢 Running' : '🔴 Stopped' }}
-                      </span>
-                    </div>
+              <!-- Section Title -->
+              <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
+                <h3 style="margin: 0; color: #fff; font-size: 1.2rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                  Connected Bots <span style="font-size: 0.85rem; color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 20px;">{{ managedBots.length }}</span>
+                </h3>
+              </div>
 
-                    <div style="background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 8px; font-family: monospace; font-size: 0.8rem; color: rgba(255,255,255,0.7); margin-bottom: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                      Token: {{ bot.token.substring(0, 10) }}...{{ bot.token.substring(bot.token.length - 5) }}
+              <div v-if="botLoading" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 0; gap: 14px;">
+                <span class="tg-spinner" style="width: 32px; height: 32px; border-width: 3px; border-color: #3390EC transparent transparent transparent;"></span>
+                <p style="color: rgba(255,255,255,0.5); font-size: 0.9rem;">Loading configured bots...</p>
+              </div>
+
+              <div v-else-if="!managedBots.length" style="text-align: center; padding: 60px 20px; background: rgba(255,255,255,0.01); border-radius: 16px; border: 1px dashed rgba(255,255,255,0.1);">
+                <div style="font-size: 3.5rem; margin-bottom: 16px; opacity: 0.8;">🤖</div>
+                <h3 style="color: #fff; margin-bottom: 8px; font-weight: 600;">No Connected Bots</h3>
+                <p style="color: rgba(255,255,255,0.5); max-width: 440px; margin: 0 auto; font-size: 0.9rem; line-height: 1.5;">
+                  Your configured Telegram bots will appear here. Start by connecting a bot API token using the form above.
+                </p>
+              </div>
+
+              <div v-else style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
+                <div v-for="bot in managedBots" :key="bot.id" style="background: rgba(255,255,255,0.02); border-radius: 16px; border: 1px solid rgba(255,255,255,0.06); padding: 18px; display: flex; flex-direction: column; gap: 16px; transition: transform 0.2s, border-color 0.2s, background-color 0.2s;" class="bot-card-item">
+                  <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 14px; min-width: 0;">
+                      <div style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #7B61FF, #3390EC); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0; box-shadow: 0 4px 10px rgba(51,144,236,0.25);">
+                        🤖
+                      </div>
+                      <div style="min-width: 0;">
+                        <h4 style="margin: 0; color: #fff; font-size: 1.05rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ bot.bot_name || 'Telegram Bot' }}</h4>
+                        <a :href="'https://t.me/' + bot.bot_username" target="_blank" style="color: #3390EC; font-size: 0.88rem; text-decoration: none; display: inline-flex; align-items: center; gap: 2px; font-weight: 500;">
+                          @{{ bot.bot_username }} 🔗
+                        </a>
+                      </div>
+                    </div>
+                    <!-- Status indicator toggle -->
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                      <span :style="{ background: bot.active ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)', color: bot.active ? '#10B981' : '#EF4444', padding: '3px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: '700', letterSpacing: '0.03em', textTransform: 'uppercase' }">
+                        {{ bot.active ? 'Active' : 'Paused' }}
+                      </span>
                     </div>
                   </div>
 
-                  <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px;">
-                    <button @click="toggleBotStatus(bot)" :style="{ background: bot.active ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)', color: bot.active ? '#F87171' : '#34D399', border: 'none', borderRadius: '8px', padding: '6px 12px', fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer' }">
-                      {{ bot.active ? '⏹️ Stop' : '▶️ Start' }}
+                  <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); padding: 10px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.03);">
+                    <div style="display: flex; flex-direction: column;">
+                      <span style="color: rgba(255,255,255,0.4); font-size: 0.72rem; text-transform: uppercase; font-weight: 600;">Captured Conversations</span>
+                      <span style="color: #fff; font-size: 0.95rem; font-weight: 700; margin-top: 2px;">👥 {{ bot.user_count || 0 }} Chats</span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; font-family: monospace; font-size: 0.75rem; color: rgba(255,255,255,0.5);">
+                      <span>Token Preview</span>
+                      <span style="color: rgba(255,255,255,0.7); margin-top: 2px;">{{ bot.token.substring(0, 8) }}...{{ bot.token.substring(bot.token.length - 4) }}</span>
+                    </div>
+                  </div>
+
+                  <!-- Bot Actions Panel -->
+                  <div style="display: flex; align-items: center; gap: 8px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 14px; margin-top: auto;">
+                    <button @click="toggleBotStatus(bot)" :style="{ background: bot.active ? 'rgba(239,68,68,0.12)' : 'rgba(16,185,129,0.12)', color: bot.active ? '#F87171' : '#34D399', border: bot.active ? '1px solid rgba(239,68,68,0.2)' : '1px solid rgba(16,185,129,0.2)', borderRadius: '8px', padding: '6px 12px', fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }">
+                      {{ bot.active ? '⏹️ Pause Autoreply' : '▶️ Enable Autoreply' }}
                     </button>
-                    <button @click="openBotConfig(bot)" style="background: rgba(255,255,255,0.08); color: #fff; border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">
-                      ⚡ Commands
+                    <button @click="openBotConfig(bot)" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 8px; padding: 6px 12px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                      ⚡ Scripts
                     </button>
-                    <button @click="openBotChatNav(bot)" style="background: rgba(51,144,236,0.2); color: #3390EC; border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">
-                      💬 Users & Chat
+                    <button @click="openBotChatNav(bot)" style="background: rgba(51,144,236,0.12); border: 1px solid rgba(51,144,236,0.2); color: #3390EC; border-radius: 8px; padding: 6px 12px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                      💬 Chat List
                     </button>
-                    <button @click="deleteBot(bot)" style="background: rgba(239,68,68,0.1); color: #EF4444; border: none; border-radius: 8px; padding: 6px 10px; font-size: 0.8rem; cursor: pointer; margin-left: auto;">
+                    <button @click="deleteBot(bot)" style="background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.15); color: #EF4444; border-radius: 8px; padding: 6px 10px; font-size: 0.8rem; cursor: pointer; margin-left: auto; transition: all 0.2s;" title="Remove Bot">
                       🗑️
                     </button>
                   </div>
@@ -899,7 +927,10 @@
                 </div>
                 <div class="tg-ch-status">{{ activeChat.is_bot ? 'bot' : 'online' }}</div>
               </div>
-              <div class="tg-ch-actions">
+              <div class="tg-ch-actions" style="display: flex; gap: 8px; align-items: center;">
+                <button class="tg-ch-act-btn" @click="clearActiveChatHistory" title="Clear Chat History" style="background: rgba(239, 68, 68, 0.12); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.2); padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s;">
+                  🗑️ Clear
+                </button>
                 <button class="tg-ch-act-btn" @click="openTelegramLink(activeChat.peer)" title="Open in Telegram">📞</button>
               </div>
             </div>
@@ -934,6 +965,25 @@
                 <!-- Media voice note attachment -->
                 <div v-if="msg.voice" class="tg-msg-voice-wrap" style="margin-bottom: 6px;">
                   <audio controls :src="msg.voice" style="max-width: 100%; height: 36px; border-radius: 18px; outline: none;"></audio>
+                </div>
+
+                <!-- Media video attachment -->
+                <div v-if="msg.video" class="tg-msg-video-wrap" style="margin-bottom: 6px;">
+                  <video controls :src="msg.video" style="max-width: 100%; max-height: 280px; border-radius: 12px; display: block;"></video>
+                </div>
+
+                <!-- Sticker attachment -->
+                <div v-if="msg.sticker" class="tg-msg-sticker-wrap" style="margin-bottom: 6px;">
+                  <img :src="msg.sticker" style="width: 120px; height: 120px; display: block; object-fit: contain;" alt="sticker" />
+                </div>
+
+                <!-- Document/File attachment -->
+                <div v-if="msg.document" class="tg-msg-document-wrap" style="margin-bottom: 6px; display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.06); padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);">
+                  <span style="font-size: 1.5rem;">📄</span>
+                  <div style="display: flex; flex-direction: column; min-width: 0; flex: 1;">
+                    <span style="color: #fff; font-weight: 500; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ msg.file_name || 'Document' }}</span>
+                    <a :href="msg.document" :download="msg.file_name || 'file'" style="color: #3390EC; font-size: 0.78rem; text-decoration: none; font-weight: 600; margin-top: 2px;">Download</a>
+                  </div>
                 </div>
                 
                 <div v-if="msg.text" class="tg-msg-text" v-html="formatTelegramMessageText(msg.text)"></div>

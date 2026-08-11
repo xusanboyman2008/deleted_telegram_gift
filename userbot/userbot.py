@@ -578,10 +578,13 @@ async def userbot_send_message(account_id: int, recipient: str, message_text: st
     if not account:
         return {"success": False, "error": "Userbot account not found"}
     clean_target = recipient.strip()
-    if clean_target.lstrip('-').isdigit():
+    if clean_target.startswith('+'):
+        target = clean_target
+    elif clean_target.lstrip('-').isdigit():
         target = int(clean_target)
     else:
         target = "@" + clean_target.lstrip("@")
+
 
     try:
         client = await get_running_client(account_id)
@@ -614,16 +617,48 @@ async def userbot_send_message(account_id: int, recipient: str, message_text: st
         return {"success": False, "error": str(e)}
 
 
+async def delete_userbot_chat_history(account_id: int, recipient: str) -> dict:
+    """Deletes all messages in a chat for a userbot account on Telegram."""
+    account = get_userbot_by_id(account_id)
+    if not account:
+        return {"success": False, "error": "Userbot account not found"}
+    try:
+        client = await get_running_client(account_id)
+        if not client:
+            return {"success": False, "error": "Could not connect userbot client"}
+        
+        clean_target = recipient.strip()
+        if clean_target.lstrip('-').isdigit():
+            target = int(clean_target)
+        else:
+            target = "@" + clean_target.lstrip("@")
+            
+        try:
+            resolved_chat = await client.get_chat(target)
+            target_id = resolved_chat.id
+        except Exception:
+            target_id = target
+            
+        await client.delete_chat_history(chat_id=target_id, revoke=True)
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"delete_userbot_chat_history failed: {e}")
+        return {"success": False, "error": str(e)}
+
+
 async def userbot_send_media(account_id: int, recipient: str, file_path: str, caption: str = "", media_type: str = "photo") -> dict:
     """Sends media (photo, video, audio, document) via userbot session."""
     account = get_userbot_by_id(account_id)
     if not account:
         return {"success": False, "error": "Userbot account not found"}
     clean_target = recipient.strip()
-    if clean_target.lstrip('-').isdigit():
+    if clean_target.startswith('+'):
+        target = clean_target
+    elif clean_target.lstrip('-').isdigit():
         target = int(clean_target)
     else:
         target = "@" + clean_target.lstrip("@")
+
 
     try:
         client = await get_running_client(account_id)

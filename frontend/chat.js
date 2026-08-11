@@ -196,9 +196,12 @@ function setupChatState(Vue, api, showToast, tg) {
                   currentMessages.value.push({
                     id: data.message.id,
                     text: data.message.text || '',
-                    photo: data.message.photo || null,
-                    voice: data.message.voice || null,
-                    video: data.message.video || null,
+                    photo: data.message.media_type === 'photo' ? data.message.media_data : (data.message.photo || null),
+                    voice: (data.message.media_type === 'voice' || data.message.media_type === 'audio') ? data.message.media_data : (data.message.voice || null),
+                    video: data.message.media_type === 'video' ? data.message.media_data : (data.message.video || null),
+                    sticker: data.message.media_type === 'sticker' ? data.message.media_data : null,
+                    document: data.message.media_type === 'document' ? data.message.media_data : null,
+                    file_name: data.message.file_name || null,
                     out: !!data.message.out,
                     sender_name: data.message.out ? 'Bot' : (data.message.user_first_name || 'User'),
                     date: data.message.date || '',
@@ -395,9 +398,12 @@ function setupChatState(Vue, api, showToast, tg) {
           currentMessages.value = data.messages.map(m => ({
             id: m.id || m.message_id,
             text: m.text || '',
-            photo: m.photo || null,
-            voice: m.voice || null,
-            video: m.video || null,
+            photo: m.media_type === 'photo' ? m.media_data : (m.photo || null),
+            voice: (m.media_type === 'voice' || m.media_type === 'audio') ? m.media_data : (m.voice || null),
+            video: m.media_type === 'video' ? m.media_data : (m.video || null),
+            sticker: m.media_type === 'sticker' ? m.media_data : null,
+            document: m.media_type === 'document' ? m.media_data : null,
+            file_name: m.file_name || null,
             out: !!m.out,
             sender_name: m.out ? 'Bot' : (m.user_first_name || 'User'),
             date: m.date || '',
@@ -446,7 +452,8 @@ function setupChatState(Vue, api, showToast, tg) {
             peer: String(c.user_id),
             title: c.user_first_name || (c.user_username ? '@' + c.user_username : 'User'),
             is_bot: false,
-            photo: null,
+            photo: c.user_photo || null,
+
             last_msg: c.last_msg || '',
             last_time: c.last_time || '',
             last_out: !!c.last_out,
@@ -780,7 +787,46 @@ function setupChatState(Vue, api, showToast, tg) {
     }
   };
 
+  const clearActiveChatHistory = async () => {
+    if (!activeChat.value || !activeChatAccount.value?.id) return;
+    if (!confirm('Are you sure you want to clear all chat history? This action cannot be undone.')) return;
+    
+    chatLoading.value = true;
+    try {
+      if (activeChatAccount.value.is_managed_bot) {
+        const botId = activeChatAccount.value.managed_bot_id;
+        const res = await api(`/api/admin/managed-bots/${botId}/history/${encodeURIComponent(activeChat.value.peer)}`, {
+          method: 'DELETE'
+        });
+        const data = await res.json();
+        if (data.success) {
+          currentMessages.value = [];
+          showToast('🎉 Chat history cleared!');
+        } else {
+          showToast('❌ ' + (data.error || 'Failed to clear history'));
+        }
+      } else {
+        const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
+        const res = await api(`/api/userbot/chat/history?account_id=${encodeURIComponent(accountId)}&recipient=${encodeURIComponent(activeChat.value.peer)}`, {
+          method: 'DELETE'
+        });
+        const data = await res.json();
+        if (data.success) {
+          currentMessages.value = [];
+          showToast('🎉 Chat history cleared!');
+        } else {
+          showToast('❌ ' + (data.error || 'Failed to clear history'));
+        }
+      }
+    } catch (e) {
+      showToast('❌ Clear history error: ' + e.message);
+    } finally {
+      chatLoading.value = false;
+    }
+  };
+
   return {
+    clearActiveChatHistory,
     allAvailableAccounts,
     activeChatAccount,
     showAccountDropdown,
