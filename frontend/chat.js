@@ -230,6 +230,23 @@ function setupChatState(Vue, api, showToast, tg) {
     } catch (e) {}
   };
 
+  const disconnectAllSockets = () => {
+    if (chatSocket) {
+      try {
+        chatSocket.onclose = null;
+        chatSocket.close();
+      } catch (e) {}
+      chatSocket = null;
+    }
+    if (globalSocket) {
+      try {
+        globalSocket.onclose = null;
+        globalSocket.close();
+      } catch (e) {}
+      globalSocket = null;
+    }
+  };
+
   onMounted(() => {
     // Intentionally empty: WebSocket is not opened on app launch.
     // It opens ONLY when user opens Chats and selects an account!
