@@ -143,7 +143,7 @@ def get_gift_image_url(gift: dict) -> str:
 
 
 async def build_main_keyboard():
-    web_url = f"{BASE_URL}?ngrok-skip-browser-warning=ngrok-skip-browser-warning"
+    web_url = BASE_URL
     keyboard = [
         [InlineKeyboardButton("🚀 Launch Mini App", web_app=WebAppInfo(url=web_url))],
         [
@@ -872,7 +872,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to set webhook ({e}), continuing...")
 
-    mini_app_url = f"{BASE_URL}/index.html?ngrok-skip-browser-warning=69420"
+    mini_app_url = f"{BASE_URL}/index.html"
     try:
         await ptb_app.bot.set_chat_menu_button(
             menu_button=MenuButtonWebApp(text="🎁 Open Shop", web_app=WebAppInfo(url=mini_app_url))
@@ -921,7 +921,6 @@ from starlette.middleware.gzip import GZipMiddleware
 class AssetCacheMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
-        response.headers["ngrok-skip-browser-warning"] = "69420"
         path = request.url.path
         if path.startswith("/assets/") or path.endswith((".js", ".css", ".png", ".jpg", ".webp", ".lottie", ".woff2", ".ttf")):
             response.headers["Cache-Control"] = "public, max-age=86400, immutable"

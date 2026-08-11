@@ -13,7 +13,8 @@ if os.path.exists(env_path):
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "6588631008"))
 RENDER_URL = os.getenv("RENDER_EXTERNAL_URL", "").rstrip("/")
-BASE_URL = (os.getenv("BASE_URL") or RENDER_URL or "http://localhost:8000").rstrip("/")
+
+BASE_URL = (os.getenv("BASE_URL") or os.getenv("RENDER_EXTERNAL_URL") or "http://localhost:8000").rstrip("/")
 DEFAULT_COMMISSION = int(os.getenv("DEFAULT_COMMISSION", "10"))
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

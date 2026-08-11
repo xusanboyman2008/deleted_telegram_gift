@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import asyncio
 import aiosqlite
 import asyncpg
 try:
@@ -245,69 +246,113 @@ async def init_db():
 
     if IS_POSTGRES:
         pg_url = DATABASE_URL.replace("postgres://", "postgresql://")
-        pool = await asyncpg.create_pool(pg_url)
-        async with pool.acquire() as conn:
-            await conn.execute(CREATE_GIFTS_POSTGRES)
-            await conn.execute(CREATE_ORDERS_POSTGRES)
-            await conn.execute(CREATE_USERBOTS_POSTGRES)
-            await conn.execute(CREATE_SETTINGS_POSTGRES)
-            await conn.execute(CREATE_MANAGED_BOTS_POSTGRES)
-            await conn.execute(CREATE_BOT_USER_MESSAGES_POSTGRES)
-            await conn.execute(CREATE_BOT_USERS_POSTGRES)
-            try: await conn.execute("ALTER TABLE bot_user_messages ADD COLUMN IF NOT EXISTS media_type TEXT")
-            except Exception: pass
-            try: await conn.execute("ALTER TABLE bot_user_messages ADD COLUMN IF NOT EXISTS media_data TEXT")
-            except Exception: pass
-            try: await conn.execute("ALTER TABLE bot_user_messages ADD COLUMN IF NOT EXISTS file_name TEXT")
-            except Exception: pass
-            try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS gift_text TEXT")
-            except Exception: pass
-            try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS sender_type TEXT DEFAULT 'bot'")
-            except Exception: pass
-            try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS userbot_id INTEGER")
-            except Exception: pass
-            try: await conn.execute("ALTER TABLE userbot_accounts ADD COLUMN IF NOT EXISTS owner_tg_id BIGINT")
-            except Exception: pass
-            try: await conn.execute("ALTER TABLE userbot_accounts ADD COLUMN IF NOT EXISTS stars_balance INTEGER DEFAULT 0")
-            except Exception: pass
-            
-            # Seed userbot accounts from account.json if table is empty
-            try:
-                cnt = await conn.fetchval("SELECT COUNT(*) FROM userbot_accounts")
-                if cnt == 0:
-                    acc_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "userbot", "account.json")
-                    if os.path.exists(acc_path):
-                        with open(acc_path, "r", encoding="utf-8") as f:
-                            acc_data = json.load(f).get("accounts", [])
-                            for a in acc_data:
-                                await conn.execute(
-                                    """INSERT INTO userbot_accounts (id, session, phone, session_string, api_id, api_hash, first_name, last_name, username, bio, photo, active, owner_tg_id)
-                                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-                                       ON CONFLICT (id) DO NOTHING""",
-                                    a.get("id"), a.get("session",""), a.get("phone",""), a.get("session_string",""),
-                                    int(a.get("api_id") or 0), str(a.get("api_hash") or ""), a.get("first_name",""), a.get("last_name",""),
-                                    a.get("username",""), a.get("bio",""), a.get("photo",""), 1 if a.get("active", True) else 0,
-                                    a.get("owner_tg_id")
-                                )
-            except Exception as e:
-                logger.warning(f"Failed to seed userbots to PG: {e}")
+        try:
+            pool = await asyncio.wait_for(asyncpg.create_pool(pg_url, command_timeout=5.0), timeout=5.0)
+            async with pool.acquire() as conn:
+                await conn.execute(CREATE_GIFTS_POSTGRES)
+                await conn.execute(CREATE_ORDERS_POSTGRES)
+                await conn.execute(CREATE_USERBOTS_POSTGRES)
+                await conn.execute(CREATE_SETTINGS_POSTGRES)
+                await conn.execute(CREATE_MANAGED_BOTS_POSTGRES)
+                await conn.execute(CREATE_BOT_USER_MESSAGES_POSTGRES)
+                await conn.execute(CREATE_BOT_USERS_POSTGRES)
+                try: await conn.execute("ALTER TABLE bot_user_messages ADD COLUMN IF NOT EXISTS media_type TEXT")
+                except Exception: pass
+                try: await conn.execute("ALTER TABLE bot_user_messages ADD COLUMN IF NOT EXISTS media_data TEXT")
+                except Exception: pass
+                try: await conn.execute("ALTER TABLE bot_user_messages ADD COLUMN IF NOT EXISTS file_name TEXT")
+                except Exception: pass
+                try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS gift_text TEXT")
+                except Exception: pass
+                try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS sender_type TEXT DEFAULT 'bot'")
+                except Exception: pass
+                try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS userbot_id INTEGER")
+                except Exception: pass
+                try: await conn.execute("ALTER TABLE userbot_accounts ADD COLUMN IF NOT EXISTS owner_tg_id BIGINT")
+                except Exception: pass
+                try: await conn.execute("ALTER TABLE userbot_accounts ADD COLUMN IF NOT EXISTS stars_balance INTEGER DEFAULT 0")
+                except Exception: pass
+                
+                # Seed userbot accounts from account.json if table is empty
+                try:
+                    cnt = await conn.fetchval("SELECT COUNT(*) FROM userbot_accounts")
+                    if cnt == 0:
+                        acc_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "userbot", "account.json")
+                        if os.path.exists(acc_path):
+                            with open(acc_path, "r", encoding="utf-8") as f:
+                                acc_data = json.load(f).get("accounts", [])
+                                for a in acc_data:
+                                    await conn.execute(
+                                        """INSERT INTO userbot_accounts (id, session, phone, session_string, api_id, api_hash, first_name, last_name, username, bio, photo, active, owner_tg_id)
+                                           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                                           ON CONFLICT (id) DO NOTHING""",
+                                        a.get("id"), a.get("session",""), a.get("phone",""), a.get("session_string",""),
+                                        int(a.get("api_id") or 0), str(a.get("api_hash") or ""), a.get("first_name",""), a.get("last_name",""),
+                                        a.get("username",""), a.get("bio",""), a.get("photo",""), 1 if a.get("active", True) else 0,
+                                        a.get("owner_tg_id")
+                                    )
+                except Exception as e:
+                    logger.warning(f"Failed to seed userbots to PG: {e}")
 
-            # Legacy cleanup: fix Worker Bear animation, Hug Bear gift_tg_id mapping, update json to lottie, and remove duplicate rows
-            try:
-                await conn.execute("UPDATE gifts SET animation='worker_bear.lottie' WHERE display_name='Worker Bear' OR animation='plumber_bear.json' OR animation='worker_bear.json'")
-                await conn.execute("UPDATE gifts SET display_name='Hug Bear', emoji='🧸', animation='hug_bear.lottie' WHERE gift_tg_id='5800655655995968830'")
-                await conn.execute("UPDATE gifts SET animation = REPLACE(animation, '.json', '.lottie') WHERE animation LIKE '%.json'")
-                await conn.execute("DELETE FROM gifts WHERE id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER(PARTITION BY gift_tg_id ORDER BY id) as row_num FROM gifts) t WHERE t.row_num > 1)")
-            except Exception: pass
+                # Legacy cleanup
+                try:
+                    await conn.execute("UPDATE gifts SET animation='worker_bear.lottie' WHERE display_name='Worker Bear' OR animation='plumber_bear.json' OR animation='worker_bear.json'")
+                    await conn.execute("UPDATE gifts SET display_name='Hug Bear', emoji='🧸', animation='hug_bear.lottie' WHERE gift_tg_id='5800655655995968830'")
+                    await conn.execute("UPDATE gifts SET animation = REPLACE(animation, '.json', '.lottie') WHERE animation LIKE '%.json'")
+                    await conn.execute("DELETE FROM gifts WHERE id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER(PARTITION BY gift_tg_id ORDER BY id) as row_num FROM gifts) t WHERE t.row_num > 1)")
+                except Exception: pass
 
-            for g in GIFTS_SEED:
-                await conn.execute(
-                    """INSERT INTO gifts (emoji, display_name, date_label, gift_tg_id, base_stars, commission, animation)
-                       VALUES ($1, $2, $3, $4, $5, $6, $7)
-                       ON CONFLICT (gift_tg_id) DO NOTHING""",
-                    g[0], g[1], g[2], g[3], g[4], g[5], g[6]
+                for g in GIFTS_SEED:
+                    await conn.execute(
+                        """INSERT INTO gifts (emoji, display_name, date_label, gift_tg_id, base_stars, commission, animation)
+                           VALUES ($1, $2, $3, $4, $5, $6, $7)
+                           ON CONFLICT (gift_tg_id) DO NOTHING""",
+                        g[0], g[1], g[2], g[3], g[4], g[5], g[6]
+                    )
+            print(f"[DB] PostgreSQL database initialized with {len(GIFTS_SEED)} gifts.")
+        except Exception as pg_err:
+            logger.warning(f"PostgreSQL connection failed ({pg_err}), falling back to SQLite.")
+            IS_POSTGRES = False
+            pool = None
+            async with aiosqlite.connect(DB_PATH) as db:
+                await db.execute(CREATE_GIFTS_SQLITE)
+                await db.execute(CREATE_ORDERS_SQLITE)
+                await db.execute(CREATE_USERBOTS_SQLITE)
+                await db.execute(CREATE_SETTINGS_SQLITE)
+                await db.execute(CREATE_MANAGED_BOTS_SQLITE)
+                await db.execute(CREATE_BOT_USER_MESSAGES_SQLITE)
+                await db.execute(CREATE_BOT_USERS_SQLITE)
+                try: await db.execute("ALTER TABLE bot_user_messages ADD COLUMN media_type TEXT")
+                except Exception: pass
+                try: await db.execute("ALTER TABLE bot_user_messages ADD COLUMN media_data TEXT")
+                except Exception: pass
+                try: await db.execute("ALTER TABLE bot_user_messages ADD COLUMN file_name TEXT")
+                except Exception: pass
+                try: await db.execute("ALTER TABLE orders ADD COLUMN gift_text TEXT")
+                except Exception: pass
+                try: await db.execute("ALTER TABLE orders ADD COLUMN sender_type TEXT DEFAULT 'bot'")
+                except Exception: pass
+                try: await db.execute("ALTER TABLE orders ADD COLUMN userbot_id INTEGER")
+                except Exception: pass
+                try: await db.execute("ALTER TABLE userbot_accounts ADD COLUMN owner_tg_id INTEGER")
+                except Exception: pass
+                try: await db.execute("ALTER TABLE userbot_accounts ADD COLUMN stars_balance INTEGER DEFAULT 0")
+                except Exception: pass
+                
+                try:
+                    await db.execute("UPDATE gifts SET animation='worker_bear.lottie' WHERE display_name='Worker Bear' OR animation='plumber_bear.json' OR animation='worker_bear.json'")
+                    await db.execute("UPDATE gifts SET display_name='Hug Bear', emoji='🧸', animation='hug_bear.lottie' WHERE gift_tg_id='5800655655995968830'")
+                    await db.execute("UPDATE gifts SET animation = REPLACE(animation, '.json', '.lottie') WHERE animation LIKE '%.json'")
+                    await db.execute("DELETE FROM gifts WHERE id NOT IN (SELECT MIN(id) FROM gifts GROUP BY gift_tg_id)")
+                    await db.commit()
+                except Exception: pass
+
+                await db.executemany(
+                    "INSERT OR IGNORE INTO gifts (emoji, display_name, date_label, gift_tg_id, base_stars, commission, animation) VALUES (?,?,?,?,?,?,?)",
+                    GIFTS_SEED,
                 )
-        print(f"[DB] PostgreSQL database initialized with {len(GIFTS_SEED)} gifts.")
+                await db.commit()
+                print(f"[DB] SQLite fallback database initialized with {len(GIFTS_SEED)} gifts.")
     else:
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(CREATE_GIFTS_SQLITE)

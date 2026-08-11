@@ -31,7 +31,6 @@ const INIT_DATA = tg?.initData || '';
 
 // ── API Fetcher ────────────────────────────────
 const H = {
-  'ngrok-skip-browser-warning': '69420',
   'X-Init-Data': INIT_DATA,
 };
 const api = (url, opts = {}) => fetch(url, {
@@ -270,7 +269,7 @@ async function preloadAllLottieAnimations(items) {
     const fn = typeof item === 'string' ? item : item.animation;
     if (fn) {
       const url = resolveAnimUrl(fn);
-      return fetch(url, { headers: { 'ngrok-skip-browser-warning': '69420' } }).catch(() => {});
+      return fetch(url).catch(() => {});
     }
     return Promise.resolve();
   });
@@ -542,7 +541,7 @@ createApp({
 
     const loadPricing = async () => {
       try {
-        const p = await fetch('/api/pricing', { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
+        const p = await fetch('/api/pricing').then(r => r.json());
         if (p) Object.assign(pricing, p);
       } catch (e) {
         console.error('loadPricing error:', e);
@@ -1516,7 +1515,7 @@ createApp({
     // ── Bot Panel Admin Actions ───────────────────
     const loadBotPanelUsers = async () => {
       try {
-        const users = await fetch('/api/admin/users', { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
+        const users = await fetch('/api/admin/users').then(r => r.json());
         botPanelUsers.value = Array.isArray(users) ? users : [];
       } catch (e) {
         console.error('loadBotPanelUsers error:', e);
@@ -1526,7 +1525,7 @@ createApp({
 
     const restartTelegramBot = async () => {
       try {
-        const res = await fetch('/api/admin/bot/restart', { method: 'POST', headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
+        const res = await fetch('/api/admin/bot/restart', { method: 'POST' }).then(r => r.json());
         if (res.success) {
           showToast('🤖 Bot restarted successfully!');
         } else {
@@ -1539,7 +1538,7 @@ createApp({
 
     const refreshWebhook = async () => {
       try {
-        const res = await fetch('/api/admin/bot/sync-webhook', { method: 'POST', headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
+        const res = await fetch('/api/admin/bot/sync-webhook', { method: 'POST' }).then(r => r.json());
         if (res.success) {
           showToast('⚡ Webhook synchronized successfully!');
         } else {
@@ -1561,8 +1560,7 @@ createApp({
         const res = await fetch('/api/admin/bot/broadcast', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'ngrok-skip-browser-warning': '69420'
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({ message: broadcastText.value })
         }).then(r => r.json());
@@ -1578,7 +1576,7 @@ createApp({
     };
     const loadBotCommands = async () => {
       try {
-        const res = await fetch('/api/admin/bot/commands', { headers: { 'ngrok-skip-browser-warning': '69420' } }).then(r => r.json());
+        const res = await fetch('/api/admin/bot/commands').then(r => r.json());
         if (res.success) {
           botCommands.value = res.commands || [];
         }
@@ -1592,8 +1590,7 @@ createApp({
         const res = await fetch('/api/admin/bot/commands', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'ngrok-skip-browser-warning': '69420'
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({ commands: botCommands.value })
         }).then(r => r.json());

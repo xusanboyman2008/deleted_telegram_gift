@@ -42,60 +42,12 @@ if command -v npx &>/dev/null; then
   npx clean-css-cli -o "$ROOT/frontend/style.min.css" "$ROOT/frontend/style.css" 2>/dev/null || true
 fi
 
-# ── 3. ngrok ───────────────────────────────────────────
-if ! command -v ngrok &>/dev/null; then
-  echo ""
-  echo "  ❌  ngrok not found! Install it:"
-  echo "      https://ngrok.com/download"
-  echo "      Or: snap install ngrok"
-  echo ""
-  exit 1
-fi
-
-# Check if ngrok is already active
-NGROK_URL=$(curl -s http://localhost:4040/api/tunnels 2>/dev/null | python3 -c "
-import sys, json
-try:
-    data = json.load(sys.stdin)
-    for t in data.get('tunnels', []):
-        if t.get('proto') == 'https':
-            print(t['public_url'])
-            break
-except:
-    pass
-" || true)
-
-if [ -z "$NGROK_URL" ]; then
-  echo "  🌐  Starting ngrok tunnel on port 8000…"
-  ngrok http 8000 --log=stdout > /tmp/ngrok_gift.log 2>&1 &
-  NGROK_PID=$!
-  sleep 3
-  NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | python3 -c "
-import sys, json
-try:
-    data = json.load(sys.stdin)
-    for t in data.get('tunnels', []):
-        if t.get('proto') == 'https':
-            print(t['public_url'])
-            break
-except:
-    pass
-")
-fi
-
-if [ -z "$NGROK_URL" ]; then
-  echo "  ❌  Could not get ngrok URL. Check /tmp/ngrok_gift.log"
-  kill $NGROK_PID 2>/dev/null
-  exit 1
-fi
-
-export BASE_URL="$NGROK_URL"
-echo ""
-echo "  ✅  Tunnel active: $NGROK_URL"
+# ── 3. Base URL ──────────────────────────────────────────
+export BASE_URL="${BASE_URL:-http://localhost:8000}"
 echo ""
 echo "  ┌─────────────────────────────────────────────────"
-echo "  │  Mini App URL:  $NGROK_URL/index.html"
-echo "  │  Admin ID:      $ADMIN_ID"
+echo "  │  Base URL:  $BASE_URL"
+echo "  │  Admin ID:  $ADMIN_ID"
 echo "  └─────────────────────────────────────────────────"
 echo ""
 
@@ -116,6 +68,3 @@ echo ""
 fuser -k 8000/tcp 2>/dev/null || true
 cd "$BACKEND"
 exec "$PY" -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-
-# cleanup on exit
-trap "kill $NGROK_PID 2>/dev/null; echo '  👋  Stopped.'" EXIT

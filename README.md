@@ -21,7 +21,7 @@ Message [@userinfobot](https://t.me/userinfobot) on Telegram — it replies with
 
 1. Creates a Python virtual environment
 2. Installs all dependencies
-3. Starts an ngrok HTTPS tunnel on port 8000
+3. Configures base URL and server settings
 4. Sets your bot's name and description
 5. Starts the FastAPI backend (auto-reload on change)
 
@@ -44,7 +44,7 @@ Per-gift commission can be changed individually.
 deleted_gifts_sender_bot/
 ├── backend/
 │   ├── main.py        # FastAPI + webhook + payment
-│   ├── db.py          # SQLite database layer
+│   ├── db.py          # Database layer
 │   ├── config.py      # Bot token, admin ID
 │   └── requirements.txt
 ├── frontend/
@@ -59,6 +59,6 @@ deleted_gifts_sender_bot/
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ADMIN_ID` | 0 | Your Telegram numeric user ID |
-| `BOT_TOKEN` | (set in config.py) | Bot API token |
-| `BASE_URL` | auto from ngrok | HTTPS public URL |
+| `BOT_TOKEN` | (set in .env) | Bot API token |
+| `BASE_URL` | http://localhost:8000 | HTTPS public URL or host URL |
 | `DEFAULT_COMMISSION` | 10 | Default commission per gift |
