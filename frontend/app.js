@@ -1261,6 +1261,9 @@ createApp({
           chatState.selectChatAccount(chatState.activeChatAccount.value);
         }
       }
+      if (newTab === 'settings' || newTab === 'chat') {
+        loadUserbotAccounts();
+      }
     });
 
     const scrollToGifts = () => {

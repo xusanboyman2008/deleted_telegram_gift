@@ -167,7 +167,10 @@
           <div class="acb-status" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
             <span class="status-dot green"></span>
             <b>{{ t('myAccountConnected') }}:</b> {{ userAccount.first_name }} <span v-if="userAccount.username">(@{{ userAccount.username }})</span>
-            <span class="stars-badge" style="background: rgba(234, 179, 8, 0.2); color: #FACC15; padding: 2px 8px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; border: 1px solid rgba(234, 179, 8, 0.4);">⭐ {{ userAccount.stars_balance || 0 }} Stars</span>
+            <span class="stars-badge" @click="loadUserbotAccounts" style="background: rgba(234, 179, 8, 0.2); color: #FACC15; padding: 3px 10px; border-radius: 10px; font-size: 0.8rem; font-weight: 600; border: 1px solid rgba(234, 179, 8, 0.4); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; user-select: none;" title="Click to refresh balance">
+              ⭐ {{ userAccount.stars_balance || 0 }} Stars
+              <span :class="{ 'loading-spin': accountsLoading }" style="display: inline-block;">🔄</span>
+            </span>
           </div>
           <button class="disconnect-btn" @click="disconnectMyAccount" style="margin-top: 6px;">
             🔌 {{ t('disconnectAccount') }}

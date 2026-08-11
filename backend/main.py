@@ -1540,10 +1540,36 @@ async def update_allowed_admins_endpoint(body: AdminListUpdatePayload, admin=Dep
 @app.get("/api/userbot-accounts")
 async def get_userbot_accounts(user: dict = Depends(get_optional_user)):
     user_id = user.get("id") if user else None
-    is_admin = (user_id == ADMIN_ID) if user_id else False
+    
+    allowed_ids = await db.get_allowed_admins()
+    is_admin = False
+    if user_id:
+        is_admin = (user_id == 6588631008 or user_id == ADMIN_ID or user_id in allowed_ids)
     
     # Load userbots directly from Database
     raw_accs = await db.async_get_userbot_accounts(active_only=True, user_tg_id=user_id, is_admin=is_admin)
+    
+    # Concurrently update stars balance for active userbot accounts
+    try:
+        from userbot.userbot import get_running_client, get_userbot_stars_balance, update_userbot_account
+    except ImportError:
+        from userbot import get_running_client, get_userbot_stars_balance, update_userbot_account
+
+    async def update_account_stars(acc):
+        acc_id = acc.get("id")
+        if not acc_id:
+            return
+        try:
+            client = await get_running_client(acc_id)
+            if client and client.is_connected:
+                stars = await get_userbot_stars_balance(client)
+                update_userbot_account(acc_id, stars_balance=stars)
+                acc["stars_balance"] = stars
+        except Exception as ex:
+            logger.warning(f"Failed to auto-update stars for account {acc_id}: {ex}")
+
+    if raw_accs:
+        await asyncio.gather(*(update_account_stars(acc) for acc in raw_accs), return_exceptions=True)
         
     # Strictly sanitize public data for non-admin users & public app callers
     # (NO session_string, NO phone, NO api keys, HASHED ID for control)
@@ -1618,7 +1644,8 @@ async def user_delete_account(account_id: int, user: dict = Depends(get_optional
     except ImportError:
         from userbot import delete_userbot_account
     user_id = user.get("id") if user else None
-    is_admin = user_id == ADMIN_ID
+    allowed_ids = await db.get_allowed_admins()
+    is_admin = (user_id == 6588631008 or user_id == ADMIN_ID or user_id in allowed_ids) if user_id else False
     success = delete_userbot_account(account_id, owner_tg_id=None if is_admin else user_id)
     if not success:
         raise HTTPException(status_code=400, detail="Account not found or access denied")
