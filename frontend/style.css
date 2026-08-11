@@ -2657,48 +2657,43 @@ body::after {
 /* 🦴 Ultimate Skeleton Cards & Layouts */
 
 /* Gift Grid Skeleton */
+/* Skeleton must exactly match real .gift-card layout */
 .skeleton-gifts-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  gap: 10px;
   padding: 0 12px;
-  margin-top: 8px;
-}
-@media (max-width: 480px) {
-  .skeleton-gifts-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-  }
+  margin-top: 10px;
 }
 
 .skeleton-gift-card {
-  background: rgba(18, 16, 38, 0.6);
-  border: 1.5px solid rgba(255, 255, 255, 0.05);
+  background: rgba(20, 21, 39, 0.93);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 18px;
-  padding: 12px;
+  padding: 10px 4px 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  box-sizing: border-box;
 }
 
 .skeleton-gift-media {
-  width: 76px;
-  height: 76px;
+  width: 100%;
+  aspect-ratio: 1;
   border-radius: 12px;
 }
 
 .skeleton-gift-title {
-  width: 80%;
-  height: 12px;
+  width: 70%;
+  height: 11px;
   border-radius: 6px;
+  margin-top: 8px;
+  margin-bottom: 6px;
 }
 
 .skeleton-gift-price {
-  width: 50%;
-  height: 10px;
-  border-radius: 5px;
+  width: 86%;
+  height: 26px;
+  border-radius: 20px;
 }
 
 /* History Order Skeletons */

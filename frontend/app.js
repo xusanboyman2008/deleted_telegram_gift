@@ -282,12 +282,12 @@ async function processLottieQueue() {
     window.requestIdleCallback(() => {
       lottieProcessing = false;
       processLottieQueue();
-    });
+    }, { timeout: 50 });
   } else {
     setTimeout(() => {
       lottieProcessing = false;
       processLottieQueue();
-    }, 50);
+    }, 16);
   }
 }
 
@@ -1342,13 +1342,16 @@ createApp({
         .map(g => g.animation)
         .filter(anim => anim && !animCache[anim]);
 
-      for (const anim of animationList) {
+      // Parallel batch prefetch — 3 concurrent downloads for faster loading
+      const BATCH_SIZE = 3;
+      for (let i = 0; i < animationList.length; i += BATCH_SIZE) {
+        const batch = animationList.slice(i, i + BATCH_SIZE);
         try {
-          await preloadAnim(anim);
-          // Wait 150ms between files to avoid saturating network/CPU threads
-          await new Promise(resolve => setTimeout(resolve, 150));
+          await Promise.all(batch.map(anim => preloadAnim(anim)));
+          // Brief pause between batches to avoid blocking main thread
+          await new Promise(resolve => setTimeout(resolve, 30));
         } catch (e) {
-          console.error('Preload animation error:', anim, e);
+          console.error('Preload batch error:', e);
         }
       }
     };
