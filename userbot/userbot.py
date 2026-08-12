@@ -1139,7 +1139,7 @@ async def get_userbot_chat_history(account_id: int, recipient: str, limit: int =
             photo_url = None
             if getattr(m, "photo", None):
                 try:
-                    file_path = await client.download_media(m.photo.file_id)
+                    file_path = await asyncio.wait_for(client.download_media(m.photo.file_id), timeout=1.5)
                     if file_path and os.path.exists(file_path):
                         import base64
                         with open(file_path, "rb") as f:
@@ -1154,7 +1154,7 @@ async def get_userbot_chat_history(account_id: int, recipient: str, limit: int =
             if getattr(m, "voice", None) or getattr(m, "audio", None):
                 try:
                     media_obj = getattr(m, "voice", None) or getattr(m, "audio", None)
-                    file_path = await client.download_media(media_obj.file_id)
+                    file_path = await asyncio.wait_for(client.download_media(media_obj.file_id), timeout=1.5)
                     if file_path and os.path.exists(file_path):
                         import base64
                         with open(file_path, "rb") as f:
@@ -1201,7 +1201,7 @@ async def _download_and_cache_photo(client, file_id: str) -> str:
 
     try:
         os.makedirs(os.path.dirname(abs_path), exist_ok=True)
-        bio = await asyncio.wait_for(client.download_media(file_id, in_memory=True), timeout=3.0)
+        bio = await asyncio.wait_for(client.download_media(file_id, in_memory=True), timeout=2.0)
         if bio and hasattr(bio, "getbuffer"):
             data = bio.getbuffer()
             if len(data) > 0:
@@ -1218,7 +1218,7 @@ async def _download_and_cache_photo(client, file_id: str) -> str:
 
 async def get_userbot_contacts(account_id: int, limit: int = 30, offset: int = 0) -> list:
     """Fetches recent dialogs (chat contacts) with pagination and concurrent photo caching for account."""
-    import asyncio, time
+    import asyncio, time, os, re
     account_id = int(account_id)
     now = time.time()
 
@@ -1238,22 +1238,26 @@ async def get_userbot_contacts(account_id: int, limit: int = 30, offset: int = 0
             return []
         
         dialogs = []
-        count = 0
         try:
-            async with asyncio.timeout(3.0):
-                async for dialog in client.get_dialogs():
-                    if count >= offset:
-                        dialogs.append(dialog)
-                        if len(dialogs) >= limit:
+            fetch_limit = min(offset + limit, 50)
+            async def _fetch_dialogs_list():
+                d_list = []
+                cnt = 0
+                async for dialog in client.get_dialogs(limit=fetch_limit):
+                    if cnt >= offset:
+                        d_list.append(dialog)
+                        if len(d_list) >= limit:
                             break
-                    count += 1
-                    if count > 150:
-                        break
+                    cnt += 1
+                return d_list
+
+            dialogs = await asyncio.wait_for(_fetch_dialogs_list(), timeout=4.0)
         except Exception as d_err:
-            logger.warning(f"get_dialogs timeout/error for account {account_id}: {d_err}")
+            logger.warning(f"get_dialogs fetch error for account {account_id}: {d_err}")
 
         contacts = []
         photo_tasks = []
+        sem = asyncio.Semaphore(3)
         
         for dialog in dialogs:
             chat = dialog.chat
@@ -1282,11 +1286,28 @@ async def get_userbot_contacts(account_id: int, limit: int = 30, offset: int = 0
                     last_time = dialog.top_message.date.strftime("%H:%M")
                 last_out = getattr(dialog.top_message, "outgoing", False)
 
+            # Quick check if photo is already cached on disk/memory
+            photo_url = None
+            if chat.photo:
+                small_id = getattr(chat.photo, 'small_file_id', None)
+                if small_id:
+                    if small_id in _PHOTO_CACHE:
+                        photo_url = _PHOTO_CACHE[small_id]
+                    else:
+                        clean_id = re.sub(r'[^a-zA-Z0-9_-]', '', str(small_id))[:32]
+                        rel_path = f"assets/user_photos/thumb_{clean_id}.jpg"
+                        abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", rel_path))
+                        if os.path.exists(abs_path) and os.path.getsize(abs_path) > 0:
+                            _PHOTO_CACHE[small_id] = rel_path
+                            photo_url = rel_path
+                        else:
+                            photo_tasks.append((len(contacts), small_id))
+
             contact_data = {
                 "peer": peer,
                 "title": title or peer,
                 "is_bot": is_bot,
-                "photo": None,
+                "photo": photo_url,
                 "last_msg": last_msg,
                 "last_time": last_time,
                 "last_out": last_out,
@@ -1294,18 +1315,18 @@ async def get_userbot_contacts(account_id: int, limit: int = 30, offset: int = 0
                 "online": False,
             }
             contacts.append(contact_data)
-            
-            if chat.photo:
-                photo_tasks.append((contact_data, chat.photo.small_file_id))
 
         if photo_tasks:
-            async def download_task(item, file_id):
-                item["photo"] = await _download_and_cache_photo(client, file_id)
+            async def download_task(idx, file_id):
+                async with sem:
+                    url = await _download_and_cache_photo(client, file_id)
+                    if url and idx < len(contacts):
+                        contacts[idx]["photo"] = url
 
             try:
                 await asyncio.wait_for(
-                    asyncio.gather(*(download_task(item, file_id) for item, file_id in photo_tasks), return_exceptions=True),
-                    timeout=1.5
+                    asyncio.gather(*(download_task(idx, file_id) for idx, file_id in photo_tasks[:6]), return_exceptions=True),
+                    timeout=1.2
                 )
             except Exception:
                 pass

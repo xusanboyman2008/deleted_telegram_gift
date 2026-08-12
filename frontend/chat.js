@@ -526,8 +526,10 @@ function setupChatState(Vue, api, showToast, tg) {
 
   const handleContactsScroll = (e) => {
     const el = e.target;
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 50) {
-      loadChatContacts(true);
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 60) {
+      if (!chatContactsLoadingMore.value && contactsHasMore.value && !chatContactsLoading.value) {
+        loadChatContacts(true);
+      }
     }
   };
   // ── Sending Messages ───────────────────────────

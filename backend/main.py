@@ -1124,7 +1124,7 @@ async def websocket_chat_endpoint(
             # Convert recipient to integer if it is numeric
             if str(recipient).strip().replace("-", "").isdigit():
                 target_peer = int(recipient)
-            chat = await client.get_chat(target_peer)
+            chat = await asyncio.wait_for(client.get_chat(target_peer), timeout=2.0)
             if chat:
                 extra_key = str(chat.id)
                 await ws_manager.connect(websocket, account_id, extra_key)
@@ -1134,7 +1134,7 @@ async def websocket_chat_endpoint(
                     await ws_manager.connect(websocket, account_id, extra_username)
                     await ws_manager.connect(websocket, str(real_id), extra_username)
     except Exception as e:
-        logger.warning(f"WS get_chat resolve failed for {recipient}: {e}")
+        logger.warning(f"WS get_chat resolve skipped/failed for {recipient}: {e}")
 
     try:
         while True:
@@ -1604,10 +1604,18 @@ async def get_userbot_accounts(user: dict = Depends(get_optional_user)):
     except ImportError:
         from userbot import get_running_client, get_userbot_stars_balance, update_userbot_account
 
+    _STARS_CACHE_TTL = {}
+
     async def update_account_stars(acc):
         acc_id = acc.get("id")
         if not acc_id:
             return
+        now = time.time()
+        last_check = _STARS_CACHE_TTL.get(acc_id, 0)
+        # Skip background MTProto query if checked within last 180 seconds and balance is known
+        if now - last_check < 180.0 and acc.get("stars_balance") is not None:
+            return
+
         try:
             if acc.get("active"):
                 client = await get_running_client(acc_id)
@@ -1616,9 +1624,11 @@ async def get_userbot_accounts(user: dict = Depends(get_optional_user)):
                     if stars is not None:
                         await update_userbot_account(acc_id, stars_balance=stars)
                         acc["stars_balance"] = stars
+                        _STARS_CACHE_TTL[acc_id] = now
                         return
             await update_userbot_account(acc_id, stars_balance=0)
             acc["stars_balance"] = 0
+            _STARS_CACHE_TTL[acc_id] = now
         except Exception as ex:
             logger.warning(f"Failed to auto-update stars for account {acc_id}: {ex}")
             await update_userbot_account(acc_id, stars_balance=0)
