@@ -2,12 +2,12 @@
   <div class="view">
     <!-- Direct Contact Owner Banner -->
     <div class="real-user-banner" @click="$emit('open-real-user')">
-      <div class="rub-icon">👤</div>
+      <div class="rub-icon pulse-glow">👤</div>
       <div class="rub-info">
         <div class="rub-title">{{ t('buyDirectBtn') }}</div>
         <div class="rub-desc">Contact @xusanboyman200 for direct manual transfers</div>
       </div>
-      <div class="rub-arrow">↗</div>
+      <div class="rub-arrow bounce-x">↗</div>
     </div>
 
     <!-- 🦴 Skeleton Loader for Gifts Grid -->
@@ -22,21 +22,23 @@
     <!-- 3-Column Pre-Compiled Grid -->
     <transition-group v-else name="gift-stagger" tag="div" class="gifts-grid" style="margin-top: 10px;">
       <div
-        v-for="g in gifts"
+        v-for="(g, index) in gifts"
         :key="g.id"
         v-memo="[g.id, g.base_stars, pricing.bot_stars, (hoveredGiftId === g.id)]"
         class="gift-card v-btn"
+        :style="{ animationDelay: (index * 0.04) + 's' }"
         @click="$emit('open-sheet', g)"
         @mouseenter="hoveredGiftId = g.id"
         @mouseleave="hoveredGiftId = null"
       >
+        <div class="card-badge" v-if="g.base_stars >= 50">🔥 RARE</div>
         <div class="card-media">
           <LottieAnim v-if="g.animation" :filename="g.animation" />
           <span v-else class="card-emoji-fallback">{{ g.emoji }}</span>
         </div>
         <div class="card-title">{{ giftName(g) }}</div>
-        <div class="card-price-pill">
-          <span class="star-icon">⭐</span> {{ g.base_stars + (pricing.bot_stars || 3) }}
+        <div class="card-price-pill shine-effect">
+          <span class="star-icon spin-star">⭐</span> {{ g.base_stars + (pricing.bot_stars || 3) }}
         </div>
       </div>
     </transition-group>
@@ -45,9 +47,9 @@
     <div v-if="isAdmin" class="admin-bottom-box">
       <div class="admin-box-header">
         <div class="admin-box-title">⚡ Admin Management</div>
-        <button class="admin-panel-btn" @click="$emit('open-admin')">Open Dashboard ⚙️</button>
+        <button class="admin-panel-btn v-btn" @click="$emit('open-admin')">Open Dashboard ⚙️</button>
       </div>
-      <div class="admin-add-card" @click="$emit('open-add-form')">
+      <div class="admin-add-card v-btn" @click="$emit('open-add-form')">
         <div class="big-plus">+</div>
         <div class="add-card-text">Add New Gift</div>
       </div>

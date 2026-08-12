@@ -3259,4 +3259,73 @@ body::after {
   box-shadow: 0 10px 25px rgba(59, 130, 246, 0.25) !important;
 }
 
+/* ── Card Badges & Shimmer FX ── */
+.card-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: linear-gradient(135deg, #ef4444, #f97316);
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 20px;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+  letter-spacing: 0.04em;
+  z-index: 5;
+  animation: badgePulse 2s ease-in-out infinite alternate;
+}
+
+@keyframes badgePulse {
+  0% { transform: scale(1); box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4); }
+  100% { transform: scale(1.08); box-shadow: 0 6px 18px rgba(239, 68, 68, 0.7); }
+}
+
+.shine-effect {
+  position: relative;
+  overflow: hidden;
+}
+.shine-effect::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -60%;
+  width: 50%;
+  height: 200%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+  transform: rotate(25deg);
+  animation: shineSweep 3.5s infinite;
+}
+
+@keyframes shineSweep {
+  0% { left: -60%; }
+  30% { left: 140%; }
+  100% { left: 140%; }
+}
+
+.pulse-glow {
+  animation: pulseGlowAnim 2.5s ease-in-out infinite alternate;
+}
+@keyframes pulseGlowAnim {
+  0% { filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.4)); }
+  100% { filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.8)); }
+}
+
+.bounce-x {
+  animation: bounceXAnim 1.8s ease-in-out infinite;
+}
+@keyframes bounceXAnim {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(4px); }
+}
+
+.spin-star {
+  display: inline-block;
+  transition: transform 0.3s ease;
+}
+.gift-card:hover .spin-star {
+  transform: rotate(25deg) scale(1.25);
+}
+
+
 
