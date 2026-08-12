@@ -1,79 +1,87 @@
 <template>
   <div id="app-root">
-    <!-- Active Tab Component Container -->
+    <!-- Active Tab Component Container with Vue 3 Transitions -->
     <div class="view-wrap">
-      <GiftsView
-        v-if="tab === 'home'"
-        :gifts="gifts"
-        :gifts-loading="giftsLoading"
-        :pricing="pricing"
-        :is-admin="isAdmin"
-        :t="t"
-        :gift-name="giftName"
-        @open-sheet="openSheet"
-        @open-real-user="openRealUserContact"
-        @open-admin="openAdmin"
-        @open-add-form="openAddForm"
-      />
-      <ChatsView
-        v-else-if="tab === 'chat'"
-        :filtered-chat-list="filteredChatList"
-        :current-chat-peer="currentChatPeer"
-        :active-chat="activeChat"
-        :current-messages="currentMessages"
-        :chat-loading="chatLoading"
-        :mobile-show-chat="mobileShowChat"
-        @select-chat="selectChat"
-        @close-mobile-chat="closeMobileChat"
-        @send-msg="sendMsg"
-      />
-      <HistoryView
-        v-else-if="tab === 'history'"
-        :user="user"
-        :my-orders="myOrders"
-        :history-loading="historyLoading"
-        :history-loading-more="historyLoadingMore"
-        :history-has-more="historyHasMore"
-        :t="t"
-        :gift-name="giftName"
-      />
-      <SettingsView
-        v-else-if="tab === 'settings'"
-        :user-account="userAccount"
-        :accounts-loading="accountsLoading"
-        :current-lang="currentLang"
-        :t="t"
-        @disconnect-account="disconnectMyAccount"
-        @open-phone-auth="openPhoneAuth"
-        @set-language="setLanguage"
-        @open-real-user="openRealUserContact"
-      />
-      <UserbotsView
-        v-else-if="tab === 'userbots'"
-        :admin-userbots="adminUserbots"
-        :user-linked-accounts="userLinkedAccounts"
-        :system-userbots="systemUserbots"
-        :userbots-loading="userbotsLoading"
-        :stars-refreshing="starsRefreshing"
-        :t="t"
-        @refresh-stars="refreshUserbotStars"
-        @open-add-userbot="openAddUserbot"
-        @jump-to-chat="jumpToUserbotChat"
-        @toggle-active="toggleUserbotActive"
-        @edit-userbot="editUserbot"
-        @open-msg="openUserbotMsg"
-      />
-      <BotPanel
-        v-else-if="tab === 'bot_control'"
-        :managed-bots="managedBots"
-        :bot-loading="botLoading"
-        :t="t"
-        @open-broadcast-modal="openBroadcastModal"
-        @open-add-bot="openAddBot"
-        @toggle-bot="toggleBot"
-        @config-bot="configBot"
-        @delete-bot="deleteBot"
-      />
+      <transition name="fade-slide" mode="out-in">
+        <GiftsView
+          v-if="tab === 'home'"
+          key="home"
+          :gifts="gifts"
+          :gifts-loading="giftsLoading"
+          :pricing="pricing"
+          :is-admin="isAdmin"
+          :t="t"
+          :gift-name="giftName"
+          @open-sheet="openSheet"
+          @open-real-user="openRealUserContact"
+          @open-admin="openAdmin"
+          @open-add-form="openAddForm"
+        />
+        <ChatsView
+          v-else-if="tab === 'chat'"
+          key="chat"
+          :filtered-chat-list="filteredChatList"
+          :current-chat-peer="currentChatPeer"
+          :active-chat="activeChat"
+          :current-messages="currentMessages"
+          :chat-loading="chatLoading"
+          :mobile-show-chat="mobileShowChat"
+          @select-chat="selectChat"
+          @close-mobile-chat="closeMobileChat"
+          @send-msg="sendMsg"
+        />
+        <HistoryView
+          v-else-if="tab === 'history'"
+          key="history"
+          :user="user"
+          :my-orders="myOrders"
+          :history-loading="historyLoading"
+          :history-loading-more="historyLoadingMore"
+          :history-has-more="historyHasMore"
+          :t="t"
+          :gift-name="giftName"
+        />
+        <SettingsView
+          v-else-if="tab === 'settings'"
+          key="settings"
+          :user-account="userAccount"
+          :accounts-loading="accountsLoading"
+          :current-lang="currentLang"
+          :t="t"
+          @disconnect-account="disconnectMyAccount"
+          @open-phone-auth="openPhoneAuth"
+          @set-language="setLanguage"
+          @open-real-user="openRealUserContact"
+        />
+        <UserbotsView
+          v-else-if="tab === 'userbots'"
+          key="userbots"
+          :admin-userbots="adminUserbots"
+          :user-linked-accounts="userLinkedAccounts"
+          :system-userbots="systemUserbots"
+          :userbots-loading="userbotsLoading"
+          :stars-refreshing="starsRefreshing"
+          :t="t"
+          @refresh-stars="refreshUserbotStars"
+          @open-add-userbot="openAddUserbot"
+          @jump-to-chat="jumpToUserbotChat"
+          @toggle-active="toggleUserbotActive"
+          @edit-userbot="editUserbot"
+          @open-msg="openUserbotMsg"
+        />
+        <BotPanel
+          v-else-if="tab === 'bot_control'"
+          key="bot_control"
+          :managed-bots="managedBots"
+          :bot-loading="botLoading"
+          :t="t"
+          @open-broadcast-modal="openBroadcastModal"
+          @open-add-bot="openAddBot"
+          @toggle-bot="toggleBot"
+          @config-bot="configBot"
+          @delete-bot="deleteBot"
+        />
+      </transition>
     </div>
   </div>
 </template>
