@@ -254,11 +254,12 @@ HEADERS = {
     "Referer": "https://app.margcoin.fun/",
     "Content-Type": "application/json",
     "Origin": "https://app.margcoin.fun",
-    "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0Z0lkIjo2NTg4NjMxMDA4LCJ1c2VybmFtZSI6Inh1c2FuYm95bWFuMjAwIiwiaXNBZG1pbiI6ZmFsc2UsImlhdCI6MTc4NjM0NzEwNiwiZXhwIjoxNzg4OTM5MTA2fQ.knDtTQFsbGqgcNMWYN-jsbLvRiHvTnyss3I0_zqxues",
+    "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0Z0lkIjo2NTg4NjMxMDA4LCJ1c2VybmFtZSI6Inh1c2FuYm95bWFuMjAwIiwiaXNBZG1pbiI6ZmFsc2UsImlhdCI6MTc4NjUxNTAyNSwiZXhwIjoxNzg5MTA3MDI1fQ.zW1D7SUpPD4HIix4SI-5qyQFTiTohK2wm1z1Z4tlTCk",
     "Sec-Fetch-Dest": "empty",
     "Sec-Fetch-Mode": "cors",
     "Sec-Fetch-Site": "same-site",
-    "Connection": "keep-alive"
+    "Connection": "keep-alive",
+    "x-tg-init-data": "user=%7B%22id%22%3A6588631008%2C%22first_name%22%3A%22%28%E2%96%BA__%E2%97%84%29%20T_T%20X_X%20xusanboyman%22%2C%22last_name%22%3A%22%F0%9F%87%BA%F0%9F%87%BF%22%2C%22username%22%3A%22xusanboyman200%22%2C%22language_code%22%3A%22en%22%2C%22allows_write_to_pm%22%3Atrue%2C%22photo_url%22%3A%22https%3A%5C%2F%5C%2Ft.me%5C%2Fi%5C%2Fuserpic%5C%2F320%5C%2FABKucBBOPE9qSGZbrWEF4xW6wrAlil-YqDxjQfABvEOlAI0lJIBU15Q2npDYdUbN.svg%22%7D&chat_instance=4053768609721492273&chat_type=private&auth_date=1786515196&signature=LZmizTj66KU7C18OjJiXGXOBcMosOe9le2_J9n6L3NhHA9svD4llUZHHnnPsq8Va1Lt9B7RUFr1C3p_MOVSdDw&hash=70541bdd366f2d52addd32eb3e0674901e22e4e9fe74a801d8bba408907839ca"
 }
 
 # Telegram Configuration
