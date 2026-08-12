@@ -78,7 +78,7 @@ function setupChatState(Vue, api, showToast, tg) {
 
   let chatSocket = null;
 
-  const selectChatAccount = (acc) => {
+  const selectChatAccount = (acc, forceConnect = false) => {
     activeChatAccount.value = acc;
     showAccountDropdown.value = false;
     activeChat.value = null;
@@ -91,10 +91,11 @@ function setupChatState(Vue, api, showToast, tg) {
       } catch (e) {}
       chatSocket = null;
     }
-    // Connect WebSocket ONLY when user chooses an account in Chats!
-    connectGlobalSocket();
-    // Reload contacts for new account
-    loadChatContacts();
+    // Connect WebSocket & load contacts ONLY when explicitly requested or on Chats tab
+    if (forceConnect) {
+      connectGlobalSocket();
+      loadChatContacts();
+    }
   };
 
   // ── Chat List / Contacts ───────────────────────

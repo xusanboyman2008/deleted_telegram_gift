@@ -58,7 +58,7 @@
   </header>
 
   <!-- ── Views Wrap ─────────────────────────── -->
-  <div class="view-wrap">
+  <div class="view-wrap" @scroll="handleHistoryScroll">
 
     <!-- HOME TAB ────────────────── -->
     <transition name="view-fade">
@@ -121,7 +121,7 @@
           <p>Open in Telegram to view your orders</p>
         </div>
         <!-- 🦴 Ultimate Skeleton Loader for History Tab -->
-        <div v-else-if="historyLoading" class="skeleton-orders-list">
+        <div v-else-if="historyLoading && myOrders.length === 0" class="skeleton-orders-list">
           <div v-for="n in 4" :key="n" class="skeleton-order-item">
             <div class="skeleton-order-left">
               <div class="skeleton-order-emoji shimmer-skeleton"></div>
@@ -159,6 +159,27 @@
               </div>
             </div>
           </transition-group>
+
+          <!-- Incremental Lazy Loading Skeleton / Spinner Indicator -->
+          <div v-if="historyLoadingMore" class="skeleton-orders-list" style="margin-top: 10px;">
+            <div v-for="n in 2" :key="'loadmore-'+n" class="skeleton-order-item" style="padding: 10px 14px; opacity: 0.7;">
+              <div class="skeleton-order-left">
+                <div class="skeleton-order-emoji shimmer-skeleton" style="width: 36px; height: 36px;"></div>
+                <div class="skeleton-order-info">
+                  <div class="skeleton-order-title shimmer-skeleton" style="width: 100px;"></div>
+                  <div class="skeleton-order-sub shimmer-skeleton" style="width: 70px;"></div>
+                </div>
+              </div>
+              <div class="skeleton-order-right">
+                <div class="skeleton-order-stars shimmer-skeleton" style="width: 45px;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- End of history indicator -->
+          <div v-else-if="!historyHasMore && myOrders.length >= 10" style="text-align: center; color: rgba(255,255,255,0.3); font-size: 0.75rem; padding: 16px 0 8px; font-weight: 500;">
+            ✦ End of order history ✦
+          </div>
         </div>
       </div>
     </transition>
@@ -828,7 +849,7 @@
 
 
     <!-- ── 1-TO-1 TELEGRAM CHAT TAB ────────────────── -->
-    <div v-show="tab==='chat'" class="tg-app-container">
+    <div v-if="isAdmin && tab==='chat'" class="tg-app-container">
 
       <!-- ① Account Switcher Header -->
       <div class="tg-account-header">
@@ -877,7 +898,7 @@
               <div
                 v-for="acc in allAvailableAccounts" :key="acc.id"
                 :class="['tg-dropdown-item', activeChatAccount?.id === acc.id ? 'active' : '']"
-                @click="selectChatAccount(acc)"
+                @click="selectChatAccount(acc, true)"
               >
                 <img v-if="acc.photo" :src="acc.photo" class="tg-dd-avatar" alt="av"/>
                 <div v-else class="tg-dd-avatar-placeholder">{{ (acc.first_name || 'A')[0] }}</div>
@@ -1876,7 +1897,7 @@
 <script src="vue.min.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
-<script src="chat.min.js?v=1.1.0"></script>
-<script src="app.min.js?v=1.1.0"></script>
+<script src="chat.js?v=1.2.0"></script>
+<script src="app.js?v=1.2.0"></script>
 </body>
 </html>

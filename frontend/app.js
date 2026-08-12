@@ -467,8 +467,11 @@ createApp({
       bot_control: false,
     });
     const gifts = ref(DEFAULT_GIFTS_SEED);
-    const giftsLoading = ref(false);
     const historyLoading = ref(false);
+    const historyLoadingMore = ref(false);
+    const historyHasMore = ref(true);
+    const historyOffset = ref(0);
+    const historyLimit = 15;
     const selected = ref(null);
     const hoveredGiftId = ref(null);
     const recipient = ref('');
@@ -613,7 +616,7 @@ createApp({
 
       if (!chatState.activeChatAccount.value && chatState.allAvailableAccounts.value.length > 0) {
         const myAcc = (accs || []).find(a => a.owner_tg_id === ME?.id);
-        chatState.selectChatAccount(myAcc || chatState.allAvailableAccounts.value[0]);
+        chatState.selectChatAccount(myAcc || chatState.allAvailableAccounts.value[0], tab.value === 'chat');
       }
     }, { immediate: true, deep: true });
 
@@ -820,16 +823,45 @@ createApp({
       }
     };
 
-    const loadHistory = async () => {
+    const loadHistory = async (isLoadMore = false) => {
       if (!ME) return;
-      historyLoading.value = true;
+      if (isLoadMore) {
+        if (historyLoadingMore.value || !historyHasMore.value) return;
+        historyLoadingMore.value = true;
+      } else {
+        historyLoading.value = true;
+        historyOffset.value = 0;
+        historyHasMore.value = true;
+      }
+
       try {
-        const d = await api('/api/my-orders').then(r => r.json());
-        myOrders.value = Array.isArray(d) ? d : [];
+        const d = await api(`/api/my-orders?limit=${historyLimit}&offset=${historyOffset.value}`).then(r => r.json());
+        const ordersList = Array.isArray(d) ? d : (d.orders || []);
+        const hasMore = Array.isArray(d) ? (d.length >= historyLimit) : (d.has_more !== false && ordersList.length >= historyLimit);
+
+        if (isLoadMore) {
+          const existingIds = new Set(myOrders.value.map(o => o.id));
+          const newOrders = ordersList.filter(o => !existingIds.has(o.id));
+          myOrders.value = [...myOrders.value, ...newOrders];
+        } else {
+          myOrders.value = ordersList;
+        }
+
+        historyOffset.value += ordersList.length;
+        historyHasMore.value = hasMore && ordersList.length > 0;
       } catch (e) {
         console.error('loadHistory error:', e);
       } finally {
         historyLoading.value = false;
+        historyLoadingMore.value = false;
+      }
+    };
+
+    const handleHistoryScroll = (e) => {
+      if (tab.value !== 'history') return;
+      const el = e.target;
+      if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) {
+        loadHistory(true);
       }
     };
 
@@ -1339,8 +1371,9 @@ createApp({
     };
 
     const jumpToUserbotChat = (ub) => {
+      if (!isAdmin.value) return;
       const acc = userbotAccounts.value.find(a => a.id === ub.id) || ub;
-      chatState.selectChatAccount(acc);
+      chatState.selectChatAccount(acc, true);
       tab.value = 'chat';
     };
 
@@ -1351,37 +1384,10 @@ createApp({
       }
     };
 
-    const loadUserData = async () => {
-      try {
-        await Promise.all([
-          loadUserbotAccounts(),
-          ME ? loadHistory() : Promise.resolve()
-        ]);
-      } catch (e) {
-        console.error('User data load error:', e);
-      }
-    };
-
-    const loadAdminData = async () => {
-      try {
-        await Promise.all([
-          loadUserbotAccounts(),
-          loadManagedBots(),
-          loadAdminGifts(),
-          loadAdminOrders(),
-          loadAdminUserbots(),
-          loadBotPanelUsers(),
-          loadBotCommands()
-        ]);
-      } catch (e) {
-        console.error('Admin data load error:', e);
-      }
-    };
-
-    // ── Boot ───────────────────────────────────
+    // ── Boot Sequence ───────────────────────────
     onMounted(async () => {
       try {
-        // Step 1: Load menu items (Pricing and Gifts) first to render UI immediately
+        // Step 1: Load menu items (Pricing and Gifts) first so Gifts tab renders immediately
         await Promise.all([
           loadPricing(),
           loadGifts(),
@@ -1390,8 +1396,23 @@ createApp({
         console.error('Boot menu load error:', e);
       }
 
-      // Step 2: Prefetch Lottie files sequentially in the background
-      preloadAllAnimations();
+      // Step 2: Asynchronously load non-chat tab data in background AFTER Gifts are rendered
+      (async () => {
+        try {
+          preloadAllAnimations();
+          await loadUserbotAccounts();
+          if (ME) loadHistory();
+          if (isAdmin.value) {
+            loadAdminUserbots();
+            loadManagedBots();
+            loadBotPanelUsers();
+            loadAdminOrders();
+            loadBotCommands();
+          }
+        } catch (err) {
+          console.error('Background tabs prefetch error:', err);
+        }
+      })();
 
       if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.1') && tg.BackButton) {
         tg.BackButton.onClick(() => {
@@ -1403,30 +1424,39 @@ createApp({
       }
     });
 
-    // Watch tab changes for WebSocket lifecycle & Lazy Loading
+    // Watch tab changes for WebSocket lifecycle & Admin-Gated Lazy Loading
     watch(tab, async (newTab, oldTab) => {
+      // 1. Enforce access control for Chats tab
+      if (newTab === 'chat' && !isAdmin.value) {
+        tab.value = 'home';
+        return;
+      }
+
+      // 2. Disconnect WebSockets when leaving Chats
       if (oldTab === 'chat' && newTab !== 'chat') {
-        // Disconnect WebSockets when leaving Chats
         if (chatState.disconnectAllSockets) chatState.disconnectAllSockets();
       }
-      if (newTab === 'chat' && oldTab !== 'chat') {
-        // Reconnect when returning to Chats
+
+      // 3. Connect WebSockets & load chat contacts ONLY when on Chats tab as Admin
+      if (newTab === 'chat' && isAdmin.value) {
+        if (!tabsLoaded.chat) {
+          tabsLoaded.chat = true;
+          loadUserbotAccounts();
+        }
         if (chatState.activeChatAccount.value) {
-          chatState.selectChatAccount(chatState.activeChatAccount.value);
+          chatState.selectChatAccount(chatState.activeChatAccount.value, true);
+        } else if (chatState.allAvailableAccounts.value.length > 0) {
+          chatState.selectChatAccount(chatState.allAvailableAccounts.value[0], true);
         }
       }
 
-      // Lazy load tab data on-demand
+      // Lazy load tab data on-demand for other tabs
       if (newTab === 'history' && !tabsLoaded.history) {
         tabsLoaded.history = true;
         if (ME) await loadHistory();
       }
       if (newTab === 'settings' && !tabsLoaded.settings) {
         tabsLoaded.settings = true;
-        await loadUserbotAccounts();
-      }
-      if (newTab === 'chat' && !tabsLoaded.chat) {
-        tabsLoaded.chat = true;
         await loadUserbotAccounts();
       }
       if (newTab === 'userbots' && !tabsLoaded.userbots) {
@@ -1451,7 +1481,7 @@ createApp({
       }
 
       // Keep regular tab transition fetches fresh if settings or chat are loaded
-      if (newTab === 'settings' || newTab === 'chat') {
+      if (newTab === 'settings' || (newTab === 'chat' && isAdmin.value)) {
         loadUserbotAccounts();
       }
     }, { immediate: true });
@@ -1969,7 +1999,7 @@ createApp({
       loadManagedBots, addBotToken, toggleBotStatus, deleteBot, openBotConfig, addCommandRow, removeCommandRow,
       saveManagedBotCommands, openBotChatNav, loadBotContacts, selectBotUserChat, sendBotMessageToUser,
 
-      tab, gifts, giftsLoading, historyLoading, selected, hoveredGiftId, recipient, giftMsg, paying, errMsg, toast, totalStars, priceBreakdown,
+      tab, gifts, giftsLoading, historyLoading, historyLoadingMore, historyHasMore, handleHistoryScroll, selected, hoveredGiftId, recipient, giftMsg, paying, errMsg, toast, totalStars, priceBreakdown,
       isAdmin, showAdmin, aTab, adminGifts, sortedAdminGifts, adminOrders, adminUserbots, userLinkedAccounts, systemUserbots, ubForm, ubMsgForm, myOrders, user, form,
       checkingUser, verifiedUser, userCheckError, userbotAccounts, publicUserbots, selectedSender, selectedUserbot, userAccount, accountsLoading,
       showSenderDropdown, getSelectedUserbotObj, getSelectedUserbotName, getSmallestPriceCombination, getUserFirstName, getUserPhoto, onAnimationFileSelect,

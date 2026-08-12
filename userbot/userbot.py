@@ -3,6 +3,7 @@ import json
 import logging
 import httpx
 import re
+import asyncio
 from hydrogram.raw.core import TLObject
 from hydrogram.raw.core.primitives import Int, Long
 from hydrogram.raw.types import TextWithEntities
@@ -721,14 +722,14 @@ async def get_userbot_stars_balance(client) -> int:
     try:
         from hydrogram.raw.functions.payments import GetStarsStatus
         from hydrogram.raw.types import InputPeerSelf
-        status = await client.invoke(GetStarsStatus(peer=InputPeerSelf()))
-        raw_bal = getattr(status, "balance", 50)
+        status = await asyncio.wait_for(client.invoke(GetStarsStatus(peer=InputPeerSelf())), timeout=6.0)
+        raw_bal = getattr(status, "balance", 0)
         if hasattr(raw_bal, "amount"):
             return int(raw_bal.amount)
         return int(raw_bal)
     except Exception as e:
         logger.warning(f"Could not fetch stars balance: {e}")
-        return 50
+        return 0
 
 
 import time
@@ -1042,7 +1043,7 @@ async def get_running_client(account_id: int):
     client.add_handler(MessageHandler(local_msg_handler))
 
     try:
-        await client.start()
+        await asyncio.wait_for(client.start(), timeout=8.0)
         client.last_used_time = time.time()
         _RUNNING_USERBOTS[account_id] = client
 
@@ -1221,14 +1222,18 @@ async def get_userbot_contacts(account_id: int, limit: int = 30, offset: int = 0
         
         dialogs = []
         count = 0
-        async for dialog in client.get_dialogs():
-            if count >= offset:
-                dialogs.append(dialog)
-                if len(dialogs) >= limit:
-                    break
-            count += 1
-            if count > 300:
-                break
+        try:
+            async with asyncio.timeout(4.0):
+                async for dialog in client.get_dialogs():
+                    if count >= offset:
+                        dialogs.append(dialog)
+                        if len(dialogs) >= limit:
+                            break
+                    count += 1
+                    if count > 300:
+                        break
+        except Exception as d_err:
+            logger.warning(f"get_dialogs timeout/error for account {account_id}: {d_err}")
 
         contacts = []
         photo_tasks = []
@@ -1280,7 +1285,13 @@ async def get_userbot_contacts(account_id: int, limit: int = 30, offset: int = 0
             async def download_task(item, file_id):
                 item["photo"] = await _download_and_cache_photo(client, file_id)
 
-            await asyncio.gather(*(download_task(item, file_id) for item, file_id in photo_tasks), return_exceptions=True)
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*(download_task(item, file_id) for item, file_id in photo_tasks), return_exceptions=True),
+                    timeout=2.0
+                )
+            except Exception:
+                pass
 
         return contacts
     except Exception as e:

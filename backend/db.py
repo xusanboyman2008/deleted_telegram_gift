@@ -620,15 +620,16 @@ async def get_all_users() -> list:
 
 
 
-async def get_orders_by_user(buyer_tg_id: int):
+async def get_orders_by_user(buyer_tg_id: int, limit: int = 15, offset: int = 0):
     if IS_POSTGRES:
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 """SELECT o.*, g.emoji, g.date_label, g.display_name, g.animation FROM orders o
                    LEFT JOIN gifts g ON g.id=o.gift_id
                    WHERE o.buyer_tg_id=$1
-                   ORDER BY o.id DESC""",
-                int(buyer_tg_id)
+                   ORDER BY o.id DESC
+                   LIMIT $2 OFFSET $3""",
+                int(buyer_tg_id), int(limit), int(offset)
             )
             return [dict(r) for r in rows]
     else:
@@ -638,8 +639,9 @@ async def get_orders_by_user(buyer_tg_id: int):
                 """SELECT o.*, g.emoji, g.date_label, g.display_name, g.animation FROM orders o
                    LEFT JOIN gifts g ON g.id=o.gift_id
                    WHERE o.buyer_tg_id=?
-                   ORDER BY o.id DESC""",
-                (buyer_tg_id,)
+                   ORDER BY o.id DESC
+                   LIMIT ? OFFSET ?""",
+                (buyer_tg_id, limit, offset)
             )
             rows = await cur.fetchall()
             return [dict(r) for r in rows]

@@ -1610,10 +1610,13 @@ async def get_userbot_accounts(user: dict = Depends(get_optional_user)):
             return
         try:
             client = await get_running_client(acc_id)
-            if client and client.is_connected:
+            if client:
                 stars = await get_userbot_stars_balance(client)
                 await update_userbot_account(acc_id, stars_balance=stars)
                 acc["stars_balance"] = stars
+            else:
+                await update_userbot_account(acc_id, stars_balance=0)
+                acc["stars_balance"] = 0
         except Exception as ex:
             logger.warning(f"Failed to auto-update stars for account {acc_id}: {ex}")
 
@@ -1825,8 +1828,13 @@ async def create_invoice(body: CreateInvoiceRequest, user: dict = Depends(get_us
 
 # ── Authenticated: user's own order history ────────────────────────────────────
 @app.get("/api/my-orders")
-async def my_orders(user: dict = Depends(get_user)):
-    return await db.get_orders_by_user(user["id"])
+async def my_orders(user: dict = Depends(get_user), limit: int = 15, offset: int = 0):
+    orders = await db.get_orders_by_user(user["id"], limit=limit, offset=offset)
+    return {
+        "success": True,
+        "orders": orders,
+        "has_more": len(orders) >= limit
+    }
 
 
 # ── Admin API ──────────────────────────────────────────────────────────────────
@@ -1992,11 +2000,32 @@ async def set_bot_commands_endpoint(body: SetCommandsRequest, admin=Depends(get_
 # ── Admin Userbot Management ──────────────────────────────────────────────────
 @app.get("/api/admin/userbots")
 async def admin_get_userbots(admin=Depends(get_admin)):
+    raw_accs = await db.async_get_userbot_accounts(active_only=False, is_admin=True)
     try:
-        from userbot.userbot import get_all_userbot_accounts
+        from userbot.userbot import get_running_client, get_userbot_stars_balance, update_userbot_account
     except ImportError:
-        from userbot import get_all_userbot_accounts
-    return get_all_userbot_accounts()
+        from userbot import get_running_client, get_userbot_stars_balance, update_userbot_account
+
+    async def update_account_stars(acc):
+        acc_id = acc.get("id")
+        if not acc_id:
+            return
+        try:
+            client = await get_running_client(acc_id)
+            if client:
+                stars = await get_userbot_stars_balance(client)
+                await update_userbot_account(acc_id, stars_balance=stars)
+                acc["stars_balance"] = stars
+            else:
+                await update_userbot_account(acc_id, stars_balance=0)
+                acc["stars_balance"] = 0
+        except Exception as ex:
+            logger.warning(f"Failed to auto-update stars for admin account {acc_id}: {ex}")
+
+    if raw_accs:
+        asyncio.create_task(asyncio.gather(*(update_account_stars(acc) for acc in raw_accs), return_exceptions=True))
+        
+    return raw_accs
 
 
 class UserbotCreate(BaseModel):
