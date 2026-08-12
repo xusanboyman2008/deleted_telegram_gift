@@ -1609,17 +1609,25 @@ async def get_userbot_accounts(user: dict = Depends(get_optional_user)):
         if not acc_id:
             return
         try:
-            client = await get_running_client(acc_id)
-            if client:
-                stars = await get_userbot_stars_balance(client)
-                if stars is not None:
-                    await update_userbot_account(acc_id, stars_balance=stars)
-                    acc["stars_balance"] = stars
+            if acc.get("active"):
+                client = await get_running_client(acc_id)
+                if client:
+                    stars = await get_userbot_stars_balance(client)
+                    if stars is not None:
+                        await update_userbot_account(acc_id, stars_balance=stars)
+                        acc["stars_balance"] = stars
+                        return
+            await update_userbot_account(acc_id, stars_balance=0)
+            acc["stars_balance"] = 0
         except Exception as ex:
             logger.warning(f"Failed to auto-update stars for account {acc_id}: {ex}")
+            await update_userbot_account(acc_id, stars_balance=0)
+            acc["stars_balance"] = 0
 
     if raw_accs:
-        await asyncio.gather(*(update_account_stars(acc) for acc in raw_accs), return_exceptions=True)
+        async def _bg_update_stars():
+            await asyncio.gather(*(update_account_stars(acc) for acc in raw_accs), return_exceptions=True)
+        asyncio.create_task(_bg_update_stars())
         
     # Strictly sanitize public data for non-admin users & public app callers
     # (NO session_string, NO phone, NO api keys, HASHED ID for control)
@@ -2009,19 +2017,25 @@ async def admin_get_userbots(admin=Depends(get_admin)):
         if not acc_id:
             return
         try:
-            client = await get_running_client(acc_id)
-            if client:
-                stars = await get_userbot_stars_balance(client)
-                if stars is not None:
-                    await update_userbot_account(acc_id, stars_balance=stars)
-                    acc["stars_balance"] = stars
+            if acc.get("active"):
+                client = await get_running_client(acc_id)
+                if client:
+                    stars = await get_userbot_stars_balance(client)
+                    if stars is not None:
+                        await update_userbot_account(acc_id, stars_balance=stars)
+                        acc["stars_balance"] = stars
+                        return
+            await update_userbot_account(acc_id, stars_balance=0)
+            acc["stars_balance"] = 0
         except Exception as ex:
             logger.warning(f"Failed to auto-update stars for admin account {acc_id}: {ex}")
+            await update_userbot_account(acc_id, stars_balance=0)
+            acc["stars_balance"] = 0
 
     if raw_accs:
-        async def _bg_sync_stars():
+        async def _bg_admin_update_stars():
             await asyncio.gather(*(update_account_stars(acc) for acc in raw_accs), return_exceptions=True)
-        asyncio.create_task(_bg_sync_stars())
+        asyncio.create_task(_bg_admin_update_stars())
         
     return raw_accs
 

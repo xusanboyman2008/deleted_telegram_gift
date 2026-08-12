@@ -1182,35 +1182,52 @@ async def get_userbot_chat_history(account_id: int, recipient: str, limit: int =
         return []
 
 _PHOTO_CACHE = {}
+_CONTACTS_CACHE = {}
 
 async def _download_and_cache_photo(client, file_id: str) -> str:
-    import asyncio
+    import asyncio, os, re
+    if not file_id:
+        return None
     if file_id in _PHOTO_CACHE:
         return _PHOTO_CACHE[file_id]
+
+    clean_id = re.sub(r'[^a-zA-Z0-9_-]', '', str(file_id))[:32]
+    rel_path = f"assets/user_photos/thumb_{clean_id}.jpg"
+    abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", rel_path))
+
+    if os.path.exists(abs_path) and os.path.getsize(abs_path) > 0:
+        _PHOTO_CACHE[file_id] = rel_path
+        return rel_path
+
     try:
-        p_file = await asyncio.wait_for(client.download_media(file_id), timeout=1.5)
-        if p_file and os.path.exists(p_file):
-            import base64
-            def read_file():
-                with open(p_file, "rb") as f:
-                    return base64.b64encode(f.read()).decode("utf-8")
-            
-            loop = asyncio.get_running_loop()
-            b64 = await loop.run_in_executor(None, read_file)
-            photo_url = f"data:image/jpeg;base64,{b64}"
-            _PHOTO_CACHE[file_id] = photo_url
-            try:
-                os.remove(p_file)
-            except Exception:
-                pass
-            return photo_url
+        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+        bio = await asyncio.wait_for(client.download_media(file_id, in_memory=True), timeout=3.0)
+        if bio and hasattr(bio, "getbuffer"):
+            data = bio.getbuffer()
+            if len(data) > 0:
+                def _write_photo():
+                    with open(abs_path, "wb") as f:
+                        f.write(data)
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(None, _write_photo)
+                _PHOTO_CACHE[file_id] = rel_path
+                return rel_path
     except Exception:
         pass
     return None
 
 async def get_userbot_contacts(account_id: int, limit: int = 30, offset: int = 0) -> list:
     """Fetches recent dialogs (chat contacts) with pagination and concurrent photo caching for account."""
-    import asyncio
+    import asyncio, time
+    account_id = int(account_id)
+    now = time.time()
+
+    # Fast Return from Memory Cache (TTL 30 seconds for initial page)
+    if offset == 0 and account_id in _CONTACTS_CACHE:
+        cached_time, cached_list = _CONTACTS_CACHE[account_id]
+        if now - cached_time < 30.0 and cached_list:
+            return cached_list[:limit]
+
     account = get_userbot_by_id(account_id)
     if not account or not account.get("session_string"):
         return []
@@ -1223,14 +1240,14 @@ async def get_userbot_contacts(account_id: int, limit: int = 30, offset: int = 0
         dialogs = []
         count = 0
         try:
-            async with asyncio.timeout(4.0):
+            async with asyncio.timeout(3.0):
                 async for dialog in client.get_dialogs():
                     if count >= offset:
                         dialogs.append(dialog)
                         if len(dialogs) >= limit:
                             break
                     count += 1
-                    if count > 300:
+                    if count > 150:
                         break
         except Exception as d_err:
             logger.warning(f"get_dialogs timeout/error for account {account_id}: {d_err}")
@@ -1288,10 +1305,13 @@ async def get_userbot_contacts(account_id: int, limit: int = 30, offset: int = 0
             try:
                 await asyncio.wait_for(
                     asyncio.gather(*(download_task(item, file_id) for item, file_id in photo_tasks), return_exceptions=True),
-                    timeout=2.0
+                    timeout=1.5
                 )
             except Exception:
                 pass
+
+        if contacts and offset == 0:
+            _CONTACTS_CACHE[account_id] = (now, contacts)
 
         return contacts
     except Exception as e:

@@ -69,10 +69,6 @@
               <div>📞 {{ ub.phone }}</div>
               <div style="color: #c084fc; font-weight: 500;">Owner ID: {{ ub.owner_tg_id }}</div>
             </div>
-            <div style="background: rgba(234, 179, 8, 0.15); color: #FACC15; padding: 4px 10px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.3); display: flex; align-items: center; gap: 4px;">
-              <span v-if="starsRefreshing" class="tg-spinner" style="width: 12px; height: 12px; border-width: 1.5px;"></span>
-              <span v-else>⭐</span> {{ ub.stars_balance || 0 }}
-            </div>
           </div>
           <div class="pub-actions">
             <button class="btn-chat v-btn" @click="$emit('jump-to-chat', ub)" title="Chat as this userbot">
@@ -128,10 +124,6 @@
             <div>
               <div>📞 {{ ub.phone }}</div>
               <div style="color: #4ade80; font-weight: 500;">Official Platform Bot</div>
-            </div>
-            <div style="background: rgba(234, 179, 8, 0.15); color: #FACC15; padding: 4px 10px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.3); display: flex; align-items: center; gap: 4px;">
-              <span v-if="starsRefreshing" class="tg-spinner" style="width: 12px; height: 12px; border-width: 1.5px;"></span>
-              <span v-else>⭐</span> {{ ub.stars_balance || 0 }}
             </div>
           </div>
           <div class="pub-actions">
