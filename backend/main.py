@@ -1113,28 +1113,28 @@ async def websocket_chat_endpoint(
     if str(real_id) != str(account_id):
         await ws_manager.connect(websocket, str(real_id), recipient)
 
-    # Also try to resolve the numeric chat_id for this peer and register that too
-    extra_key = None
-    extra_username = None
-    try:
-        from userbot.userbot import get_running_client as grc2
-        client = await grc2(real_id)
-        if client:
-            target_peer = recipient
-            # Convert recipient to integer if it is numeric
-            if str(recipient).strip().replace("-", "").isdigit():
-                target_peer = int(recipient)
-            chat = await asyncio.wait_for(client.get_chat(target_peer), timeout=2.0)
-            if chat:
-                extra_key = str(chat.id)
-                await ws_manager.connect(websocket, account_id, extra_key)
-                await ws_manager.connect(websocket, str(real_id), extra_key)
-                if chat.username:
-                    extra_username = chat.username.lower()
-                    await ws_manager.connect(websocket, account_id, extra_username)
-                    await ws_manager.connect(websocket, str(real_id), extra_username)
-    except Exception as e:
-        logger.warning(f"WS get_chat resolve skipped/failed for {recipient}: {e}")
+    # Asynchronously attempt to resolve extra keys (numeric ID and username) without blocking WS handshake
+    async def _async_resolve_extra_keys():
+        try:
+            from userbot.userbot import get_running_client as grc2
+            client = await grc2(real_id)
+            if client:
+                target_peer = recipient
+                if str(recipient).strip().replace("-", "").isdigit():
+                    target_peer = int(recipient)
+                chat = await asyncio.wait_for(client.get_chat(target_peer), timeout=2.0)
+                if chat:
+                    extra_key = str(chat.id)
+                    await ws_manager.connect(websocket, account_id, extra_key)
+                    await ws_manager.connect(websocket, str(real_id), extra_key)
+                    if chat.username:
+                        extra_username = chat.username.lower()
+                        await ws_manager.connect(websocket, account_id, extra_username)
+                        await ws_manager.connect(websocket, str(real_id), extra_username)
+        except Exception as e:
+            logger.warning(f"WS get_chat resolve skipped/failed for {recipient}: {e}")
+
+    asyncio.create_task(_async_resolve_extra_keys())
 
     try:
         while True:

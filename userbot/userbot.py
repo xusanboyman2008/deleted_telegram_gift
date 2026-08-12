@@ -1047,21 +1047,23 @@ async def get_running_client(account_id: int):
         client.last_used_time = time.time()
         _RUNNING_USERBOTS[account_id] = client
 
-        # Auto-fetch profile photo if missing
+        # Auto-fetch profile photo if missing in non-blocking task
         if account and not account.get("photo"):
-            try:
-                me = await client.get_me()
-                if me and me.photo:
-                    p_file = await client.download_media(me.photo.small_file_id)
-                    if p_file and os.path.exists(p_file):
-                        with open(p_file, "rb") as f:
-                            import base64
-                            b64 = base64.b64encode(f.read()).decode("utf-8")
-                            photo_data = f"data:image/jpeg;base64,{b64}"
-                            account["photo"] = photo_data
-                            await update_userbot_account(account_id, photo=photo_data)
-            except Exception as pe:
-                logger.warning(f"Could not fetch profile photo for account {account_id}: {pe}")
+            async def _bg_fetch_photo():
+                try:
+                    me = await client.get_me()
+                    if me and me.photo:
+                        p_file = await client.download_media(me.photo.small_file_id)
+                        if p_file and os.path.exists(p_file):
+                            with open(p_file, "rb") as f:
+                                import base64
+                                b64 = base64.b64encode(f.read()).decode("utf-8")
+                                photo_data = f"data:image/jpeg;base64,{b64}"
+                                account["photo"] = photo_data
+                                await update_userbot_account(account_id, photo=photo_data)
+                except Exception as pe:
+                    logger.warning(f"Could not fetch profile photo for account {account_id}: {pe}")
+            asyncio.create_task(_bg_fetch_photo())
 
         return client
     except Exception as e:
@@ -1108,6 +1110,25 @@ async def idle_userbots_cleanup_loop():
         # Check every 2 minutes
         await asyncio.sleep(120)
 
+async def _download_media_to_disk_bg(client, file_id: str, subfolder: str, filename: str):
+    """Downloads media in background to frontend asset directory."""
+    import asyncio, os
+    try:
+        rel_dir = os.path.join("assets", subfolder)
+        abs_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", rel_dir))
+        os.makedirs(abs_dir, exist_ok=True)
+        abs_path = os.path.join(abs_dir, filename)
+        if os.path.exists(abs_path) and os.path.getsize(abs_path) > 0:
+            return f"{rel_dir}/{filename}"
+
+        file_path = await asyncio.wait_for(client.download_media(file_id, file_name=abs_path), timeout=4.0)
+        if file_path and os.path.exists(file_path):
+            return f"{rel_dir}/{filename}"
+    except Exception as ex:
+        logger.warning(f"Background media download skipped for {filename}: {ex}")
+    return None
+
+
 async def get_userbot_chat_history(account_id: int, recipient: str, limit: int = 20) -> list:
     """Fetches recent chat messages for recipient using Hydrogram client session if available."""
     account = get_userbot_by_id(account_id)
@@ -1138,32 +1159,29 @@ async def get_userbot_chat_history(account_id: int, recipient: str, limit: int =
 
             photo_url = None
             if getattr(m, "photo", None):
-                try:
-                    file_path = await asyncio.wait_for(client.download_media(m.photo.file_id), timeout=1.5)
-                    if file_path and os.path.exists(file_path):
-                        import base64
-                        with open(file_path, "rb") as f:
-                            b64 = base64.b64encode(f.read()).decode("utf-8")
-                            photo_url = f"data:image/jpeg;base64,{b64}"
-                        try: os.remove(file_path)
-                        except: pass
-                except Exception as ex:
-                    logger.warning(f"Error downloading msg photo: {ex}")
+                small_id = getattr(m.photo, "file_id", None)
+                if small_id:
+                    clean_id = re.sub(r'[^a-zA-Z0-9_-]', '', str(small_id))[:32]
+                    fname = f"msg_photo_{clean_id}.jpg"
+                    rel_p = f"assets/chat_media/{fname}"
+                    abs_p = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", rel_p))
+                    if os.path.exists(abs_p) and os.path.getsize(abs_p) > 0:
+                        photo_url = rel_p
+                    else:
+                        asyncio.create_task(_download_media_to_disk_bg(client, small_id, "chat_media", fname))
 
             voice_url = None
             if getattr(m, "voice", None) or getattr(m, "audio", None):
-                try:
-                    media_obj = getattr(m, "voice", None) or getattr(m, "audio", None)
-                    file_path = await asyncio.wait_for(client.download_media(media_obj.file_id), timeout=1.5)
-                    if file_path and os.path.exists(file_path):
-                        import base64
-                        with open(file_path, "rb") as f:
-                            b64 = base64.b64encode(f.read()).decode("utf-8")
-                            voice_url = f"data:audio/ogg;base64,{b64}"
-                        try: os.remove(file_path)
-                        except: pass
-                except Exception as ex:
-                    logger.warning(f"Error downloading msg voice: {ex}")
+                media_obj = getattr(m, "voice", None) or getattr(m, "audio", None)
+                if media_obj and getattr(media_obj, "file_id", None):
+                    clean_id = re.sub(r'[^a-zA-Z0-9_-]', '', str(media_obj.file_id))[:32]
+                    fname = f"msg_voice_{clean_id}.ogg"
+                    rel_v = f"assets/chat_media/{fname}"
+                    abs_v = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", rel_v))
+                    if os.path.exists(abs_v) and os.path.getsize(abs_v) > 0:
+                        voice_url = rel_v
+                    else:
+                        asyncio.create_task(_download_media_to_disk_bg(client, media_obj.file_id, "chat_media", fname))
 
             messages_out.append({
                 "id": m.id,
@@ -1217,15 +1235,15 @@ async def _download_and_cache_photo(client, file_id: str) -> str:
     return None
 
 async def get_userbot_contacts(account_id: int, limit: int = 30, offset: int = 0) -> list:
-    """Fetches recent dialogs (chat contacts) with pagination and concurrent photo caching for account."""
+    """Fetches recent dialogs (chat contacts) with pagination and fast photo resolution for account."""
     import asyncio, time, os, re
     account_id = int(account_id)
     now = time.time()
 
-    # Fast Return from Memory Cache (TTL 30 seconds for initial page)
+    # Fast Return from Memory Cache (TTL 15 seconds for initial page)
     if offset == 0 and account_id in _CONTACTS_CACHE:
         cached_time, cached_list = _CONTACTS_CACHE[account_id]
-        if now - cached_time < 30.0 and cached_list:
+        if now - cached_time < 15.0 and cached_list:
             return cached_list[:limit]
 
     account = get_userbot_by_id(account_id)
@@ -1251,13 +1269,11 @@ async def get_userbot_contacts(account_id: int, limit: int = 30, offset: int = 0
                     cnt += 1
                 return d_list
 
-            dialogs = await asyncio.wait_for(_fetch_dialogs_list(), timeout=4.0)
+            dialogs = await asyncio.wait_for(_fetch_dialogs_list(), timeout=2.5)
         except Exception as d_err:
             logger.warning(f"get_dialogs fetch error for account {account_id}: {d_err}")
 
         contacts = []
-        photo_tasks = []
-        sem = asyncio.Semaphore(3)
         
         for dialog in dialogs:
             chat = dialog.chat
@@ -1286,7 +1302,6 @@ async def get_userbot_contacts(account_id: int, limit: int = 30, offset: int = 0
                     last_time = dialog.top_message.date.strftime("%H:%M")
                 last_out = getattr(dialog.top_message, "outgoing", False)
 
-            # Quick check if photo is already cached on disk/memory
             photo_url = None
             if chat.photo:
                 small_id = getattr(chat.photo, 'small_file_id', None)
@@ -1301,7 +1316,8 @@ async def get_userbot_contacts(account_id: int, limit: int = 30, offset: int = 0
                             _PHOTO_CACHE[small_id] = rel_path
                             photo_url = rel_path
                         else:
-                            photo_tasks.append((len(contacts), small_id))
+                            # Schedule non-blocking background avatar download
+                            asyncio.create_task(_download_and_cache_photo(client, small_id))
 
             contact_data = {
                 "peer": peer,
@@ -1315,21 +1331,6 @@ async def get_userbot_contacts(account_id: int, limit: int = 30, offset: int = 0
                 "online": False,
             }
             contacts.append(contact_data)
-
-        if photo_tasks:
-            async def download_task(idx, file_id):
-                async with sem:
-                    url = await _download_and_cache_photo(client, file_id)
-                    if url and idx < len(contacts):
-                        contacts[idx]["photo"] = url
-
-            try:
-                await asyncio.wait_for(
-                    asyncio.gather(*(download_task(idx, file_id) for idx, file_id in photo_tasks[:6]), return_exceptions=True),
-                    timeout=1.2
-                )
-            except Exception:
-                pass
 
         if contacts and offset == 0:
             _CONTACTS_CACHE[account_id] = (now, contacts)

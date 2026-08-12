@@ -1450,10 +1450,14 @@ createApp({
       }
     });
 
-    // Watch tab changes for WebSocket lifecycle & Admin-Gated Lazy Loading
+    const canAccessChats = computed(() => {
+      return isAdmin.value || !!userAccount.value || (userbotAccounts.value && userbotAccounts.value.length > 0);
+    });
+
+    // Watch tab changes for WebSocket lifecycle & Lazy Loading
     watch(tab, async (newTab, oldTab) => {
       // 1. Enforce access control for Chats tab
-      if (newTab === 'chat' && !isAdmin.value) {
+      if (newTab === 'chat' && !canAccessChats.value) {
         tab.value = 'home';
         return;
       }
@@ -1463,8 +1467,8 @@ createApp({
         if (chatState.disconnectAllSockets) chatState.disconnectAllSockets();
       }
 
-      // 3. Connect WebSockets & load chat contacts ONLY when on Chats tab as Admin
-      if (newTab === 'chat' && isAdmin.value) {
+      // 3. Connect WebSockets & load chat contacts ONLY when on Chats tab
+      if (newTab === 'chat' && canAccessChats.value) {
         if (!tabsLoaded.chat) {
           tabsLoaded.chat = true;
           loadUserbotAccounts();
@@ -1999,7 +2003,7 @@ createApp({
 
     const navIndicatorStyle = computed(() => {
       const visibleTabs = ['home'];
-      if (isAdmin.value) visibleTabs.push('chat');
+      if (canAccessChats.value) visibleTabs.push('chat');
       visibleTabs.push('history', 'settings');
       if (isAdmin.value) visibleTabs.push('userbots', 'bot_control');
 
@@ -2015,6 +2019,7 @@ createApp({
     // Managed bots already loaded in main boot sequence
 
     return {
+      canAccessChats,
       navIndicatorStyle,
       pageLoading, botCommands, loadBotCommands, saveBotCommands, addBotCommand, removeBotCommand,
       botMenuTab, botPanelUsers, broadcastShow, broadcastText, loadBotPanelUsers, restartTelegramBot, refreshWebhook, openBroadcastModal, sendBroadcast,

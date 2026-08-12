@@ -859,7 +859,7 @@
 
 
     <!-- ── 1-TO-1 TELEGRAM CHAT TAB ────────────────── -->
-    <div v-if="isAdmin && tab==='chat'" class="tg-app-container">
+    <div v-if="canAccessChats && tab==='chat'" class="tg-app-container">
 
       <!-- ① Account Switcher Header -->
       <div class="tg-account-header">
@@ -1260,7 +1260,7 @@
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 9.5L12 3l9 6.5V21H3V9.5z"/></svg>
       <span>{{ t('gifts') }}</span>
     </button>
-    <button v-if="isAdmin" :class="['nav-item', 'v-btn', tab==='chat'?'active':'']" @click="tab='chat'">
+    <button v-if="canAccessChats" :class="['nav-item', 'v-btn', tab==='chat'?'active':'']" @click="tab='chat'">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-7.6 4.7l-5.7 1.9 1.9-5.7c-.9-1.2-1.4-2.7-1.4-4.2C3 6.3 7.7 2 13.5 2h.5A8.5 8.5 0 0 1 22 10.5v1z"/></svg>
       <span>{{ t('chats') }}</span>
     </button>

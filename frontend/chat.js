@@ -379,10 +379,10 @@ function setupChatState(Vue, api, showToast, tg) {
     // Clear unread badge
     chat.unread = 0;
 
-    // Load real messages & read chat history if account available
+    // Connect WebSocket & fetch chat history concurrently for zero lag
     if (activeChatAccount.value?.id) {
       if (activeChatAccount.value.is_managed_bot) {
-        await loadChatHistory(chat.peer);
+        loadChatHistory(chat.peer);
       } else {
         const accountId = activeChatAccount.value.raw_id || activeChatAccount.value.id;
         api('/api/userbot/chat/read', {
@@ -391,8 +391,8 @@ function setupChatState(Vue, api, showToast, tg) {
           body: JSON.stringify({ account_id: accountId, recipient: chat.peer })
         }).catch(() => {});
 
-        await loadChatHistory(chat.peer);
         connectChatSocket(chat.peer);
+        loadChatHistory(chat.peer);
       }
     }
   };
