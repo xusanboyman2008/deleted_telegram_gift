@@ -285,11 +285,15 @@ const LottieAnim = {
     const srcVal = ref('');
     const pageLoading = Vue.inject('pageLoading', ref(false));
     const activeTab = Vue.inject('activeTab', ref('home'));
+    let hasPlayedOnce = false;
 
     const markReady = async () => {
       isReady.value = true;
       await nextTick();
-      playOnce();
+      if (!hasPlayedOnce) {
+        hasPlayedOnce = true;
+        playOnce();
+      }
     };
 
     const playOnce = async () => {
@@ -299,6 +303,7 @@ const LottieAnim = {
         }
         try {
           el.value.seek(0);
+          el.value.setLooping(false);
           el.value.play();
         } catch (e) {}
       }
@@ -318,6 +323,7 @@ const LottieAnim = {
     const init = () => {
       failed.value = false;
       isReady.value = false;
+      hasPlayedOnce = false;
       if (!props.filename) return;
       srcVal.value = resolveAnimUrl(props.filename);
     };
@@ -337,7 +343,8 @@ const LottieAnim = {
     watch(() => props.filename, init);
 
     watch(pageLoading, (loading) => {
-      if (!loading && el.value) {
+      if (!loading && el.value && !hasPlayedOnce) {
+        hasPlayedOnce = true;
         playOnce();
       }
     });
@@ -347,10 +354,6 @@ const LottieAnim = {
       if (el.value) {
         if (el.value.offsetParent === null) {
           pausePlayer();
-        } else {
-          if (!pageLoading.value) {
-            playOnce();
-          }
         }
       }
     });
@@ -378,7 +381,7 @@ const LottieAnim = {
           background: 'transparent',
           speed: '1',
           autoplay: true,
-          loop: true,
+          loop: false,
           onError: onError,
           onMouseenter: onHover,
           onTouchstart: onHover,
