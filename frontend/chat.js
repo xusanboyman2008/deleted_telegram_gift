@@ -99,7 +99,7 @@ function setupChatState(Vue, api, showToast, tg) {
   };
 
   // ── Chat List / Contacts ───────────────────────
-  const chatList = ref([...DEFAULT_CHAT_CONTACTS]);
+  const chatList = (Vue.shallowRef || Vue.ref)([...DEFAULT_CHAT_CONTACTS]);
   const chatSearchQuery = ref('');
   const showSearchMenu = ref(false);
   const searchTab = ref('all'); // all, chats, bots, users
@@ -108,6 +108,7 @@ function setupChatState(Vue, api, showToast, tg) {
   const filteredChatList = computed(() => {
     let list = chatList.value;
     const q = chatSearchQuery.value.trim().toLowerCase();
+    if (!q && searchTab.value === 'all') return list;
 
     if (searchTab.value === 'bots') {
       list = list.filter(c => c.is_bot);
@@ -131,7 +132,7 @@ function setupChatState(Vue, api, showToast, tg) {
   // ── Active Chat Window ─────────────────────────
   const activeChat = ref(null);     // current chat object
   const currentChatPeer = ref('');  // current peer identifier
-  const currentMessages = ref([]);  // messages for current chat
+  const currentMessages = (Vue.shallowRef || Vue.ref)([]);  // messages for current chat
   const messagesStreamEl = ref(null);
   const chatLoading = ref(false);
 

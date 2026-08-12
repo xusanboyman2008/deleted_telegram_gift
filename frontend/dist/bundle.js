@@ -1,0 +1,1 @@
+var e;const o=null==(e=window.Telegram)?void 0:e.WebApp;if(o){o.ready(),o.expand();try{o.isVersionAtLeast&&o.isVersionAtLeast("6.1")&&("function"==typeof o.setBackgroundColor&&o.setBackgroundColor("#0D0E1A"),"function"==typeof o.setHeaderColor&&o.setHeaderColor("#0D0E1A"))}catch(t){}}console.log("⚡ TgGifts Ultra-Fast Vite + Vue 3 Engine Initialized");

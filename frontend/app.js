@@ -12,7 +12,7 @@ if (typeof window !== 'undefined' && (!window.crypto || !window.crypto.randomUUI
   };
 }
 
-const { createApp, ref, reactive, computed, onMounted, watch, nextTick } = Vue;
+const { createApp, ref, reactive, computed, onMounted, watch, nextTick, shallowRef } = Vue;
 
 // ── Telegram WebApp SDK ────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -466,7 +466,8 @@ createApp({
       userbots: false,
       bot_control: false,
     });
-    const gifts = ref(DEFAULT_GIFTS_SEED);
+    const gifts = shallowRef(DEFAULT_GIFTS_SEED);
+    const giftsLoading = ref(false);
     const historyLoading = ref(false);
     const historyLoadingMore = ref(false);
     const historyHasMore = ref(true);
@@ -496,9 +497,9 @@ createApp({
     });
     const showAdmin = ref(false);
     const aTab = ref('gifts');
-    const adminGifts = ref([]);
-    const adminOrders = ref([]);
-    const myOrders = ref([]);
+    const adminGifts = shallowRef([]);
+    const adminOrders = shallowRef([]);
+    const myOrders = shallowRef([]);
     const user = ref(ME);
 
     // ── Bot Panel State ──
@@ -1229,12 +1230,34 @@ createApp({
       active: true,
     });
 
+    const userbotsLoading = ref(false);
+    const starsRefreshing = ref(false);
+
     const loadAdminUserbots = async () => {
+      userbotsLoading.value = true;
       try {
         const d = await api('/api/admin/userbots').then(r => r.json());
         adminUserbots.value = Array.isArray(d) ? d : [];
       } catch (e) {
         console.error('loadAdminUserbots error:', e);
+      } finally {
+        userbotsLoading.value = false;
+      }
+    };
+
+    const refreshUserbotStars = async () => {
+      starsRefreshing.value = true;
+      try {
+        const res = await api('/api/admin/userbots/refresh-stars', { method: 'POST' }).then(r => r.json());
+        if (res.success && Array.isArray(res.accounts)) {
+          adminUserbots.value = res.accounts;
+          showToast('⚡ Star balances refreshed live!');
+        }
+      } catch (e) {
+        console.error('refreshUserbotStars error:', e);
+        showToast('❌ Failed to refresh stars');
+      } finally {
+        starsRefreshing.value = false;
       }
     };
 
@@ -2007,7 +2030,7 @@ createApp({
       sheetGlowStyle, sheetRingStyle, giftName, getGiftImg, getFallbackPng, scrollToGifts, openRealUserContact, isNumeric,
       openSheet, closeSheet, pickContact, setRecipientMe, pay, loadHistory, openAdmin,
       onRecipientInput, checkRecipientNow, clearRecipient,
-      loadAdminGifts, loadAdminOrders, loadAdminUserbots, openAddUserbot, editUserbot, saveUserbot, openAddForm, editGift, saveGift, toggleActive, delGift,
+      loadAdminGifts, loadAdminOrders, loadAdminUserbots, refreshUserbotStars, userbotsLoading, starsRefreshing, openAddUserbot, editUserbot, saveUserbot, openAddForm, editGift, saveGift, toggleActive, delGift,
       openUserbotMsg, sendUserbotMsg, toggleUserbotActive, jumpToUserbotChat,
       openTelegramLink, openTelegramChatWithUserbot,
       // ── Chat Module ──

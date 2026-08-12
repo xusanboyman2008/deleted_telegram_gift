@@ -84,7 +84,7 @@
 
         <!-- 3-Column Grid -->
         <transition-group v-else name="gift-stagger" tag="div" class="gifts-grid" style="margin-top: 10px;">
-          <div v-for="g in gifts" :key="g.id" class="gift-card v-btn" @click="openSheet(g)" @mouseenter="hoveredGiftId = g.id" @mouseleave="hoveredGiftId = null">
+          <div v-for="g in gifts" :key="g.id" v-memo="[g.id, g.base_stars, pricing.bot_stars, (hoveredGiftId === g.id)]" class="gift-card v-btn" @click="openSheet(g)" @mouseenter="hoveredGiftId = g.id" @mouseleave="hoveredGiftId = null">
             <div class="card-media">
               <lottie-anim v-if="g.animation" :filename="g.animation"></lottie-anim>
               <span v-else class="card-emoji-fallback">{{ g.emoji }}</span>
@@ -142,7 +142,7 @@
         </div>
         <div v-else class="orders-list">
           <transition-group name="list-slide">
-            <div v-for="o in myOrders" :key="o.id" class="order-item" :style="{'animation-delay': (o.id % 5) * 0.05 + 's'}">
+            <div v-for="o in myOrders" :key="o.id" v-memo="[o.id, o.status, o.total_stars]" class="order-item" :style="{'animation-delay': (o.id % 5) * 0.05 + 's'}">
               <div class="oi-left">
                 <div class="oi-media" style="width: 42px; height: 42px; flex-shrink: 0;">
                   <lottie-anim v-if="o.animation" :filename="o.animation"></lottie-anim>
@@ -286,13 +286,19 @@
     <div class="page" v-if="tab==='userbots'">
       <div class="page-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h2>🤖 {{ t('userbots') }}</h2>
-        <button class="add-btn v-btn" @click="openAdmin(); aTab='userbots'; openAddUserbot()" style="display: flex; align-items: center; gap: 6px;">
-          ➕ Add Account
-        </button>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="v-btn" @click="refreshUserbotStars" :disabled="starsRefreshing" style="background: rgba(234, 179, 8, 0.15); border: 1px solid rgba(234, 179, 8, 0.4); color: #FACC15; padding: 6px 14px; border-radius: 10px; font-size: 0.8rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+            <span v-if="starsRefreshing" class="tg-spinner" style="width: 12px; height: 12px; border-width: 2px;"></span>
+            <span v-else>🔄 Sync Stars</span>
+          </button>
+          <button class="add-btn v-btn" @click="openAdmin(); aTab='userbots'; openAddUserbot()" style="display: flex; align-items: center; gap: 6px;">
+            ➕ Add Account
+          </button>
+        </div>
       </div>
 
       <!-- 🦴 Ultimate Skeleton Loader for Admin Userbots -->
-      <div v-if="accountsLoading && !userLinkedAccounts.length && !systemUserbots.length" class="skeleton-userbots-grid">
+      <div v-if="userbotsLoading && !adminUserbots.length" class="skeleton-userbots-grid">
         <div v-for="n in 2" :key="n" class="skeleton-userbot-card">
           <div class="skeleton-userbot-header">
             <div class="skeleton-userbot-avatar shimmer-skeleton"></div>
@@ -330,7 +336,8 @@
                     {{ ub.active !== false ? '🟢 Active' : '🔴 Disabled' }}
                   </span>
                   <span class="stars-badge" style="background: rgba(234, 179, 8, 0.2); color: #FACC15; padding: 2px 8px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.4); margin-left: 6px; display: inline-flex; align-items: center; gap: 3px;">
-                    ⭐ {{ ub.stars_balance || 0 }} Stars
+                    <span v-if="starsRefreshing" class="tg-spinner" style="width: 10px; height: 10px; border-width: 1.5px;"></span>
+                    <span v-else>⭐</span> {{ ub.stars_balance || 0 }} Stars
                   </span>
                 </div>
                 <div class="pub-username">@{{ ub.username || 'no_username' }}</div>
@@ -341,8 +348,9 @@
                 <div>📞 {{ ub.phone }}</div>
                 <div style="color: #c084fc; font-weight: 500;">Owner ID: {{ ub.owner_tg_id }}</div>
               </div>
-              <div style="background: rgba(234, 179, 8, 0.15); color: #FACC15; padding: 4px 10px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.3);">
-                ⭐ {{ ub.stars_balance || 0 }}
+              <div style="background: rgba(234, 179, 8, 0.15); color: #FACC15; padding: 4px 10px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.3); display: flex; align-items: center; gap: 4px;">
+                <span v-if="starsRefreshing" class="tg-spinner" style="width: 12px; height: 12px; border-width: 1.5px;"></span>
+                <span v-else>⭐</span> {{ ub.stars_balance || 0 }}
               </div>
             </div>
             <div class="pub-actions">
@@ -385,7 +393,8 @@
                     {{ ub.active !== false ? '🟢 Active' : '🔴 Disabled' }}
                   </span>
                   <span class="stars-badge" style="background: rgba(234, 179, 8, 0.2); color: #FACC15; padding: 2px 8px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.4); margin-left: 6px; display: inline-flex; align-items: center; gap: 3px;">
-                    ⭐ {{ ub.stars_balance || 0 }} Stars
+                    <span v-if="starsRefreshing" class="tg-spinner" style="width: 10px; height: 10px; border-width: 1.5px;"></span>
+                    <span v-else>⭐</span> {{ ub.stars_balance || 0 }} Stars
                   </span>
                 </div>
                 <div class="pub-username">@{{ ub.username || 'no_username' }}</div>
@@ -396,8 +405,9 @@
                 <div>📞 {{ ub.phone }}</div>
                 <div style="color: #4ade80; font-weight: 500;">Official Platform Bot</div>
               </div>
-              <div style="background: rgba(234, 179, 8, 0.15); color: #FACC15; padding: 4px 10px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.3);">
-                ⭐ {{ ub.stars_balance || 0 }}
+              <div style="background: rgba(234, 179, 8, 0.15); color: #FACC15; padding: 4px 10px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.3); display: flex; align-items: center; gap: 4px;">
+                <span v-if="starsRefreshing" class="tg-spinner" style="width: 12px; height: 12px; border-width: 1.5px;"></span>
+                <span v-else>⭐</span> {{ ub.stars_balance || 0 }}
               </div>
             </div>
             <div class="pub-actions">
@@ -984,6 +994,7 @@
 
             <div
               v-for="chat in filteredChatList" :key="chat.peer"
+              v-memo="[chat.peer, chat.last_msg, chat.last_time, chat.unread, (currentChatPeer === chat.peer)]"
               :class="['tg-chat-item', currentChatPeer === chat.peer ? 'active' : '']"
               @click="openChatWindow(chat)"
             >
@@ -1082,6 +1093,7 @@
 
               <div
                 v-for="msg in currentMessages" :key="msg.id"
+                v-memo="[msg.id, msg.text, msg.out, msg.time, msg.sending, msg.failed]"
                 :class="['tg-msg-bubble', msg.out ? 'outgoing' : 'incoming', msg.sending ? 'sending' : '', msg.failed ? 'failed' : '']"
               >
                 <div v-if="!msg.out && activeChat.is_bot" class="tg-msg-author">{{ activeChat.title }}</div>
@@ -1897,7 +1909,7 @@
 <script src="vue.min.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
-<script src="chat.js?v=1.2.0"></script>
-<script src="app.js?v=1.2.0"></script>
+<script src="chat.min.js?v=2.5.0"></script>
+<script src="app.min.js?v=2.5.0"></script>
 </body>
 </html>

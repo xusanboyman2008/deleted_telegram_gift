@@ -1612,11 +1612,9 @@ async def get_userbot_accounts(user: dict = Depends(get_optional_user)):
             client = await get_running_client(acc_id)
             if client:
                 stars = await get_userbot_stars_balance(client)
-                await update_userbot_account(acc_id, stars_balance=stars)
-                acc["stars_balance"] = stars
-            else:
-                await update_userbot_account(acc_id, stars_balance=0)
-                acc["stars_balance"] = 0
+                if stars is not None:
+                    await update_userbot_account(acc_id, stars_balance=stars)
+                    acc["stars_balance"] = stars
         except Exception as ex:
             logger.warning(f"Failed to auto-update stars for account {acc_id}: {ex}")
 
@@ -2014,18 +2012,50 @@ async def admin_get_userbots(admin=Depends(get_admin)):
             client = await get_running_client(acc_id)
             if client:
                 stars = await get_userbot_stars_balance(client)
-                await update_userbot_account(acc_id, stars_balance=stars)
-                acc["stars_balance"] = stars
-            else:
-                await update_userbot_account(acc_id, stars_balance=0)
-                acc["stars_balance"] = 0
+                if stars is not None:
+                    await update_userbot_account(acc_id, stars_balance=stars)
+                    acc["stars_balance"] = stars
         except Exception as ex:
             logger.warning(f"Failed to auto-update stars for admin account {acc_id}: {ex}")
 
     if raw_accs:
-        asyncio.create_task(asyncio.gather(*(update_account_stars(acc) for acc in raw_accs), return_exceptions=True))
+        async def _bg_sync_stars():
+            await asyncio.gather(*(update_account_stars(acc) for acc in raw_accs), return_exceptions=True)
+        asyncio.create_task(_bg_sync_stars())
         
     return raw_accs
+
+
+@app.post("/api/admin/userbots/refresh-stars")
+async def refresh_admin_userbots_stars(admin=Depends(get_admin)):
+    """Live query and update Telegram Stars balance for all userbots synchronously."""
+    raw_accs = await db.async_get_userbot_accounts(active_only=False, is_admin=True)
+    try:
+        from userbot.userbot import get_running_client, get_userbot_stars_balance, update_userbot_account
+    except ImportError:
+        from userbot import get_running_client, get_userbot_stars_balance, update_userbot_account
+
+    async def update_single(acc):
+        acc_id = acc.get("id")
+        if not acc_id or not acc.get("active"):
+            return acc
+        try:
+            client = await get_running_client(acc_id)
+            if client:
+                stars = await get_userbot_stars_balance(client)
+                if stars is not None:
+                    await update_userbot_account(acc_id, stars_balance=stars)
+                    acc["stars_balance"] = stars
+        except Exception as ex:
+            logger.warning(f"Refresh stars failed for account {acc_id}: {ex}")
+        return acc
+
+    if raw_accs:
+        await asyncio.gather(*(update_single(acc) for acc in raw_accs), return_exceptions=True)
+
+    # Re-read fresh data from DB
+    fresh = await db.async_get_userbot_accounts(active_only=False, is_admin=True)
+    return {"success": True, "accounts": fresh}
 
 
 class UserbotCreate(BaseModel):

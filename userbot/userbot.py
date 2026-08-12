@@ -729,7 +729,7 @@ async def get_userbot_stars_balance(client) -> int:
         return int(raw_bal)
     except Exception as e:
         logger.warning(f"Could not fetch stars balance: {e}")
-        return 0
+        return None
 
 
 import time
