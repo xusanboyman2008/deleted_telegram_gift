@@ -17,7 +17,7 @@
     }
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.min.css?v=1.1.0"/>
+  <link rel="stylesheet" href="style.min.css?v=1.2.0"/>
 </head>
 <body>
 <div id="app" v-cloak>
@@ -1484,24 +1484,34 @@
       <div class="sheet">
         <div class="sheet-handle"></div>
 
-        <!-- ── Gift Circular Preview ── -->
-        <div class="sheet-avatar-circle">
-          <img v-if="getGiftImg(selected.animation)" :src="getGiftImg(selected.animation)" class="sheet-img-preview"/>
-          <lottie-anim v-else-if="selected.animation" :filename="selected.animation" class="sheet-lottie"></lottie-anim>
-          <div v-else class="sheet-emoji">{{ selected.emoji }}</div>
-        </div>
+        <!-- ── Gift Preview ── -->
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+          <div class="sheet-avatar-circle">
+            <img v-if="getGiftImg(selected.animation)" :src="getGiftImg(selected.animation)" class="sheet-img-preview"/>
+            <lottie-anim v-else-if="selected.animation" :filename="selected.animation" class="sheet-lottie"></lottie-anim>
+            <div v-else class="sheet-emoji">{{ selected.emoji }}</div>
+          </div>
 
-        <div class="sheet-price-wrap">
-          <div class="sheet-price-total">⭐ {{ totalStars }}</div>
-          <div class="sheet-price-breakdown" v-if="priceBreakdown.fee > 0">
-            {{ priceBreakdown.base }} <span class="price-dim">base</span> + {{ priceBreakdown.fee }} <span class="price-dim">fee</span>
+          <div style="font-size: 1.1rem; font-weight: 700; color: #fff; text-align: center; letter-spacing: -0.01em; margin-top: 2px;">
+            {{ giftName(selected) }}
+          </div>
+
+          <div class="sheet-price-wrap">
+            <div class="sheet-price-total shine-effect">⭐ {{ totalStars }}</div>
+            <div class="sheet-price-breakdown" v-if="priceBreakdown.fee > 0">
+              {{ priceBreakdown.base }} <span class="price-dim">base</span> + {{ priceBreakdown.fee }} <span class="price-dim">fee</span>
+            </div>
           </div>
         </div>
 
-        <!-- ── Recipient Input Row ── -->
-        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; padding: 0 4px; font-size: 0.8rem; font-weight: 600; color: rgba(255,255,255,0.75);">
-          <span>👤 {{ t('recipientInputPlaceholder') }}:</span>
-          <span class="info-circle" title="Telegram username (@username) yoki raqamli ID kiriting. Qabul qiluvchi botni kamida 1 marta start qilgan bo'lishi kerak.">!</span>
+        <!-- ── Divider ── -->
+        <div style="width: 100%; height: 1px; background: linear-gradient(90deg, transparent, rgba(168,85,247,0.3), transparent); margin: 2px 0;"></div>
+
+        <!-- ── Step 1: Recipient ── -->
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; padding: 0 4px;">
+          <span class="sheet-step-badge">1</span>
+          <span style="font-size: 0.82rem; font-weight: 700; color: rgba(255,255,255,0.85);">{{ t('recipientInputPlaceholder') }}</span>
+          <span class="info-circle" title="Enter a Telegram username (@username) or numeric ID.">?</span>
         </div>
         <div class="recipient-wrap" style="margin-bottom: 12px;">
           <div class="rec-input-box">
@@ -1541,7 +1551,12 @@
           <div style="font-size: 0.8rem; color: rgba(255,255,255,0.4); text-align: center;">Verifying recipient username/ID...</div>
         </div>
 
-        <!-- ── Custom Gift Message Field ── -->
+        <!-- ── Step 2: Gift Message ── -->
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; padding: 0 4px;">
+          <span class="sheet-step-badge">2</span>
+          <span style="font-size: 0.82rem; font-weight: 700; color: rgba(255,255,255,0.85);">Gift Message</span>
+          <span style="font-size: 0.68rem; color: rgba(255,255,255,0.3); margin-left: auto;">Optional</span>
+        </div>
         <div class="gift-msg-field">
           <span class="msg-icon">💬</span>
           <input
@@ -1553,14 +1568,13 @@
           />
         </div>
 
-        <!-- ── Sender Selection (Official Bot vs Userbots vs My Account) ── -->
+        <!-- ── Step 3: Sender Selection ── -->
         <div class="userbot-select-wrap">
-          <div class="ub-toggle-header" @click="showSenderDropdown = !showSenderDropdown" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 4px 2px; margin-bottom: 6px;">
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <span>⚡ {{ t('senderType') }}:</span>
-              <span class="info-circle" title="Yuborish usulini tanlang: Rasmiy Bot (standart sovg'a), Tizim userboti, yoki Shaxsiy ulangan profilingiz.">!</span>
-            </div>
-            <span class="ub-dropdown-arrow" style="font-size: 0.8rem; color: #FFB300;">{{ showSenderDropdown ? '▲ Hide' : '▼ Change Sender' }}</span>
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; padding: 0 2px; cursor: pointer;" @click="showSenderDropdown = !showSenderDropdown">
+            <span class="sheet-step-badge">3</span>
+            <span style="font-size: 0.82rem; font-weight: 700; color: rgba(255,255,255,0.85);">{{ t('senderType') }}</span>
+            <span class="info-circle" title="Choose how to send: Official Bot, System userbot, or your connected account.">?</span>
+            <span style="font-size: 0.72rem; color: #FFB300; margin-left: auto;">{{ showSenderDropdown ? '▲ Hide' : '▼ Change' }}</span>
           </div>
 
           <!-- Active Selected Sender Card (Single Box) -->
@@ -1670,7 +1684,7 @@
 
         <!-- ── Action Buttons Stack ── -->
         <div class="sheet-action-stack">
-          <button class="sheet-pay-btn" :disabled="paying || !recipient.trim() || checkingUser || !!userCheckError || !verifiedUser || !selectedSender" @click="pay">
+          <button class="sheet-pay-btn shine-effect v-btn" :disabled="paying || !recipient.trim() || checkingUser || !!userCheckError || !verifiedUser || !selectedSender" @click="pay">
             <span v-if="!paying">{{ t('payBtn') }} {{ totalStars }} ⭐</span>
             <span v-else class="spin">⏳</span>
           </button>
@@ -1909,7 +1923,7 @@
 <script src="vue.min.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
-<script src="chat.min.js?v=2.6.0"></script>
-<script src="app.min.js?v=2.6.0"></script>
+<script src="chat.min.js?v=2.7.0"></script>
+<script src="app.min.js?v=2.7.0"></script>
 </body>
 </html>
