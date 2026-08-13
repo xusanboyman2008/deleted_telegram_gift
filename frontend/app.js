@@ -383,8 +383,11 @@ const LottieAnim = {
     };
 
     return () => {
-      if (failed.value && props.fallbackImg) {
-        return Vue.h('img', { src: props.fallbackImg, class: 'gift-png-fallback' });
+      if (failed.value) {
+        if (props.fallbackImg) {
+          return Vue.h('img', { src: props.fallbackImg, class: 'gift-png-fallback' });
+        }
+        return Vue.h('div', { class: 'gift-emoji-fallback', style: { fontSize: '3.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' } }, '🎁');
       }
       return Vue.h('div', { class: 'lottie-anim-wrapper', style: { width: '100%', height: '100%', position: 'relative' } }, [
         !isReady.value ? Vue.h('div', { class: 'skeleton-gift-media shimmer-skeleton', style: { position: 'absolute', inset: 0, zIndex: 2, borderRadius: '12px' } }) : null,
