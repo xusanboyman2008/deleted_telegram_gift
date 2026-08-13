@@ -210,6 +210,36 @@ async def build_gifts_keyboard():
 
 async def start_handler(update: Update, context):
     user = update.effective_user
+    args = context.args if context and hasattr(context, "args") else []
+    if args and args[0].startswith("gift_"):
+        try:
+            gift_id = int(args[0].replace("gift_", ""))
+            gift = await db.get_gift(gift_id)
+            if gift:
+                total = gift['base_stars'] + gift['commission']
+                name = gift.get('display_name') or gift['emoji']
+                emoji_html = get_tg_emoji_html(gift)
+                photo_url = get_gift_image_url(gift)
+                text = (
+                    f"🎁 {emoji_html} <b>{name}</b>\n\n"
+                    f"🗓 <b>Release Date:</b> {gift['date_label']}\n"
+                    f"{STAR_EMOJI_HTML} <b>Price:</b> {total} Stars ({gift['base_stars']} + {gift['commission']} fee)\n"
+                    f"🆔 <b>TG Gift ID:</b> <code>{gift['gift_tg_id']}</code>\n\n"
+                    f"👇 Choose how you want to purchase:"
+                )
+                kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton(f"⚡ Buy with Bot ({total}⭐)", callback_data=f"buy_bot_{gift_id}")],
+                    [InlineKeyboardButton("👤 Buy via Real User (@xusanboyman200)", url="https://t.me/xusanboyman200")],
+                    [InlineKeyboardButton("◀️ Back to Gifts", callback_data="bot_choose_gift")]
+                ])
+                if update.message:
+                    await update.message.reply_photo(photo=photo_url, caption=text, parse_mode="HTML", reply_markup=kb)
+                elif update.callback_query:
+                    await edit_or_reply(update.callback_query, text, photo_url=photo_url, reply_markup=kb)
+                return
+        except Exception as e:
+            logger.warning(f"start deep link error: {e}")
+
     kb = await build_main_keyboard()
     caption = (
         f"✨ <b>PREMIUM DELETED GIFTS SHOP</b> ✨\n\n"
@@ -228,6 +258,7 @@ async def start_handler(update: Update, context):
             parse_mode="HTML",
             reply_markup=kb,
         )
+
 
 
 async def edit_or_reply(query, text, photo_url=None, reply_markup=None, disable_web_page_preview=True):
@@ -636,12 +667,20 @@ async def user_message_or_admin_reply_handler(update: Update, context):
         if match:
             target_user_id = int(match.group(1))
             try:
-                msg_text = msg.text or msg.caption or ""
-                await context.bot.send_message(
-                    chat_id=target_user_id,
-                    text=f"💬 <b>Support Reply from @xusanboyman200:</b>\n\n{msg_text}",
-                    parse_mode="HTML"
-                )
+                if msg.text:
+                    await context.bot.send_message(
+                        chat_id=target_user_id,
+                        text=f"💬 <b>Support Reply from @xusanboyman200:</b>\n\n{msg.text}",
+                        parse_mode="HTML"
+                    )
+                else:
+                    await context.bot.copy_message(
+                        chat_id=target_user_id,
+                        from_chat_id=msg.chat_id,
+                        message_id=msg.message_id,
+                        caption=f"💬 <b>Support Reply from @xusanboyman200:</b>\n\n{msg.caption or ''}",
+                        parse_mode="HTML"
+                    )
                 await msg.reply_text(f"✅ Reply delivered to user <code>{target_user_id}</code>!", parse_mode="HTML")
                 return
             except Exception as e:
@@ -651,17 +690,32 @@ async def user_message_or_admin_reply_handler(update: Update, context):
     # 2. USER SENDS A MESSAGE TO BOT -> FORWARD TO ADMIN AS SUPPORT
     if ADMIN_ID and user_id != ADMIN_ID:
         try:
-            content = msg.text or msg.caption or "(Media Attachment)"
-            admin_notice = (
-                f"📩 <b>Support Inquiry from @{username}</b> [USER_ID: {user_id}]:\n\n"
-                f"{content}\n\n"
-                f"<i>(💡 Reply directly to this message to answer the user!)</i>"
-            )
-            await context.bot.send_message(
-                chat_id=ADMIN_ID,
-                text=admin_notice,
-                parse_mode="HTML"
-            )
+            header = f"📩 <b>Support Inquiry from @{username}</b> [USER_ID: {user_id}]:"
+            if msg.text:
+                admin_notice = f"{header}\n\n{msg.text}\n\n<i>(💡 Reply directly to this message to answer the user!)</i>"
+                await context.bot.send_message(
+                    chat_id=ADMIN_ID,
+                    text=admin_notice,
+                    parse_mode="HTML"
+                )
+            else:
+                cap = msg.caption or ""
+                admin_caption = f"{header}\n\n{cap}\n\n<i>(💡 Reply directly to this message to answer the user!)</i>"
+                try:
+                    await context.bot.copy_message(
+                        chat_id=ADMIN_ID,
+                        from_chat_id=msg.chat_id,
+                        message_id=msg.message_id,
+                        caption=admin_caption,
+                        parse_mode="HTML"
+                    )
+                except Exception:
+                    await context.bot.send_message(
+                        chat_id=ADMIN_ID,
+                        text=f"{header}\n\n[Media Attachment]\n\n<i>(💡 Reply directly to this message to answer!)</i>",
+                        parse_mode="HTML"
+                    )
+
             await msg.reply_text(
                 "📬 <b>Your support message has been sent to @xusanboyman200!</b>\n\n"
                 "The owner will respond to you right here shortly.",
