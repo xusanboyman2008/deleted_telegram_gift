@@ -1131,12 +1131,13 @@ async def _download_media_to_disk_bg(client, file_id: str, subfolder: str, filen
 
 async def get_userbot_chat_history(account_id: int, recipient: str, limit: int = 20) -> list:
     """Fetches recent chat messages for recipient using Hydrogram client session if available."""
-    account = get_userbot_by_id(account_id)
-    if not account or not account.get("session_string"):
-        return []
-
     clean_target = recipient.strip()
-    target = int(clean_target) if clean_target.isdigit() else ("@" + clean_target.lstrip("@"))
+    if clean_target.startswith('+'):
+        target = clean_target
+    elif clean_target.lstrip('-').isdigit():
+        target = int(clean_target)
+    else:
+        target = "@" + clean_target.lstrip("@")
 
     try:
         client = await get_running_client(account_id)
@@ -1253,7 +1254,7 @@ async def get_userbot_contacts(account_id: int, limit: int = 30, offset: int = 0
     try:
         client = await get_running_client(account_id)
         if not client:
-            return []
+            return _CONTACTS_CACHE.get(account_id, (0, []))[1][:limit]
         
         dialogs = []
         try:
@@ -1269,9 +1270,11 @@ async def get_userbot_contacts(account_id: int, limit: int = 30, offset: int = 0
                     cnt += 1
                 return d_list
 
-            dialogs = await asyncio.wait_for(_fetch_dialogs_list(), timeout=2.5)
+            dialogs = await asyncio.wait_for(_fetch_dialogs_list(), timeout=8.0)
         except Exception as d_err:
             logger.warning(f"get_dialogs fetch error for account {account_id}: {d_err}")
+            if account_id in _CONTACTS_CACHE:
+                return _CONTACTS_CACHE[account_id][1][:limit]
 
         contacts = []
         
@@ -1338,5 +1341,7 @@ async def get_userbot_contacts(account_id: int, limit: int = 30, offset: int = 0
         return contacts
     except Exception as e:
         logger.warning(f"get_userbot_contacts failed for account {account_id}: {e}")
+        if account_id in _CONTACTS_CACHE:
+            return _CONTACTS_CACHE[account_id][1][:limit]
         return []
 

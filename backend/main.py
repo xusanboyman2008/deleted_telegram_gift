@@ -1697,7 +1697,7 @@ async def update_allowed_admins_endpoint(body: AdminListUpdatePayload, admin=Dep
 _STARS_CACHE_TTL = {}
 
 @app.get("/api/userbot-accounts")
-async def get_userbot_accounts(user: dict = Depends(get_optional_user)):
+async def get_userbot_accounts(user: dict = Depends(get_optional_user), refresh: bool = False):
     user_id = user.get("id") if user else None
     
     allowed_ids = await db.get_allowed_admins()
@@ -1720,30 +1720,32 @@ async def get_userbot_accounts(user: dict = Depends(get_optional_user)):
             return
         now = time.time()
         last_check = _STARS_CACHE_TTL.get(acc_id, 0)
-        # Skip background MTProto query if checked within last 180 seconds and balance is known
-        if now - last_check < 180.0 and acc.get("stars_balance") is not None:
+        # Skip background MTProto query if checked recently and refresh is false
+        if not refresh and (now - last_check < 180.0) and acc.get("stars_balance") is not None:
             return
 
         try:
             if acc.get("active"):
-                client = await asyncio.wait_for(get_running_client(acc_id), timeout=2.0)
+                client = await asyncio.wait_for(get_running_client(acc_id), timeout=6.0)
                 if client:
-                    stars = await asyncio.wait_for(get_userbot_stars_balance(client), timeout=2.0)
+                    stars = await asyncio.wait_for(get_userbot_stars_balance(client), timeout=6.0)
                     if stars is not None:
                         await update_userbot_account(acc_id, stars_balance=stars)
                         acc["stars_balance"] = stars
                         _STARS_CACHE_TTL[acc_id] = now
                         return
-            await update_userbot_account(acc_id, stars_balance=0)
-            acc["stars_balance"] = 0
-            _STARS_CACHE_TTL[acc_id] = now
         except Exception as ex:
-            logger.warning(f"Failed to auto-update stars for account {acc_id}: {ex}")
+            logger.warning(f"Failed to update stars for account {acc_id}: {ex}")
 
     if raw_accs:
-        async def _bg_update_stars():
+        if refresh:
             await asyncio.gather(*(update_account_stars(acc) for acc in raw_accs), return_exceptions=True)
-        asyncio.create_task(_bg_update_stars())
+            # Re-read accounts after sync
+            raw_accs = await db.async_get_userbot_accounts(active_only=True, user_tg_id=user_id, is_admin=is_admin)
+        else:
+            async def _bg_update_stars():
+                await asyncio.gather(*(update_account_stars(acc) for acc in raw_accs), return_exceptions=True)
+            asyncio.create_task(_bg_update_stars())
         
     # Strictly sanitize public data for non-admin users & public app callers
     # (NO session_string, NO phone, NO api keys, HASHED ID for control)

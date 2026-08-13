@@ -603,10 +603,11 @@ createApp({
 
     const accountsLoading = ref(true);
 
-    const loadUserbotAccounts = async () => {
+    const loadUserbotAccounts = async (forceRefresh = false) => {
       accountsLoading.value = true;
       try {
-        const d = await api('/api/userbot-accounts').then(r => r.json());
+        const url = forceRefresh ? '/api/userbot-accounts?refresh=1' : '/api/userbot-accounts';
+        const d = await api(url).then(r => r.json());
         userbotAccounts.value = Array.isArray(d) ? d : [];
         if (publicUserbots.value.length > 0 && !selectedUserbot.value) {
           selectedUserbot.value = publicUserbots.value[0].id;
@@ -1272,6 +1273,7 @@ createApp({
         const res = await api('/api/admin/userbots/refresh-stars', { method: 'POST' }).then(r => r.json());
         if (res.success && Array.isArray(res.accounts)) {
           adminUserbots.value = res.accounts;
+          await loadUserbotAccounts(true);
           showToast('⚡ Star balances refreshed live!');
         }
       } catch (e) {
