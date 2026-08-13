@@ -810,7 +810,7 @@ async def uptime_pinger():
     await asyncio.sleep(15)
     logger.info("Starting background Uptime Pinger...")
     url = f"{BASE_URL.rstrip('/')}/"
-    async with httpx.AsyncClient(verify=False) as client:
+    async with httpx.AsyncClient(verify=False, headers={"User-Agent": "UptimePinger/1.0"}) as client:
         while True:
             try:
                 # Ping itself to keep server awake
