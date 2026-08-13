@@ -302,6 +302,16 @@ async def poll_bot_updates(bot_data: dict):
 
 async def start_bot_instance(bot_data: dict):
     """Starts polling loop for a managed bot."""
+    try:
+        from config import BOT_TOKEN
+    except ImportError:
+        from backend.config import BOT_TOKEN
+
+    token = bot_data.get("token", "")
+    if token and token == BOT_TOKEN:
+        logger.info(f"Skipping polling loop for main BOT_TOKEN (@{bot_data.get('bot_username')}) to prevent 409 Conflict")
+        return
+
     bot_id = bot_data["id"]
     if bot_id in _RUNNING_BOT_TASKS:
         task = _RUNNING_BOT_TASKS[bot_id]

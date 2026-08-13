@@ -893,16 +893,35 @@ async def lifespan(app: FastAPI):
             chat_shared_filter = getattr(filters.StatusUpdate, "CHAT_SHARED", None)
             if chat_shared_filter:
                 ptb_app.add_handler(MessageHandler(chat_shared_filter, shared_chat_handler))
-            ptb_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, user_message_or_admin_reply_handler))
+            ptb_app.add_handler(MessageHandler(~filters.COMMAND, user_message_or_admin_reply_handler))
             await ptb_app.initialize()
             await ptb_app.start()
 
-            webhook_url = f"{BASE_URL}/webhook"
-            try:
-                await ptb_app.bot.set_webhook(webhook_url, drop_pending_updates=True)
-                logger.info(f"Webhook: {webhook_url}")
-            except Exception as e:
-                logger.warning(f"Failed to set webhook ({e}), continuing...")
+            if BASE_URL.startswith("https://") and "localhost" not in BASE_URL and "127.0.0.1" not in BASE_URL:
+                webhook_url = f"{BASE_URL}/webhook"
+                try:
+                    await ptb_app.bot.set_webhook(webhook_url, drop_pending_updates=True)
+                    logger.info(f"Webhook set successfully: {webhook_url}")
+                except Exception as e:
+                    logger.warning(f"Failed to set webhook ({e}), falling back to polling...")
+                    try:
+                        await ptb_app.bot.delete_webhook(drop_pending_updates=True)
+                        if not ptb_app.updater:
+                            from telegram.ext import Updater
+                            ptb_app.updater = Updater(bot=ptb_app.bot, update_queue=ptb_app.update_queue)
+                        await ptb_app.updater.start_polling()
+                    except Exception as pe:
+                        logger.warning(f"Polling fallback warning: {pe}")
+            else:
+                logger.info("Local/HTTP environment detected. Starting PTB polling mode...")
+                try:
+                    await ptb_app.bot.delete_webhook(drop_pending_updates=True)
+                    if not ptb_app.updater:
+                        from telegram.ext import Updater
+                        ptb_app.updater = Updater(bot=ptb_app.bot, update_queue=ptb_app.update_queue)
+                    await ptb_app.updater.start_polling()
+                except Exception as pe:
+                    logger.warning(f"Polling startup warning: {pe}")
 
             mini_app_url = f"{BASE_URL}/index.html"
             try:
