@@ -863,7 +863,8 @@ async def uptime_pinger():
     # Wait initially for startup to settle
     await asyncio.sleep(15)
     logger.info("Starting background Uptime Pinger...")
-    url = f"{BASE_URL.rstrip('/')}/"
+    port = os.getenv("PORT", "8000")
+    url = f"http://127.0.0.1:{port}/"
     async with httpx.AsyncClient(verify=False, headers={"User-Agent": "UptimePinger/1.0"}) as client:
         while True:
             try:
