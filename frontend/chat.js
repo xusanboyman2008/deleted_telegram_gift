@@ -83,6 +83,7 @@ function setupChatState(Vue, api, showToast, tg) {
     showAccountDropdown.value = false;
     activeChat.value = null;
     currentChatPeer.value = null;
+    mobileShowChat.value = false;
     contactsOffset.value = 0;
     contactsHasMore.value = true;
     if (chatSocket) {

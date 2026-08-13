@@ -1460,25 +1460,17 @@ createApp({
       }
     });
 
-    const canAccessChats = computed(() => {
-      return isAdmin.value || !!userAccount.value || (userbotAccounts.value && userbotAccounts.value.length > 0);
-    });
+    const canAccessChats = computed(() => true);
 
     // Watch tab changes for WebSocket lifecycle & Lazy Loading
     watch(tab, async (newTab, oldTab) => {
-      // 1. Enforce access control for Chats tab
-      if (newTab === 'chat' && !canAccessChats.value) {
-        tab.value = 'home';
-        return;
-      }
-
-      // 2. Disconnect WebSockets when leaving Chats
+      // 1. Disconnect WebSockets when leaving Chats
       if (oldTab === 'chat' && newTab !== 'chat') {
         if (chatState.disconnectAllSockets) chatState.disconnectAllSockets();
       }
 
-      // 3. Connect WebSockets & load chat contacts ONLY when on Chats tab
-      if (newTab === 'chat' && canAccessChats.value) {
+      // 2. Connect WebSockets & load chat contacts ONLY when on Chats tab
+      if (newTab === 'chat') {
         if (!tabsLoaded.chat) {
           tabsLoaded.chat = true;
           loadUserbotAccounts();
