@@ -6,18 +6,20 @@ Main FastAPI — Deleted Gift Shop
 - Serves Vue 3 frontend
 """
 
+import asyncio
 import time
 import json
 import hmac
 import hashlib
 import logging
 import httpx
-import asyncio
 import traceback
 from datetime import datetime
 from typing import Any, Optional, Union, Dict, List
 from contextlib import asynccontextmanager
 from urllib.parse import parse_qsl
+import mimetypes
+mimetypes.add_type("application/zip", ".lottie")
 
 user_last_invoice_time = {}
 
@@ -72,23 +74,49 @@ def verify_init_data(init_data: str) -> dict | None:
         return None
 
 
+ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", "xusanboyman_admin_secret_9981")
+
 # ── Auth dependency ────────────────────────────────────────────────────────────
 async def get_user(
+    request: Request,
     x_init_data: str = Header(None, alias="X-Init-Data"),
 ) -> dict:
     user = verify_init_data(x_init_data) if x_init_data else None
     if user is None:
-        return {"id": ADMIN_ID, "username": "xusanboyman200", "first_name": "Admin"}
+        client_host = request.client.host if request and request.client else ""
+        host_header = request.headers.get("host", "").split(":")[0]
+        if client_host in ("127.0.0.1", "localhost", "::1", "0.0.0.0") or host_header in ("127.0.0.1", "localhost", "0.0.0.0"):
+            return {"id": 6588631008, "username": "xusanboyman200", "first_name": "Local Admin"}
+        return {"id": 0, "username": "guest", "first_name": "Guest"}
     return user
 
 
-async def get_admin(user: dict = Depends(get_user)) -> dict:
-    uid = int(user.get("id", 0)) if user.get("id") else 0
-    
-    # Strictly authorize the admin owner (6588631008) and 0 (local development fallback)
-    if uid == 6588631008 or uid == 0:
-        return user
-        
+async def get_admin(
+    request: Request,
+    x_init_data: str = Header(None, alias="X-Init-Data"),
+    x_admin_key: str = Header(None, alias="X-Admin-Key"),
+) -> dict:
+    client_host = request.client.host if request and request.client else ""
+    host_header = request.headers.get("host", "").split(":")[0]
+    is_localhost = (client_host in ("127.0.0.1", "localhost", "::1", "0.0.0.0")) or (host_header in ("127.0.0.1", "localhost", "0.0.0.0"))
+
+    # 1. Localhost environment check (for local testing before push)
+    if is_localhost:
+        return {"id": 6588631008, "username": "xusanboyman200", "first_name": "Local Admin"}
+
+    # 2. Secret hashed link check (?admin_key=xusanboyman_admin_secret_9981 or X-Admin-Key header)
+    query_key = request.query_params.get("admin_key") or x_admin_key
+    if query_key and query_key == ADMIN_SECRET_KEY:
+        return {"id": 6588631008, "username": "xusanboyman200", "first_name": "Secret Admin"}
+
+    # 3. Regular Telegram initData admin check
+    user = verify_init_data(x_init_data) if x_init_data else None
+    if user:
+        uid = int(user.get("id", 0)) if user.get("id") else 0
+        allowed_ids = await db.get_allowed_admins()
+        if uid == 6588631008 or uid == ADMIN_ID or uid in allowed_ids:
+            return user
+
     raise HTTPException(status_code=403, detail="Not authorized as admin")
 
 
@@ -144,8 +172,12 @@ def get_gift_image_url(gift: dict) -> str:
 
 async def build_main_keyboard():
     web_url = BASE_URL
+    if web_url.startswith("https://"):
+        web_btn = InlineKeyboardButton("🚀 Launch Mini App", web_app=WebAppInfo(url=web_url))
+    else:
+        web_btn = InlineKeyboardButton("🚀 Launch Mini App", url=web_url)
     keyboard = [
-        [InlineKeyboardButton("🚀 Launch Mini App", web_app=WebAppInfo(url=web_url))],
+        [web_btn],
         [
             InlineKeyboardButton("⚡ Buy in Bot", callback_data="bot_choose_gift"),
             InlineKeyboardButton("👤 Buy Direct", url="https://t.me/xusanboyman200")
@@ -585,10 +617,10 @@ import re
 
 async def user_message_or_admin_reply_handler(update: Update, context):
     msg = update.message
-    if not msg or not msg.text:
+    if not msg:
         return
 
-    if msg.text == "❌ Cancel":
+    if msg.text and msg.text == "❌ Cancel":
         from telegram import ReplyKeyboardRemove
         await msg.reply_text("Keyboard removed.", reply_markup=ReplyKeyboardRemove())
         return
@@ -604,9 +636,10 @@ async def user_message_or_admin_reply_handler(update: Update, context):
         if match:
             target_user_id = int(match.group(1))
             try:
+                msg_text = msg.text or msg.caption or ""
                 await context.bot.send_message(
                     chat_id=target_user_id,
-                    text=f"💬 <b>Support Reply from @xusanboyman200:</b>\n\n{msg.text}",
+                    text=f"💬 <b>Support Reply from @xusanboyman200:</b>\n\n{msg_text}",
                     parse_mode="HTML"
                 )
                 await msg.reply_text(f"✅ Reply delivered to user <code>{target_user_id}</code>!", parse_mode="HTML")
@@ -615,12 +648,13 @@ async def user_message_or_admin_reply_handler(update: Update, context):
                 await msg.reply_text(f"❌ Failed to send reply: {e}")
                 return
 
-    # 2. USER SENDS A TEXT MESSAGE TO BOT -> FORWARD TO ADMIN AS SUPPORT
+    # 2. USER SENDS A MESSAGE TO BOT -> FORWARD TO ADMIN AS SUPPORT
     if ADMIN_ID and user_id != ADMIN_ID:
         try:
+            content = msg.text or msg.caption or "(Media Attachment)"
             admin_notice = (
                 f"📩 <b>Support Inquiry from @{username}</b> [USER_ID: {user_id}]:\n\n"
-                f"{msg.text}\n\n"
+                f"{content}\n\n"
                 f"<i>(💡 Reply directly to this message to answer the user!)</i>"
             )
             await context.bot.send_message(
@@ -1586,6 +1620,8 @@ async def update_allowed_admins_endpoint(body: AdminListUpdatePayload, admin=Dep
     return {"ok": success, "admin_ids": ids}
 
 
+_STARS_CACHE_TTL = {}
+
 @app.get("/api/userbot-accounts")
 async def get_userbot_accounts(user: dict = Depends(get_optional_user)):
     user_id = user.get("id") if user else None
@@ -1604,8 +1640,6 @@ async def get_userbot_accounts(user: dict = Depends(get_optional_user)):
     except ImportError:
         from userbot import get_running_client, get_userbot_stars_balance, update_userbot_account
 
-    _STARS_CACHE_TTL = {}
-
     async def update_account_stars(acc):
         acc_id = acc.get("id")
         if not acc_id:
@@ -1618,9 +1652,9 @@ async def get_userbot_accounts(user: dict = Depends(get_optional_user)):
 
         try:
             if acc.get("active"):
-                client = await get_running_client(acc_id)
+                client = await asyncio.wait_for(get_running_client(acc_id), timeout=2.0)
                 if client:
-                    stars = await get_userbot_stars_balance(client)
+                    stars = await asyncio.wait_for(get_userbot_stars_balance(client), timeout=2.0)
                     if stars is not None:
                         await update_userbot_account(acc_id, stars_balance=stars)
                         acc["stars_balance"] = stars
@@ -1631,8 +1665,6 @@ async def get_userbot_accounts(user: dict = Depends(get_optional_user)):
             _STARS_CACHE_TTL[acc_id] = now
         except Exception as ex:
             logger.warning(f"Failed to auto-update stars for account {acc_id}: {ex}")
-            await update_userbot_account(acc_id, stars_balance=0)
-            acc["stars_balance"] = 0
 
     if raw_accs:
         async def _bg_update_stars():
@@ -2014,6 +2046,7 @@ async def set_bot_commands_endpoint(body: SetCommandsRequest, admin=Depends(get_
 
 
 # ── Admin Userbot Management ──────────────────────────────────────────────────
+@app.get("/api/userbots")
 @app.get("/api/admin/userbots")
 async def admin_get_userbots(admin=Depends(get_admin)):
     raw_accs = await db.async_get_userbot_accounts(active_only=False, is_admin=True)
@@ -2026,28 +2059,51 @@ async def admin_get_userbots(admin=Depends(get_admin)):
         acc_id = acc.get("id")
         if not acc_id:
             return
+        now = time.time()
+        last_check = _STARS_CACHE_TTL.get(acc_id, 0)
+        if now - last_check < 180.0 and acc.get("stars_balance") is not None:
+            return
         try:
             if acc.get("active"):
-                client = await get_running_client(acc_id)
+                client = await asyncio.wait_for(get_running_client(acc_id), timeout=2.0)
                 if client:
-                    stars = await get_userbot_stars_balance(client)
+                    stars = await asyncio.wait_for(get_userbot_stars_balance(client), timeout=2.0)
                     if stars is not None:
                         await update_userbot_account(acc_id, stars_balance=stars)
                         acc["stars_balance"] = stars
+                        _STARS_CACHE_TTL[acc_id] = now
                         return
             await update_userbot_account(acc_id, stars_balance=0)
             acc["stars_balance"] = 0
+            _STARS_CACHE_TTL[acc_id] = now
         except Exception as ex:
             logger.warning(f"Failed to auto-update stars for admin account {acc_id}: {ex}")
-            await update_userbot_account(acc_id, stars_balance=0)
-            acc["stars_balance"] = 0
 
     if raw_accs:
         async def _bg_admin_update_stars():
             await asyncio.gather(*(update_account_stars(acc) for acc in raw_accs), return_exceptions=True)
         asyncio.create_task(_bg_admin_update_stars())
         
-    return raw_accs
+    sanitized = []
+    for acc in raw_accs:
+        d = dict(acc)
+        sanitized.append({
+            "id": d.get("id"),
+            "session": str(d.get("session") or ""),
+            "phone": str(d.get("phone") or ""),
+            "session_string": str(d.get("session_string") or ""),
+            "api_id": int(d.get("api_id") or 0),
+            "api_hash": str(d.get("api_hash") or ""),
+            "first_name": str(d.get("first_name") or ""),
+            "last_name": str(d.get("last_name") or ""),
+            "username": str(d.get("username") or ""),
+            "bio": str(d.get("bio") or ""),
+            "photo": str(d.get("photo") or ""),
+            "active": bool(d.get("active", True)),
+            "owner_tg_id": d.get("owner_tg_id"),
+            "stars_balance": int(d.get("stars_balance") or 0)
+        })
+    return sanitized
 
 
 @app.post("/api/admin/userbots/refresh-stars")
@@ -2079,7 +2135,26 @@ async def refresh_admin_userbots_stars(admin=Depends(get_admin)):
 
     # Re-read fresh data from DB
     fresh = await db.async_get_userbot_accounts(active_only=False, is_admin=True)
-    return {"success": True, "accounts": fresh}
+    sanitized = []
+    for acc in fresh:
+        d = dict(acc)
+        sanitized.append({
+            "id": d.get("id"),
+            "session": str(d.get("session") or ""),
+            "phone": str(d.get("phone") or ""),
+            "session_string": str(d.get("session_string") or ""),
+            "api_id": int(d.get("api_id") or 0),
+            "api_hash": str(d.get("api_hash") or ""),
+            "first_name": str(d.get("first_name") or ""),
+            "last_name": str(d.get("last_name") or ""),
+            "username": str(d.get("username") or ""),
+            "bio": str(d.get("bio") or ""),
+            "photo": str(d.get("photo") or ""),
+            "active": bool(d.get("active", True)),
+            "owner_tg_id": d.get("owner_tg_id"),
+            "stars_balance": int(d.get("stars_balance") or 0)
+        })
+    return {"success": True, "accounts": sanitized}
 
 
 class UserbotCreate(BaseModel):

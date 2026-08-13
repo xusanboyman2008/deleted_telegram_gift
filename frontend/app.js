@@ -28,11 +28,19 @@ if (tg) {
 }
 const ME = tg?.initDataUnsafe?.user || null;
 const INIT_DATA = tg?.initData || '';
+const URL_ADMIN_KEY = new URLSearchParams(window.location.search).get('admin_key');
+if (URL_ADMIN_KEY) {
+  localStorage.setItem('admin_key', URL_ADMIN_KEY);
+}
+const ADMIN_SECRET_KEY = URL_ADMIN_KEY || localStorage.getItem('admin_key') || '';
 
 // ── API Fetcher ────────────────────────────────
 const H = {
   'X-Init-Data': INIT_DATA,
 };
+if (ADMIN_SECRET_KEY) {
+  H['X-Admin-Key'] = ADMIN_SECRET_KEY;
+}
 const api = (url, opts = {}) => fetch(url, {
   ...opts,
   headers: { ...H, ...(opts.headers || {}) },
@@ -96,6 +104,7 @@ const I18N = {
     gift_i_love_u: "I Love U",
     gift_christmas_tree: "Christmas Tree",
     gift_hug_bear: "Hug Bear",
+    gift_terrorist_bear: "Terrorist Bear",
     chats: "Chats",
     botPanel: "Bot Panel",
   },
@@ -155,6 +164,7 @@ const I18N = {
     gift_i_love_u: "Sevaman ❤️",
     gift_christmas_tree: "Rojdestvo daraxti",
     gift_hug_bear: "Quchoq ayiqcha",
+    gift_terrorist_bear: "Terrorist ayiqcha",
     chats: "Suhbatlar",
     botPanel: "Bot Paneli",
   },
@@ -214,6 +224,7 @@ const I18N = {
     gift_i_love_u: "Люблю тебя ❤️",
     gift_christmas_tree: "Рождественская ёлка",
     gift_hug_bear: "Мишка-обнимашка",
+    gift_terrorist_bear: "Мишка-Террорист",
     chats: "Чаты",
     botPanel: "Панель Бота",
   }
@@ -231,6 +242,8 @@ const GIFT_NAME_KEYS = {
   'I Love U': 'gift_i_love_u',
   'Christmas Tree': 'gift_christmas_tree',
   'Hug Bear': 'gift_hug_bear',
+  'Terrorist Bear': 'gift_terrorist_bear',
+  'Terrorist': 'gift_terrorist_bear',
 };
 
 // ── Image & Fallback mapping ───────────────────
@@ -402,6 +415,7 @@ const COLOR_MAP = {
   '🧙': { c1: '#43E97B', c2: '#38F9D7', glow: 'rgba(67, 233, 123, 0.4)' },
   '❤️': { c1: '#FF0844', c2: '#FFB199', glow: 'rgba(255, 8, 68, 0.4)' },
   '🎄': { c1: '#11998E', c2: '#38EF7D', glow: 'rgba(17, 153, 142, 0.4)' },
+  '🥷': { c1: '#374151', c2: '#1F2937', glow: 'rgba(55, 65, 81, 0.4)' },
 };
 const gc = emoji => COLOR_MAP[emoji] || { c1: '#7B61FF', c2: '#5A3FD4', glow: 'rgba(123, 97, 255, 0.4)' };
 
@@ -436,16 +450,17 @@ function confetti() {
 }
 
 const DEFAULT_GIFTS_SEED = [
-  { id: 1, emoji: "🧸", display_name: "Bunny Basket", date_label: "03/08/26", gift_tg_id: "5866352046986232958", base_stars: 50, commission: 10, active: 1, animation: "bunny_bear.lottie" },
-  { id: 2, emoji: "🧸", display_name: "Balloon Bear", date_label: "03/17/26", gift_tg_id: "5893356958802511476", base_stars: 50, commission: 10, active: 1, animation: "joker_bear.lottie" },
-  { id: 3, emoji: "🧸", display_name: "Rose Bear", date_label: "02/14/26", gift_tg_id: "5801108895304779062", base_stars: 50, commission: 10, active: 1, animation: "pink_bear.lottie" },
-  { id: 4, emoji: "🧸", display_name: "Worker Bear", date_label: "04/01/26", gift_tg_id: "5935895822435615975", base_stars: 50, commission: 10, active: 1, animation: "worker_bear.lottie" },
-  { id: 5, emoji: "🧸", display_name: "Football Bear", date_label: "05/01/26", gift_tg_id: "6026193266406327981", base_stars: 50, commission: 10, active: 1, animation: "football_bear.lottie" },
-  { id: 6, emoji: "🧸", display_name: "Santa Teddy", date_label: "12/25/25", gift_tg_id: "5922558454332916696", base_stars: 50, commission: 10, active: 1, animation: "santa_bear.lottie" },
-  { id: 7, emoji: "🧸", display_name: "Gnome Bear", date_label: "07/20/26", gift_tg_id: "5974210632977745012", base_stars: 50, commission: 10, active: 1, animation: "gnome_bear.lottie" },
-  { id: 8, emoji: "💖", display_name: "I Love U", date_label: "02/14/26", gift_tg_id: "5800655655995968839", base_stars: 50, commission: 10, active: 1, animation: "hear.lottie" },
-  { id: 9, emoji: "🎄", display_name: "Christmas Tree", date_label: "12/31/25", gift_tg_id: "5956217000635139069", base_stars: 50, commission: 10, active: 1, animation: "green_tree.lottie" },
-  { id: 10, emoji: "🧸", display_name: "Hug Bear", date_label: "05/10/26", gift_tg_id: "5800655655995968830", base_stars: 50, commission: 10, active: 1, animation: "hug_bear.lottie" }
+  { id: 1, emoji: "🥷", display_name: "Terrorist Bear", date_label: "08/13/26", gift_tg_id: "6046178578163303744", base_stars: 50, commission: 10, active: 1, animation: "terrorist.lottie" },
+  { id: 2, emoji: "🧸", display_name: "Bunny Basket", date_label: "03/08/26", gift_tg_id: "5866352046986232958", base_stars: 50, commission: 10, active: 1, animation: "bunny_bear.lottie" },
+  { id: 3, emoji: "🧸", display_name: "Balloon Bear", date_label: "03/17/26", gift_tg_id: "5893356958802511476", base_stars: 50, commission: 10, active: 1, animation: "joker_bear.lottie" },
+  { id: 4, emoji: "🧸", display_name: "Rose Bear", date_label: "02/14/26", gift_tg_id: "5801108895304779062", base_stars: 50, commission: 10, active: 1, animation: "pink_bear.lottie" },
+  { id: 5, emoji: "🧸", display_name: "Worker Bear", date_label: "04/01/26", gift_tg_id: "5935895822435615975", base_stars: 50, commission: 10, active: 1, animation: "worker_bear.lottie" },
+  { id: 6, emoji: "🧸", display_name: "Football Bear", date_label: "05/01/26", gift_tg_id: "6026193266406327981", base_stars: 50, commission: 10, active: 1, animation: "football_bear.lottie" },
+  { id: 7, emoji: "🧸", display_name: "Santa Teddy", date_label: "12/25/25", gift_tg_id: "5922558454332916696", base_stars: 50, commission: 10, active: 1, animation: "santa_bear.lottie" },
+  { id: 8, emoji: "🧸", display_name: "Gnome Bear", date_label: "07/20/26", gift_tg_id: "5974210632977745012", base_stars: 50, commission: 10, active: 1, animation: "gnome_bear.lottie" },
+  { id: 9, emoji: "💖", display_name: "I Love U", date_label: "02/14/26", gift_tg_id: "5800655655995968839", base_stars: 50, commission: 10, active: 1, animation: "hear.lottie" },
+  { id: 10, emoji: "🎄", display_name: "Christmas Tree", date_label: "12/31/25", gift_tg_id: "5956217000635139069", base_stars: 50, commission: 10, active: 1, animation: "green_tree.lottie" },
+  { id: 11, emoji: "🧸", display_name: "Hug Bear", date_label: "05/10/26", gift_tg_id: "5800655655995968830", base_stars: 50, commission: 10, active: 1, animation: "hug_bear.lottie" }
 ];
 
 try {
@@ -492,11 +507,11 @@ createApp({
     };
 
     const isAdmin = computed(() => {
-      if (location.search.includes('admin=true')) return true;
-      if (!ME) {
-        return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      }
-      return Number(ME.id) === 6588631008;
+      if (location.search.includes('admin=true') || Boolean(ADMIN_SECRET_KEY)) return true;
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === '0.0.0.0';
+      if (isLocal) return true;
+      if (ME && Number(ME.id) === 6588631008) return true;
+      return false;
     });
     const showAdmin = ref(false);
     const aTab = ref('gifts');
@@ -1422,21 +1437,13 @@ createApp({
         console.error('Boot menu load error:', e);
       }
 
-      // Step 2: Asynchronously load non-chat tab data in background AFTER Gifts are rendered
+      // Step 2: Asynchronously prefetch userbot accounts and pre-cache animations in background
       (async () => {
         try {
           preloadAllAnimations();
           await loadUserbotAccounts();
-          if (ME) loadHistory();
-          if (isAdmin.value) {
-            loadAdminUserbots();
-            loadManagedBots();
-            loadBotPanelUsers();
-            loadAdminOrders();
-            loadBotCommands();
-          }
         } catch (err) {
-          console.error('Background tabs prefetch error:', err);
+          console.error('Background prefetch error:', err);
         }
       })();
 
@@ -1509,12 +1516,7 @@ createApp({
           }
         }
       }
-
-      // Keep regular tab transition fetches fresh if settings or chat are loaded
-      if (newTab === 'settings' || (newTab === 'chat' && isAdmin.value)) {
-        loadUserbotAccounts();
-      }
-    }, { immediate: true });
+    });
 
     const scrollToGifts = () => {
       const el = document.querySelector('.gifts-grid');
@@ -2034,7 +2036,7 @@ createApp({
       isAdmin, showAdmin, aTab, adminGifts, sortedAdminGifts, adminOrders, adminUserbots, userLinkedAccounts, systemUserbots, ubForm, ubMsgForm, myOrders, user, form,
       checkingUser, verifiedUser, userCheckError, userbotAccounts, publicUserbots, selectedSender, selectedUserbot, userAccount, accountsLoading,
       showSenderDropdown, getSelectedUserbotObj, getSelectedUserbotName, getSmallestPriceCombination, getUserFirstName, getUserPhoto, onAnimationFileSelect,
-      currentLang, setLanguage, t, pricing, savePricing, phoneModal, openPhoneAuth, requestPhoneCode, resendPhoneCode, confirmPhoneCode, disconnectMyAccount,
+      currentLang, setLanguage, t, pricing, loadPricing, savePricing, phoneModal, openPhoneAuth, requestPhoneCode, resendPhoneCode, confirmPhoneCode, disconnectMyAccount,
       sheetGlowStyle, sheetRingStyle, giftName, getGiftImg, getFallbackPng, scrollToGifts, openRealUserContact, isNumeric,
       openSheet, closeSheet, pickContact, setRecipientMe, pay, loadHistory, openAdmin,
       onRecipientInput, checkRecipientNow, clearRecipient,

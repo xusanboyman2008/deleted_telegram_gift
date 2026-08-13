@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import logging
 import asyncio
 import aiosqlite
@@ -15,6 +16,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 IS_POSTGRES = DATABASE_URL.startswith("postgres://") or DATABASE_URL.startswith("postgresql://")
 
 GIFTS_SEED = [
+    ("🥷", "Terrorist Bear","08/13/26", "6046178578163303744", 50, DEFAULT_COMMISSION, "terrorist.lottie"),
     ("🧸", "Bunny Basket",  "03/08/26", "5866352046986232958", 50, DEFAULT_COMMISSION, "bunny_bear.lottie"),
     ("🧸", "Balloon Bear",  "03/17/26", "5893356958802511476", 50, DEFAULT_COMMISSION, "joker_bear.lottie"),
     ("🧸", "Rose Bear",     "02/14/26", "5801108895304779062", 50, DEFAULT_COMMISSION, "pink_bear.lottie"),
@@ -247,32 +249,31 @@ async def init_db():
     if IS_POSTGRES:
         pg_url = DATABASE_URL.replace("postgres://", "postgresql://")
         try:
-            pool = await asyncio.wait_for(asyncpg.create_pool(pg_url, command_timeout=5.0), timeout=5.0)
+            pool = await asyncio.wait_for(asyncpg.create_pool(pg_url, min_size=2, max_size=10, command_timeout=5.0), timeout=8.0)
             async with pool.acquire() as conn:
-                await conn.execute(CREATE_GIFTS_POSTGRES)
-                await conn.execute(CREATE_ORDERS_POSTGRES)
-                await conn.execute(CREATE_USERBOTS_POSTGRES)
-                await conn.execute(CREATE_SETTINGS_POSTGRES)
-                await conn.execute(CREATE_MANAGED_BOTS_POSTGRES)
-                await conn.execute(CREATE_BOT_USER_MESSAGES_POSTGRES)
-                await conn.execute(CREATE_BOT_USERS_POSTGRES)
-                try: await conn.execute("ALTER TABLE bot_user_messages ADD COLUMN IF NOT EXISTS media_type TEXT")
-                except Exception: pass
-                try: await conn.execute("ALTER TABLE bot_user_messages ADD COLUMN IF NOT EXISTS media_data TEXT")
-                except Exception: pass
-                try: await conn.execute("ALTER TABLE bot_user_messages ADD COLUMN IF NOT EXISTS file_name TEXT")
-                except Exception: pass
-                try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS gift_text TEXT")
-                except Exception: pass
-                try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS sender_type TEXT DEFAULT 'bot'")
-                except Exception: pass
-                try: await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS userbot_id INTEGER")
-                except Exception: pass
-                try: await conn.execute("ALTER TABLE userbot_accounts ADD COLUMN IF NOT EXISTS owner_tg_id BIGINT")
-                except Exception: pass
-                try: await conn.execute("ALTER TABLE userbot_accounts ADD COLUMN IF NOT EXISTS stars_balance INTEGER DEFAULT 0")
-                except Exception: pass
-                
+                combined_schema_sql = f"""
+                {CREATE_GIFTS_POSTGRES};
+                {CREATE_ORDERS_POSTGRES};
+                {CREATE_USERBOTS_POSTGRES};
+                {CREATE_SETTINGS_POSTGRES};
+                {CREATE_MANAGED_BOTS_POSTGRES};
+                {CREATE_BOT_USER_MESSAGES_POSTGRES};
+                {CREATE_BOT_USERS_POSTGRES};
+                ALTER TABLE bot_user_messages ADD COLUMN IF NOT EXISTS media_type TEXT;
+                ALTER TABLE bot_user_messages ADD COLUMN IF NOT EXISTS media_data TEXT;
+                ALTER TABLE bot_user_messages ADD COLUMN IF NOT EXISTS file_name TEXT;
+                ALTER TABLE orders ADD COLUMN IF NOT EXISTS gift_text TEXT;
+                ALTER TABLE orders ADD COLUMN IF NOT EXISTS sender_type TEXT DEFAULT 'bot';
+                ALTER TABLE orders ADD COLUMN IF NOT EXISTS userbot_id INTEGER;
+                ALTER TABLE userbot_accounts ADD COLUMN IF NOT EXISTS owner_tg_id BIGINT;
+                ALTER TABLE userbot_accounts ADD COLUMN IF NOT EXISTS stars_balance INTEGER DEFAULT 0;
+                UPDATE gifts SET animation='worker_bear.lottie' WHERE display_name='Worker Bear' OR animation='plumber_bear.json' OR animation='worker_bear.json';
+                UPDATE gifts SET display_name='Hug Bear', emoji='🧸', animation='hug_bear.lottie' WHERE gift_tg_id='5800655655995968830';
+                UPDATE gifts SET animation = REPLACE(animation, '.json', '.lottie') WHERE animation LIKE '%.json';
+                DELETE FROM gifts WHERE id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER(PARTITION BY gift_tg_id ORDER BY id) as row_num FROM gifts) t WHERE t.row_num > 1);
+                """
+                await conn.execute(combined_schema_sql)
+
                 # Seed userbot accounts from account.json if table is empty
                 try:
                     cnt = await conn.fetchval("SELECT COUNT(*) FROM userbot_accounts")
@@ -281,34 +282,32 @@ async def init_db():
                         if os.path.exists(acc_path):
                             with open(acc_path, "r", encoding="utf-8") as f:
                                 acc_data = json.load(f).get("accounts", [])
-                                for a in acc_data:
-                                    await conn.execute(
+                                if acc_data:
+                                    records = [
+                                        (
+                                            a.get("id"), a.get("session",""), a.get("phone",""), a.get("session_string",""),
+                                            int(a.get("api_id") or 0), str(a.get("api_hash") or ""), a.get("first_name",""), a.get("last_name",""),
+                                            a.get("username",""), a.get("bio",""), a.get("photo",""), 1 if a.get("active", True) else 0,
+                                            a.get("owner_tg_id")
+                                        )
+                                        for a in acc_data
+                                    ]
+                                    await conn.executemany(
                                         """INSERT INTO userbot_accounts (id, session, phone, session_string, api_id, api_hash, first_name, last_name, username, bio, photo, active, owner_tg_id)
                                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                                            ON CONFLICT (id) DO NOTHING""",
-                                        a.get("id"), a.get("session",""), a.get("phone",""), a.get("session_string",""),
-                                        int(a.get("api_id") or 0), str(a.get("api_hash") or ""), a.get("first_name",""), a.get("last_name",""),
-                                        a.get("username",""), a.get("bio",""), a.get("photo",""), 1 if a.get("active", True) else 0,
-                                        a.get("owner_tg_id")
+                                        records
                                     )
                 except Exception as e:
                     logger.warning(f"Failed to seed userbots to PG: {e}")
 
-                # Legacy cleanup
-                try:
-                    await conn.execute("UPDATE gifts SET animation='worker_bear.lottie' WHERE display_name='Worker Bear' OR animation='plumber_bear.json' OR animation='worker_bear.json'")
-                    await conn.execute("UPDATE gifts SET display_name='Hug Bear', emoji='🧸', animation='hug_bear.lottie' WHERE gift_tg_id='5800655655995968830'")
-                    await conn.execute("UPDATE gifts SET animation = REPLACE(animation, '.json', '.lottie') WHERE animation LIKE '%.json'")
-                    await conn.execute("DELETE FROM gifts WHERE id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER(PARTITION BY gift_tg_id ORDER BY id) as row_num FROM gifts) t WHERE t.row_num > 1)")
-                except Exception: pass
-
-                for g in GIFTS_SEED:
-                    await conn.execute(
-                        """INSERT INTO gifts (emoji, display_name, date_label, gift_tg_id, base_stars, commission, animation)
-                           VALUES ($1, $2, $3, $4, $5, $6, $7)
-                           ON CONFLICT (gift_tg_id) DO NOTHING""",
-                        g[0], g[1], g[2], g[3], g[4], g[5], g[6]
-                    )
+                gift_seed_params = [(g[0], g[1], g[2], g[3], g[4], g[5], g[6]) for g in GIFTS_SEED]
+                await conn.executemany(
+                    """INSERT INTO gifts (emoji, display_name, date_label, gift_tg_id, base_stars, commission, animation)
+                       VALUES ($1, $2, $3, $4, $5, $6, $7)
+                       ON CONFLICT (gift_tg_id) DO NOTHING""",
+                    gift_seed_params
+                )
             print(f"[DB] PostgreSQL database initialized with {len(GIFTS_SEED)} gifts.")
         except Exception as pg_err:
             logger.warning(f"PostgreSQL connection failed ({pg_err}), falling back to SQLite.")
@@ -355,6 +354,11 @@ async def init_db():
                 print(f"[DB] SQLite fallback database initialized with {len(GIFTS_SEED)} gifts.")
     else:
         async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("PRAGMA journal_mode=WAL")
+            await db.execute("PRAGMA synchronous=NORMAL")
+            await db.execute("PRAGMA temp_store=MEMORY")
+            await db.execute("PRAGMA cache_size=-64000")
+            await db.execute("PRAGMA mmap_size=268435456")
             await db.execute(CREATE_GIFTS_SQLITE)
             await db.execute(CREATE_ORDERS_SQLITE)
             await db.execute(CREATE_USERBOTS_SQLITE)
@@ -395,41 +399,64 @@ async def init_db():
             await db.commit()
             print(f"[DB] SQLite database initialized with {len(GIFTS_SEED)} gifts.")
 
+    bot_tok = os.getenv("BOT_TOKEN", "")
+    if bot_tok:
+        try:
+            await set_setting("bot_token", bot_tok)
+        except Exception as e:
+            logger.warning(f"Could not save bot_token to settings table: {e}")
+
 
 # ── Gift CRUD ──────────────────────────────────────────────────────────────
 
+_CACHE_GIFTS = {"data": None, "ts": 0}
+
+def invalidate_gifts_cache():
+    _CACHE_GIFTS["data"] = None
+
 async def get_all_gifts(active_only: bool = True):
+    now = time.time()
+    if _CACHE_GIFTS["data"] is not None and (now - _CACHE_GIFTS["ts"]) < 5.0:
+        cached = _CACHE_GIFTS["data"]
+        if active_only:
+            return [g for g in cached if g.get("active") == 1 or g.get("active") is True]
+        return cached
+
+    rows_data = None
     if IS_POSTGRES and pool:
         try:
             async with pool.acquire() as conn:
-                q = "SELECT * FROM gifts"
-                if active_only:
-                    q += " WHERE active=1"
-                q += " ORDER BY id"
+                q = "SELECT * FROM gifts ORDER BY id"
                 rows = await conn.fetch(q)
                 if rows:
-                    return [dict(r) for r in rows]
+                    rows_data = [dict(r) for r in rows]
         except Exception as e:
             logger.error(f"PostgreSQL get_all_gifts error: {e}")
 
-    try:
-        async with aiosqlite.connect(DB_PATH) as db:
-            db.row_factory = aiosqlite.Row
-            q = "SELECT * FROM gifts"
-            if active_only:
-                q += " WHERE active=1"
-            q += " ORDER BY id"
-            cur = await db.execute(q)
-            rows = await cur.fetchall()
-            if rows:
-                return [dict(r) for r in rows]
-    except Exception as e:
-        logger.error(f"SQLite get_all_gifts error: {e}")
+    if rows_data is None:
+        try:
+            async with aiosqlite.connect(DB_PATH) as db:
+                db.row_factory = aiosqlite.Row
+                q = "SELECT * FROM gifts ORDER BY id"
+                cur = await db.execute(q)
+                rows = await cur.fetchall()
+                if rows:
+                    rows_data = [dict(r) for r in rows]
+        except Exception as e:
+            logger.error(f"SQLite get_all_gifts error: {e}")
 
-    return [
-        {"id": i+1, "emoji": g[0], "display_name": g[1], "date_label": g[2], "gift_tg_id": g[3], "base_stars": g[4], "commission": g[5], "active": 1, "animation": g[6]}
-        for i, g in enumerate(GIFTS_SEED)
-    ]
+    if rows_data is None:
+        rows_data = [
+            {"id": i+1, "emoji": g[0], "display_name": g[1], "date_label": g[2], "gift_tg_id": g[3], "base_stars": g[4], "commission": g[5], "active": 1, "animation": g[6]}
+            for i, g in enumerate(GIFTS_SEED)
+        ]
+
+    _CACHE_GIFTS["data"] = rows_data
+    _CACHE_GIFTS["ts"] = now
+
+    if active_only:
+        return [g for g in rows_data if g.get("active") == 1 or g.get("active") is True]
+    return rows_data
 
 
 async def get_gift(gift_id: int):
@@ -659,29 +686,42 @@ def hash_userbot_id(raw_id) -> str:
     except (ValueError, TypeError):
         return str(raw_id)
 
+_CACHE_USERBOT_ACCS = {"data": None, "ts": 0}
+
+def invalidate_userbot_accs_cache():
+    _CACHE_USERBOT_ACCS["data"] = None
+
 async def async_get_userbot_accounts(active_only: bool = True, user_tg_id: int = None, is_admin: bool = False) -> list:
     """Async database fetch for userbot accounts from PostgreSQL or SQLite."""
+    now = time.time()
     accounts = []
-    if IS_POSTGRES and pool:
-        try:
-            async with pool.acquire() as conn:
-                res = await conn.fetch("SELECT * FROM userbot_accounts ORDER BY id ASC")
-                accounts = [dict(r) for r in res]
-        except Exception as e:
-            logger.error(f"PostgreSQL async_get_userbot_accounts error: {e}")
+    if _CACHE_USERBOT_ACCS["data"] is not None and (now - _CACHE_USERBOT_ACCS["ts"]) < 3.0:
+        accounts = [dict(a) for a in _CACHE_USERBOT_ACCS["data"]]
+    else:
+        if IS_POSTGRES and pool:
+            try:
+                async with pool.acquire() as conn:
+                    res = await conn.fetch("SELECT * FROM userbot_accounts ORDER BY id ASC")
+                    accounts = [dict(r) for r in res]
+            except Exception as e:
+                logger.error(f"PostgreSQL async_get_userbot_accounts error: {e}")
 
-    if not accounts:
-        try:
-            async with aiosqlite.connect(DB_PATH) as db:
-                db.row_factory = aiosqlite.Row
-                cur = await db.execute("SELECT * FROM userbot_accounts ORDER BY id ASC")
-                res = await cur.fetchall()
-                accounts = [dict(r) for r in res]
-        except Exception as e:
-            logger.error(f"SQLite async_get_userbot_accounts error: {e}")
+        if not accounts:
+            try:
+                async with aiosqlite.connect(DB_PATH) as db:
+                    db.row_factory = aiosqlite.Row
+                    cur = await db.execute("SELECT * FROM userbot_accounts ORDER BY id ASC")
+                    res = await cur.fetchall()
+                    accounts = [dict(r) for r in res]
+            except Exception as e:
+                logger.error(f"SQLite async_get_userbot_accounts error: {e}")
 
-    if not accounts:
-        accounts = db_get_userbot_accounts()
+        if not accounts:
+            accounts = db_get_userbot_accounts()
+
+        if accounts:
+            _CACHE_USERBOT_ACCS["data"] = [dict(a) for a in accounts]
+            _CACHE_USERBOT_ACCS["ts"] = now
 
     for acc in accounts:
         acc["active"] = bool(acc.get("active", 1))
@@ -863,11 +903,18 @@ async def update_userbot_account_db(account_id: int, **fields) -> bool:
 
 
 
+_CACHE_PRICING = {"data": None, "ts": 0}
+_CACHE_MANAGED_BOTS = {"data": None, "ts": 0}
+
 async def get_pricing_settings() -> dict:
     """Returns dynamic pricing settings for Bot, Userbot, and My Account senders."""
+    now = time.time()
+    if _CACHE_PRICING["data"] is not None and (now - _CACHE_PRICING["ts"]) < 5.0:
+        return dict(_CACHE_PRICING["data"])
+
     defaults = {"bot_stars": 3, "userbot_stars": 5, "myaccount_stars": 0}
     try:
-        if IS_POSTGRES:
+        if IS_POSTGRES and pool:
             async with pool.acquire() as conn:
                 rows = await conn.fetch("SELECT key, value FROM settings WHERE key LIKE '%_stars'")
                 for r in rows:
@@ -891,42 +938,75 @@ async def get_pricing_settings() -> dict:
                                 val = val - 50
                             defaults[r["key"]] = max(0.0, val)
                         except ValueError: pass
+        _CACHE_PRICING["data"] = dict(defaults)
+        _CACHE_PRICING["ts"] = now
     except Exception as e:
         logger.error(f"get_pricing_settings error: {e}")
     return defaults
 
 
-async def set_pricing_settings(prices: dict) -> bool:
-    """Updates dynamic pricing settings in database."""
+async def get_setting(key: str, default: str = "") -> str:
+    """Get setting value from database by key."""
     try:
-        if IS_POSTGRES:
+        if IS_POSTGRES and pool:
             async with pool.acquire() as conn:
-                for k, v in prices.items():
-                    await conn.execute("INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value=$2", str(k), str(v))
+                val = await conn.fetchval("SELECT value FROM settings WHERE key=$1", str(key))
+                return str(val) if val is not None else default
         else:
             async with aiosqlite.connect(DB_PATH) as db:
-                for k, v in prices.items():
-                    await db.execute("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=?", (str(k), str(v), str(v)))
+                async with db.execute("SELECT value FROM settings WHERE key=?", (str(key),)) as cursor:
+                    row = await cursor.fetchone()
+                    return str(row[0]) if row and row[0] is not None else default
+    except Exception as e:
+        logger.error(f"get_setting error for key '{key}': {e}")
+        return default
+
+
+async def set_setting(key: str, value: str) -> bool:
+    """Set setting key-value pair in database."""
+    try:
+        if IS_POSTGRES and pool:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value=$2",
+                    str(key), str(value)
+                )
+        else:
+            async with aiosqlite.connect(DB_PATH) as db:
+                await db.execute(
+                    "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=?",
+                    (str(key), str(value), str(value))
+                )
                 await db.commit()
         return True
     except Exception as e:
-        logger.error(f"set_pricing_settings error: {e}")
+        logger.error(f"set_setting error for key '{key}': {e}")
         return False
 
 
 # ── Managed Bots CRUD ───────────────────────────────────────────────
 
 async def get_all_managed_bots():
+    now = time.time()
+    if _CACHE_MANAGED_BOTS["data"] is not None and (now - _CACHE_MANAGED_BOTS["ts"]) < 5.0:
+        return [dict(b) for b in _CACHE_MANAGED_BOTS["data"]]
+
+    res = []
     if IS_POSTGRES and pool:
         async with pool.acquire() as conn:
             rows = await conn.fetch("SELECT * FROM managed_bots ORDER BY id ASC")
-            return [dict(r) for r in rows]
+            res = [dict(r) for r in rows]
     else:
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute("SELECT * FROM managed_bots ORDER BY id ASC") as cursor:
                 rows = await cursor.fetchall()
-                return [dict(r) for r in rows]
+                res = [dict(r) for r in rows]
+
+    if res:
+        _CACHE_MANAGED_BOTS["data"] = res
+        _CACHE_MANAGED_BOTS["ts"] = now
+    return res
 
 async def add_managed_bot(token: str, bot_username: str, bot_name: str, bot_id: int):
     if IS_POSTGRES and pool:
