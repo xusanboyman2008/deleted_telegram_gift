@@ -1942,6 +1942,8 @@ async def create_invoice(body: CreateInvoiceRequest, user: dict = Depends(get_us
             "message": msg
         }
 
+    total = int(round(total))
+
     try:
         desc = f"Rare deleted Telegram gift → {body.recipient_id}"
         if body.gift_text:
@@ -1952,7 +1954,7 @@ async def create_invoice(body: CreateInvoiceRequest, user: dict = Depends(get_us
             payload=f"order_{order_id}",
             provider_token="",
             currency="XTR",
-            prices=[LabeledPrice(label=name, amount=total)],
+            prices=[LabeledPrice(label=name, amount=int(total))],
         )
         return {"link": link, "order_id": order_id}
     except Exception as e:
