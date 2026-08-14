@@ -320,16 +320,29 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
         from hydrogram.raw.functions.payments import GetPaymentForm, SendStarsForm
 
         real_gift_map = {
-            1: 5922558454332916696,
-            2: 5956217000635139069,
-            3: 5801108895304779062,
-            4: 5800655655995968830,
-            5: 5866352046986232958,
-            6: 5893356958802511476,
-            7: 5935895822435615975,
-            8: 5969796561943660080,
-            9: 6026193266406327981,
-            10: 5974210632977745012
+            1: 6046178578163303744,   # Terrorist Bear
+            2: 5866352046986232958,   # Bunny Basket
+            3: 5893356958802511476,   # Balloon Bear
+            4: 5801108895304779062,   # Rose Bear
+            5: 5935895822435615975,   # Worker Bear
+            6: 6026193266406327981,   # Football Bear
+            7: 5922558454332916696,   # Santa Teddy
+            8: 5974210632977745012,   # Gnome Bear
+            9: 5800655655995968839,   # I Love U
+            10: 5956217000635139069,  # Christmas Tree
+            11: 5800655655995968830,  # Hug Bear
+            12: 6046178578163303744,  # Terrorist Bear
+            38: 5866352046986232958,  # Bunny Basket
+            39: 5893356958802511476,  # Balloon Bear
+            40: 5801108895304779062,  # Rose Bear
+            41: 5935895822435615975,  # Worker Bear
+            42: 6026193266406327981,  # Football Bear
+            43: 5922558454332916696,  # Santa Teddy
+            44: 5974210632977745012,  # Gnome Bear
+            45: 5800655655995968830,  # Hug Bear
+            46: 5956217000635139069,  # Christmas Tree
+            56: 5800655655995968830,  # Hug Bear
+            324: 5800655655995968839, # I Love U
         }
         gift_id_num = int(gift_tg_id) if (gift_tg_id and str(gift_tg_id).isdigit()) else 1
         gift_id_val = real_gift_map.get(gift_id_num, gift_id_num)
@@ -376,16 +389,21 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
                 if not await tele_client.is_user_authorized():
                     raise Exception("Telethon user session is not authorized.")
 
-                # Convert Hydrogram resolved peer to Telethon peer
-                peer_class = peer.__class__.__name__
-                if peer_class == "InputPeerUser":
-                    tele_peer = InputPeerUser(user_id=peer.user_id, access_hash=peer.access_hash)
-                elif peer_class == "InputPeerChannel":
-                    tele_peer = InputPeerChannel(channel_id=peer.channel_id, access_hash=peer.access_hash)
-                elif peer_class == "InputPeerChat":
-                    tele_peer = InputPeerChat(chat_id=peer.chat_id)
-                else:
+                # Robust peer resolution in Telethon
+                tele_peer = None
+                try:
                     tele_peer = await tele_client.get_input_entity(rec_target)
+                except Exception as ent_err:
+                    logger.info(f"tele_client.get_input_entity({rec_target}) error ({ent_err}), converting peer...")
+                    peer_class = peer.__class__.__name__ if peer else ""
+                    if peer_class == "InputPeerUser":
+                        tele_peer = InputPeerUser(user_id=peer.user_id, access_hash=peer.access_hash)
+                    elif peer_class == "InputPeerChannel":
+                        tele_peer = InputPeerChannel(channel_id=peer.channel_id, access_hash=peer.access_hash)
+                    elif peer_class == "InputPeerChat":
+                        tele_peer = InputPeerChat(chat_id=peer.chat_id)
+                    else:
+                        raise ent_err
 
                 # Format message for Telethon
                 tele_message = None
@@ -407,6 +425,14 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
                 # Finalize payment
                 await tele_client(SendStarsFormRequest(form_id=form_id, invoice=tele_invoice))
                 logger.info(f"Gift sent successfully via Telethon for account {account_id}")
+
+                # Refresh updated star balance
+                try:
+                    if client and client.is_connected:
+                        updated_stars = await get_userbot_stars_balance(client)
+                        await update_userbot_account(account.get("id"), stars_balance=updated_stars)
+                except Exception:
+                    pass
             finally:
                 await tele_client.disconnect()
 
@@ -415,7 +441,7 @@ async def attempt_send_gift_via_userbot(account_id: int, recipient_id: str, gift
             logger.error(f"Gift send via Telethon userbot invoke error traceback:\n{traceback.format_exc()}")
             raise invoke_err
 
-        return {"success": True, "message": f"🎁 Gift sent successfully via Userbot {ub_name}!"}
+        return {"success": True, "message": f"🎁 Gift sent successfully via {ub_name}!"}
 
     except Exception as e:
         err_msg = str(e)

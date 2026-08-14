@@ -1027,14 +1027,20 @@ createApp({
           }),
         });
         const data = await r.json();
-        if (!r.ok) throw new Error(data.detail || 'Failed');
+        if (!r.ok) {
+          paying.value = false;
+          errMsg.value = data.detail || 'Failed to process order';
+          showToast(`❌ ${data.detail || 'Failed'}`);
+          return;
+        }
 
-        if (data.free || data.direct_success || !data.link || totalStars.value <= 0) {
+        if (data.free || data.direct_success || !data.link) {
           paying.value = false;
           closeSheet();
           confetti();
           showToast(data.message || '🎁 Gift sent successfully!');
           loadHistory();
+          loadUserbotAccounts(true);
           return;
         }
 
@@ -1046,6 +1052,7 @@ createApp({
               confetti();
               showToast('✅ Gift purchased successfully!');
               loadHistory();
+              loadUserbotAccounts(true);
             } else if (status === 'cancelled') {
               errMsg.value = 'Payment cancelled';
             } else if (status === 'failed') {
@@ -1063,10 +1070,11 @@ createApp({
           confetti();
           showToast(data.message || '🎁 Gift sent successfully!');
           loadHistory();
+          loadUserbotAccounts(true);
         }
       } catch (e) {
         paying.value = false;
-        errMsg.value = t('somethingWentWrong');
+        errMsg.value = e.message || t('somethingWentWrong');
       }
     };
 
