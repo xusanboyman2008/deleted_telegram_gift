@@ -945,6 +945,21 @@ async def get_pricing_settings() -> dict:
     return defaults
 
 
+async def set_pricing_settings(data: dict) -> bool:
+    """Updates pricing settings in database and invalidates pricing cache."""
+    try:
+        for k, v in data.items():
+            if k in ("bot_stars", "userbot_stars", "myaccount_stars"):
+                await set_setting(k, str(v))
+        _CACHE_PRICING["data"] = None
+        _CACHE_PRICING["ts"] = 0
+        return True
+    except Exception as e:
+        logger.error(f"set_pricing_settings error: {e}")
+        return False
+
+
+
 async def get_setting(key: str, default: str = "") -> str:
     """Get setting value from database by key."""
     try:

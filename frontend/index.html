@@ -712,8 +712,9 @@
               </div>
             </div>
           </div>
+        </div> <!-- /botMenuTab==='managed' -->
 
-          <!-- Main Bot Control Panel -->
+        <!-- Main Bot Control Panel -->
           <div v-if="botMenuTab==='main'" style="display:flex; flex-direction:column; height:100%;">
             <div class="tg-chat-header" style="height: 60px; display:flex; align-items:center; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,0.06);">
               <div class="tg-ch-title" style="font-weight:600; color:#fff;">🤖 Main Bot Control</div>
@@ -859,7 +860,7 @@
 
 
     <!-- ── 1-TO-1 TELEGRAM CHAT TAB ────────────────── -->
-    <div v-if="canAccessChats && tab==='chat'" class="tg-app-container">
+    <div v-show="canAccessChats && tab==='chat'" class="tg-app-container">
 
       <!-- ① Account Switcher Header -->
       <div class="tg-account-header">
