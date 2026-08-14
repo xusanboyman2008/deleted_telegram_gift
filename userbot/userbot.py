@@ -973,20 +973,68 @@ async def confirm_userbot_phone_code(phone: str, code: str, password: str = None
                     pass
 
 
-def delete_userbot_account(account_id: int, owner_tg_id: int = None) -> bool:
-    """Deletes a userbot account from storage. If owner_tg_id is specified, verifies ownership."""
+def delete_userbot_account(account_id, owner_tg_id: int = None) -> bool:
+    """Deletes a userbot account from storage. Supports both raw integer ID and hashed string ID. If owner_tg_id is specified, verifies ownership."""
     data = load_userbot_file_data()
     accounts = data.get("accounts", [])
-    acc = next((a for a in accounts if a.get("id") == account_id), None)
+    
+    acc = None
+    str_id = str(account_id)
+    try:
+        from backend.db import hash_userbot_id
+    except ImportError:
+        try:
+            from db import hash_userbot_id
+        except ImportError:
+            hash_userbot_id = lambda x: str(x)
+
+    for a in accounts:
+        if str(a.get("id")) == str_id or hash_userbot_id(a.get("id")) == str_id or str(a.get("phone")) == str_id:
+            acc = a
+            break
+
+    if not acc:
+        try:
+            target_int = int(account_id)
+            acc = next((a for a in accounts if a.get("id") == target_int), None)
+        except (ValueError, TypeError):
+            pass
+
     if not acc:
         return False
 
     if owner_tg_id and acc.get("owner_tg_id") != owner_tg_id:
         return False
 
-    new_accs = [a for a in accounts if a.get("id") != account_id]
+    target_id = acc.get("id")
+
+    if target_id in _RUNNING_USERBOTS:
+        try:
+            client = _RUNNING_USERBOTS.pop(target_id, None)
+            if client:
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        loop.create_task(client.stop())
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning(f"Failed stopping client {target_id} on delete: {e}")
+
+    new_accs = [a for a in accounts if a.get("id") != target_id]
     data["accounts"] = new_accs
     save_userbot_file_data(data)
+
+    try:
+        from backend.db import invalidate_userbot_accs_cache
+        invalidate_userbot_accs_cache()
+    except Exception:
+        try:
+            from db import invalidate_userbot_accs_cache
+            invalidate_userbot_accs_cache()
+        except Exception:
+            pass
+
     return True
 
 

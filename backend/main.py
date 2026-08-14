@@ -1814,17 +1814,27 @@ async def user_confirm_phone_code(body: UserConfirmCodePayload, user: dict = Dep
 
 
 @app.delete("/api/user/userbot/account/{account_id}")
-async def user_delete_account(account_id: int, user: dict = Depends(get_optional_user)):
+async def user_delete_account(account_id: str, user: dict = Depends(get_optional_user)):
     try:
         from userbot.userbot import delete_userbot_account
     except ImportError:
         from userbot import delete_userbot_account
+    
+    ub_obj = await db.get_userbot_by_id_or_hash(account_id)
+    real_id = ub_obj["id"] if ub_obj else account_id
+
     user_id = user.get("id") if user else None
     allowed_ids = await db.get_allowed_admins()
     is_admin = (user_id == 6588631008 or user_id == ADMIN_ID or user_id in allowed_ids) if user_id else False
-    success = delete_userbot_account(account_id, owner_tg_id=None if is_admin else user_id)
+
+    success = delete_userbot_account(real_id, owner_tg_id=None if is_admin else user_id)
+    if not success and isinstance(real_id, str):
+        success = delete_userbot_account(account_id, owner_tg_id=None if is_admin else user_id)
+
     if not success:
         raise HTTPException(status_code=400, detail="Account not found or access denied")
+    
+    db.invalidate_userbot_accs_cache()
     return {"ok": True}
 
 
@@ -2272,18 +2282,24 @@ class UserbotUpdate(BaseModel):
 
 
 @app.patch("/api/admin/userbots/{account_id}")
-async def admin_update_userbot(account_id: int, body: UserbotUpdate, background_tasks: BackgroundTasks, admin=Depends(get_admin)):
+async def admin_update_userbot(account_id: str, body: UserbotUpdate, background_tasks: BackgroundTasks, admin=Depends(get_admin)):
     try:
         from userbot.userbot import update_userbot_account, get_userbot_by_id, sync_userbot_telegram_profile
     except ImportError:
         from userbot import update_userbot_account, get_userbot_by_id, sync_userbot_telegram_profile
+
+    ub_obj = await db.get_userbot_by_id_or_hash(account_id)
+    if not ub_obj:
+        raise HTTPException(status_code=404, detail="Userbot account not found")
+    real_id = ub_obj["id"]
+
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
-    success = await update_userbot_account(account_id, **fields)
+    success = await update_userbot_account(real_id, **fields)
     if not success:
         raise HTTPException(status_code=404, detail="Userbot account not found")
     if "active" in fields:
-        await db.set_userbot_active_status(account_id, bool(fields["active"]))
-    acc = get_userbot_by_id(account_id)
+        await db.set_userbot_active_status(real_id, bool(fields["active"]))
+    acc = get_userbot_by_id(real_id)
     if acc and acc.get("session_string"):
         background_tasks.add_task(sync_userbot_telegram_profile, acc)
     return {"ok": True}
@@ -2291,27 +2307,32 @@ async def admin_update_userbot(account_id: int, body: UserbotUpdate, background_
 
 @app.post("/api/admin/userbots/{account_id}/toggle-active")
 @app.patch("/api/admin/userbots/{account_id}/toggle-active")
-async def admin_toggle_userbot_active(account_id: int, admin=Depends(get_admin)):
+async def admin_toggle_userbot_active(account_id: str, admin=Depends(get_admin)):
     try:
         from userbot.userbot import get_userbot_by_id, update_userbot_account
     except ImportError:
         from userbot import get_userbot_by_id, update_userbot_account
 
-    acc = get_userbot_by_id(account_id)
+    ub_obj = await db.get_userbot_by_id_or_hash(account_id)
+    if not ub_obj:
+        raise HTTPException(status_code=404, detail="Userbot account not found")
+    real_id = ub_obj["id"]
+
+    acc = get_userbot_by_id(real_id)
     if not acc:
         raise HTTPException(status_code=404, detail="Userbot account not found")
 
     current_active = bool(acc.get("active", True))
     new_active = not current_active
-    success = await update_userbot_account(account_id, active=new_active)
-    await db.set_userbot_active_status(account_id, new_active)
+    success = await update_userbot_account(real_id, active=new_active)
+    await db.set_userbot_active_status(real_id, new_active)
 
     status_str = "re-enabled (undone)" if new_active else "disabled"
     return {
         "ok": True,
-        "account_id": account_id,
+        "account_id": real_id,
         "active": new_active,
-        "message": f"Userbot #{account_id} has been {status_str} by admin."
+        "message": f"Userbot #{real_id} has been {status_str} by admin."
     }
 
 
