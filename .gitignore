@@ -18,3 +18,4 @@ userbot/*.json
 *.session-shm
 *.session-wal
 userbot/pending_sessions/
+scratch/
